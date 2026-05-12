@@ -6,6 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Bell, Search, Command } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -55,6 +56,7 @@ export default function MainLayout({
           </div>
 
           <div className="flex items-center gap-4">
+            <ThemeToggle />
             {/* Search */}
             <div className="relative group hidden sm:block">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

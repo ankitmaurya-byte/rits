@@ -5,15 +5,44 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ─── Resend Design Tokens ─────────────────────────────────────────── */
-:root {
+:root, [data-theme='light'] {
   /* Colors - Base */
+  --canvas: #ffffff;
+  --surface-card: #f9fafa;
+  --surface-elevated: #f4f5f6;
+  --surface-deep: #e8e9eb;
+  --surface-light: #f1f7fe;
+  
+  /* Colors - Text */
+  --primary: #000000;
+  --primary-on: #ffffff;
+  --ink: #000000;
+  --body: rgba(0, 0, 0, 0.86);
+  --charcoal: rgba(0, 0, 0, 0.7);
+  --mute: #666666;
+  --ash: #888e90;
+  --stone: #a0a0a0;
+  
+  /* Colors - Lines */
+  --hairline: rgba(0, 0, 0, 0.06);
+  --hairline-strong: rgba(0, 0, 0, 0.14);
+  --divider-soft: rgba(0, 0, 0, 0.04);
+  
+  /* Accents */
+  --accent-orange: #ff801f;
+  --accent-yellow: #ffc53d;
+  --accent-blue: #3b9eff;
+  --accent-green: #11ff99;
+  --accent-red: #ff2047;
+}
+
+[data-theme='dark'] {
   --canvas: #000000;
   --surface-card: #0a0a0c;
   --surface-elevated: #101012;
   --surface-deep: #06060a;
   --surface-light: #f1f7fe;
   
-  /* Colors - Text */
   --primary: #fcfdff;
   --primary-on: #000000;
   --ink: #fcfdff;
@@ -23,18 +52,65 @@
   --ash: #888e90;
   --stone: #464a4d;
   
-  /* Colors - Lines */
   --hairline: rgba(255, 255, 255, 0.06);
   --hairline-strong: rgba(255, 255, 255, 0.14);
   --divider-soft: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='solarized-light'] {
+  --canvas: #fdf6e3;
+  --surface-card: #eee8d5;
+  --surface-elevated: #e0d7c3;
+  --surface-deep: #d2c8b1;
+  --surface-light: #fffcf5;
   
-  /* Accents */
-  --accent-orange: #ff801f;
-  --accent-yellow: #ffc53d;
-  --accent-blue: #3b9eff;
-  --accent-green: #11ff99;
-  --accent-red: #ff2047;
+  --primary: #586e75;
+  --primary-on: #fdf6e3;
+  --ink: #073642;
+  --body: #586e75;
+  --charcoal: #657b83;
+  --mute: #839496;
+  --ash: #93a1a1;
+  --stone: #93a1a1;
   
+  --hairline: rgba(88, 110, 117, 0.1);
+  --hairline-strong: rgba(88, 110, 117, 0.2);
+  --divider-soft: rgba(88, 110, 117, 0.05);
+
+  --accent-orange: #cb4b16;
+  --accent-yellow: #b58900;
+  --accent-blue: #268bd2;
+  --accent-green: #859900;
+  --accent-red: #dc322f;
+}
+
+[data-theme='solarized-dark'] {
+  --canvas: #002b36;
+  --surface-card: #073642;
+  --surface-elevated: #114552;
+  --surface-deep: #001f27;
+  --surface-light: #073642;
+  
+  --primary: #93a1a1;
+  --primary-on: #002b36;
+  --ink: #fdf6e3;
+  --body: #93a1a1;
+  --charcoal: #839496;
+  --mute: #657b83;
+  --ash: #586e75;
+  --stone: #586e75;
+  
+  --hairline: rgba(147, 161, 161, 0.1);
+  --hairline-strong: rgba(147, 161, 161, 0.2);
+  --divider-soft: rgba(147, 161, 161, 0.05);
+
+  --accent-orange: #cb4b16;
+  --accent-yellow: #b58900;
+  --accent-blue: #268bd2;
+  --accent-green: #859900;
+  --accent-red: #dc322f;
+}
+:root {
   /* Radius */
   --radius-xs: 4px;
   --radius-sm: 6px;

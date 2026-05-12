@@ -6,6 +6,7 @@ import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { CheckCircle2 } from "lucide-react";
 import { useEffect } from "react";
 import Image from "next/image";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const features = [
   "Capture and organize startup ideas",
@@ -81,6 +82,7 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-4">
+          <ThemeToggle />
           <SignInButton mode="modal">
             <button className="text-sm font-medium transition-colors hover:underline" style={{ color: "var(--body)" }}>
               Sign in

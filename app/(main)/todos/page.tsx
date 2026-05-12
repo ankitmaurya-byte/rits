@@ -4,171 +4,249 @@ import { useState } from "react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, CheckSquare, Trash2, Circle, CheckCircle2 } from "lucide-react";
+import { Plus, CheckSquare, Trash2, Circle, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
-const PRIORITIES = ["low", "medium", "high"] as const;
+const PRIORITIES = ["high", "medium", "low"] as const;
+type Priority = (typeof PRIORITIES)[number];
+
+const priorityStyles: Record<Priority, { badge: string; dot: string; bg: string; color: string; border: string }> = {
+  high:   { badge: "badge-red",   dot: "#ef4444", bg: "#fee2e2", color: "#b91c1c", border: "#fca5a5" },
+  medium: { badge: "badge-amber", dot: "#f59e0b", bg: "#fef3c7", color: "#b45309", border: "#fcd34d" },
+  low:    { badge: "badge-blue",  dot: "#3b82f6", bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
+};
 
 export default function TodosPage() {
   const { workspaceId, isLoading } = useWorkspace();
 
-  const todos = useQuery(
-    api.todos.getTodos,
-    workspaceId ? { workspaceId } : "skip"
-  );
-
+  const todos      = useQuery(api.todos.getTodos, workspaceId ? { workspaceId } : "skip");
   const createTodo = useMutation(api.todos.createTodo);
   const toggleTodo = useMutation(api.todos.toggleTodo);
   const deleteTodo = useMutation(api.todos.deleteTodo);
 
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [showForm, setShowForm] = useState(false);
+  const [title, setTitle]       = useState("");
+  const [priority, setPriority] = useState<Priority>("medium");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleCreate = async () => {
     if (!workspaceId) return;
-    if (!title.trim()) {
-      toast.error("Title is required");
-      return;
+    if (!title.trim()) { toast.error("Task title is required"); return; }
+    
+    setSubmitting(true);
+    try {
+      await createTodo({ workspaceId, title: title.trim(), priority });
+      toast.success("Task added.");
+      setTitle(""); setPriority("medium"); setShowForm(false);
+    } catch (e) {
+      toast.error("Failed to add task.");
+    } finally {
+      setSubmitting(false);
     }
-    await createTodo({ workspaceId, title: title.trim(), priority });
-    toast.success("Todo added!");
-    setTitle("");
-    setPriority("medium");
-    setOpen(false);
-  };
-
-  const priorityColor = (p: string) => {
-    if (p === "high") return "text-red-500 bg-red-50 dark:bg-red-950";
-    if (p === "medium") return "text-amber-500 bg-amber-50 dark:bg-amber-950";
-    return "text-zinc-500 bg-zinc-100 dark:bg-zinc-800";
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-zinc-500 text-sm animate-pulse">Loading...</div>
+      <div className="page-container animate-fade-in-up">
+        <div className="skeleton h-10 w-48 mb-8" />
+        <div className="space-y-4">
+           {[...Array(5)].map((_, i) => (
+            <div key={i} className="skeleton h-16 w-full rounded-lg" />
+          ))}
+        </div>
       </div>
     );
   }
 
-  const pending = todos?.filter((t) => !t.completed) ?? [];
-  const completed = todos?.filter((t) => t.completed) ?? [];
+  const pending   = todos?.filter((t) => !t.completed) ?? [];
+  const completed = todos?.filter((t) =>  t.completed) ?? [];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="page-container animate-fade-in-up">
+      {/* Header */}
+      <div className="page-header border-b border-[#e2e8f0] pb-6 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">Todos</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            {pending.length} pending · {completed.length} done
+          <h2 className="text-3xl font-bold text-[#0f172a] tracking-tight mb-2">
+            Task Management
+          </h2>
+          <p className="text-sm font-medium text-[#64748b]">
+            {pending.length} active tasks · {completed.length} completed
           </p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="flex items-center gap-2">
-              <Plus className="w-4 h-4" /> New Todo
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Todo</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-2">
-              <Input
-                placeholder="What needs to be done?"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-              />
-              <div className="flex gap-2">
-                {PRIORITIES.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPriority(p)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-medium capitalize border transition-all ${
-                      priority === p
-                        ? "border-zinc-900 dark:border-zinc-100 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                        : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-              <Button onClick={handleCreate} className="w-full">
-                Add Todo
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="btn-primary"
+        >
+          <Plus size={16} /> New Task
+        </button>
       </div>
 
-      {todos?.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <CheckSquare className="w-12 h-12 text-zinc-300 mb-4" />
-          <p className="text-zinc-500 font-medium">No todos yet</p>
-          <p className="text-zinc-400 text-sm">Click "New Todo" to get started</p>
-        </div>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Main List Area */}
+        <div className="lg:col-span-8">
+           
+          {/* Creation Form */}
+          {showForm && (
+            <div className="stripe-card p-6 mb-8 bg-white border-[#cbd5e1] shadow-md animate-fade-in-up">
+              <h3 className="text-base font-semibold text-[#0f172a] mb-4">Add new task</h3>
+              
+              <div className="space-y-4">
+                <input
+                  autoFocus
+                  placeholder="What needs to be done?"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                  className="input-field text-base py-3"
+                />
+                
+                <div>
+                  <label className="block text-sm font-medium text-[#475569] mb-2">Priority Level</label>
+                  <div className="flex gap-3">
+                    {PRIORITIES.map((p) => {
+                      const isActive = priority === p;
+                      const style = priorityStyles[p];
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPriority(p)}
+                          className={`flex-1 py-2 px-3 rounded-md text-sm font-medium capitalize transition-all border flex items-center justify-center gap-2
+                            ${isActive ? 'ring-2 ring-offset-1' : 'hover:bg-[#f8fafc]'}`}
+                          style={{
+                            backgroundColor: isActive ? style.bg : "white",
+                            borderColor: isActive ? style.border : "var(--border)",
+                            color: isActive ? style.color : "var(--text-secondary)",
+                            "--tw-ring-color": isActive ? style.color : "transparent",
+                          } as React.CSSProperties}
+                        >
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: style.dot }} />
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-      <div className="space-y-2">
-        {pending.map((todo) => (
-          <div
-            key={todo._id}
-            className="flex items-center gap-3 p-3 rounded-xl border bg-white dark:bg-zinc-900 hover:shadow-sm transition-shadow group"
-          >
-            <button
-              onClick={() => toggleTodo({ id: todo._id })}
-              className="text-zinc-300 hover:text-green-500 transition-colors flex-shrink-0"
-            >
-              <Circle className="w-5 h-5" />
-            </button>
-            <span className="flex-1 text-sm text-zinc-800 dark:text-zinc-200">{todo.title}</span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${priorityColor(todo.priority)}`}
-            >
-              {todo.priority}
-            </span>
-            <button
-              onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
-              className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
-
-        {completed.length > 0 && (
-          <>
-            <p className="text-xs text-zinc-400 pt-4 pb-1 font-medium uppercase tracking-wide">
-              Completed ({completed.length})
-            </p>
-            {completed.map((todo) => (
-              <div
-                key={todo._id}
-                className="flex items-center gap-3 p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-900/50 opacity-70 group"
-              >
-                <button
-                  onClick={() => toggleTodo({ id: todo._id })}
-                  className="text-green-500 flex-shrink-0"
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                </button>
-                <span className="flex-1 text-sm text-zinc-500 line-through">{todo.title}</span>
-                <button
-                  onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 hover:text-red-500"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex gap-3 pt-4 border-t border-[#f1f5f9] justify-end">
+                  <button onClick={() => setShowForm(false)} className="btn-secondary">
+                    Cancel
+                  </button>
+                  <button onClick={handleCreate} disabled={submitting} className="btn-primary">
+                    {submitting ? "Adding..." : "Add Task"}
+                  </button>
+                </div>
               </div>
-            ))}
-          </>
-        )}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {todos?.length === 0 && !showForm && (
+            <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-[#e2e8f0] rounded-xl bg-[#f8fafc]">
+              <div className="w-16 h-16 rounded-full bg-[#dbeafe] flex items-center justify-center mb-6 shadow-sm">
+                <CheckSquare size={28} className="text-[#2563eb]" />
+              </div>
+              <h3 className="text-xl font-semibold text-[#0f172a] mb-2">You're all caught up!</h3>
+              <p className="text-[#64748b] mb-8 max-w-sm">
+                There are no tasks on your plate. Enjoy your free time or add a new task to get started.
+              </p>
+              <button onClick={() => setShowForm(true)} className="btn-primary">
+                <Plus size={16} /> Create Task
+              </button>
+            </div>
+          )}
+
+          {/* Pending Tasks */}
+          {pending.length > 0 && (
+            <div className="mb-10">
+              <div className="stripe-card divide-y divide-[#f1f5f9] overflow-hidden">
+                {pending.map((todo) => (
+                  <div
+                    key={todo._id}
+                    className="flex items-center gap-4 px-6 py-4 group hover:bg-[#f8fafc] transition-colors"
+                  >
+                    <button
+                      onClick={() => toggleTodo({ id: todo._id })}
+                      className="text-[#cbd5e1] hover:text-[#10b981] transition-colors flex-shrink-0 focus:outline-none"
+                    >
+                      <Circle size={22} strokeWidth={2} />
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[15px] font-medium text-[#0f172a] block truncate">
+                        {todo.title}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <span className={`badge ${priorityStyles[todo.priority as Priority]?.badge ?? "badge-blue"}`}>
+                        {todo.priority}
+                      </span>
+                      
+                      <button
+                        onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
+                        className="text-[#cbd5e1] hover:text-[#ef4444] transition-colors opacity-0 group-hover:opacity-100 p-1"
+                        aria-label="Delete task"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Completed Tasks */}
+          {completed.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-[#64748b] mb-4 flex items-center gap-2">
+                <CheckCircle2 size={16} /> Completed
+              </h4>
+              <div className="stripe-card divide-y divide-[#f1f5f9] overflow-hidden bg-[#f8fafc]">
+                {completed.map((todo) => (
+                  <div
+                    key={todo._id}
+                    className="flex items-center gap-4 px-6 py-3 group hover:bg-[#f1f5f9] transition-colors"
+                  >
+                    <button
+                      onClick={() => toggleTodo({ id: todo._id })}
+                      className="text-[#10b981] transition-colors flex-shrink-0 focus:outline-none"
+                    >
+                      <CheckCircle2 size={20} strokeWidth={2} />
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[15px] text-[#94a3b8] line-through block truncate">
+                        {todo.title}
+                      </span>
+                    </div>
+                    
+                    <button
+                      onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
+                      className="text-[#cbd5e1] hover:text-[#ef4444] transition-colors opacity-0 group-hover:opacity-100 p-1"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar Info Area */}
+        <div className="lg:col-span-4 space-y-6">
+           <div className="stripe-card p-6 bg-[#f8fafc] border-transparent shadow-none">
+             <div className="flex items-start gap-3 mb-3">
+                <AlertCircle size={20} className="text-[#3b82f6] mt-0.5" />
+                <h4 className="text-sm font-semibold text-[#0f172a]">Task Management</h4>
+             </div>
+             <p className="text-sm text-[#475569] leading-relaxed pl-8">
+               Prioritize your work effectively. High priority tasks are highlighted in red.
+               Checking off a task moves it to the completed section at the bottom.
+             </p>
+           </div>
+        </div>
       </div>
     </div>
   );

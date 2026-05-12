@@ -1,22 +1,12 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Toaster } from "sonner";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
   title: "Rits — Startup OS",
-  description: "The all-in-one workspace for your startup. Manage ideas, todos, and notes.",
+  description:
+    "The all-in-one workspace for your startup. Manage ideas, todos, and notes.",
 };
 
 export default function RootLayout({
@@ -25,14 +15,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">
+    <html lang="en" className="h-full">
+      <body className="h-full antialiased">
         <Providers>
           {children}
-          <Toaster richColors position="top-right" />
+          <Toaster
+            richColors
+            position="top-right"
+            toastOptions={{
+              style: {
+                fontFamily: "Inter, system-ui, sans-serif",
+                fontSize: "13px",
+                borderRadius: "10px",
+                border: "1px solid #e3e8ef",
+                boxShadow:
+                  "0 8px 32px rgba(10 37 64 / 0.12), 0 2px 8px rgba(10 37 64 / 0.06)",
+              },
+            }}
+          />
         </Providers>
       </body>
     </html>

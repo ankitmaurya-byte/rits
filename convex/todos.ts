@@ -40,6 +40,18 @@ export const toggleTodo = mutation({
   },
 });
 
+export const updateTodo = mutation({
+  args: {
+    id: v.id("todos"),
+    title: v.optional(v.string()),
+    priority: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...fields } = args;
+    return await ctx.db.patch(id, fields);
+  },
+});
+
 export const deleteTodo = mutation({
   args: { id: v.id("todos") },
   handler: async (ctx, args) => {

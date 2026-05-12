@@ -32,6 +32,19 @@ export const getIdeas = query({
   },
 });
 
+export const updateIdea = mutation({
+  args: {
+    id: v.id("ideas"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const { id, ...fields } = args;
+    return await ctx.db.patch(id, fields);
+  },
+});
+
 export const deleteIdea = mutation({
   args: { id: v.id("ideas") },
   handler: async (ctx, args) => {

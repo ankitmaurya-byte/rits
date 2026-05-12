@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Plus, CheckSquare, Trash2, Circle, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plus, CheckSquare, Trash2, Circle, CheckCircle2, AlertCircle, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 const PRIORITIES = ["high", "medium", "low"] as const;
@@ -21,6 +21,7 @@ export default function TodosPage() {
 
   const todos      = useQuery(api.todos.getTodos, workspaceId ? { workspaceId } : "skip");
   const createTodo = useMutation(api.todos.createTodo);
+  const updateTodo = useMutation(api.todos.updateTodo);
   const toggleTodo = useMutation(api.todos.toggleTodo);
   const deleteTodo = useMutation(api.todos.deleteTodo);
 
@@ -28,6 +29,20 @@ export default function TodosPage() {
   const [title, setTitle]       = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [submitting, setSubmitting] = useState(false);
+
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+
+  const handleUpdateTodo = async (id: string) => {
+    if (!editTitle.trim()) { toast.error("Task title is required"); return; }
+    try {
+      await updateTodo({ id: id as any, title: editTitle.trim() });
+      toast.success("Task updated.");
+      setEditingTodoId(null);
+    } catch (e) {
+      toast.error("Failed to update task.");
+    }
+  };
 
   const handleCreate = async () => {
     if (!workspaceId) return;
@@ -183,9 +198,24 @@ export default function TodosPage() {
                     </button>
                     
                     <div className="flex-1 min-w-0">
-                      <span className="text-[15px] font-medium block truncate" style={{ color: "var(--ink)" }}>
-                        {todo.title}
-                      </span>
+                      {editingTodoId === todo._id ? (
+                        <input
+                          autoFocus
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleUpdateTodo(todo._id);
+                            if (e.key === "Escape") setEditingTodoId(null);
+                          }}
+                          onBlur={() => handleUpdateTodo(todo._id)}
+                          className="w-full bg-transparent border-b focus:outline-none text-[15px] font-medium"
+                          style={{ color: "var(--ink)", borderColor: "var(--hairline-strong)" }}
+                        />
+                      ) : (
+                        <span className="text-[15px] font-medium block truncate" style={{ color: "var(--ink)" }}>
+                          {todo.title}
+                        </span>
+                      )}
                     </div>
                     
                     <div className="flex items-center gap-4 flex-shrink-0">
@@ -193,16 +223,31 @@ export default function TodosPage() {
                         {todo.priority}
                       </span>
                       
-                      <button
-                        onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
-                        style={{ color: "var(--stone)" }}
-                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
-                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
-                        aria-label="Delete task"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => {
+                            setEditingTodoId(todo._id);
+                            setEditTitle(todo.title);
+                          }}
+                          className="p-1 rounded transition-colors"
+                          style={{ color: "var(--stone)" }}
+                          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--ink)")}
+                          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
+                          aria-label="Edit task"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
+                          className="p-1 rounded transition-colors"
+                          style={{ color: "var(--stone)" }}
+                          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
+                          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
+                          aria-label="Delete task"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useQuery as useConvexUserQuery } from "convex/react";
-import { Plus, Lightbulb, Trash2, Tag, ArrowRight } from "lucide-react";
+import { Plus, Lightbulb, Trash2, Tag, ArrowRight, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 export default function IdeasPage() {
@@ -24,13 +24,24 @@ export default function IdeasPage() {
   );
 
   const createIdea = useMutation(api.ideas.createIdea);
+  const updateIdea = useMutation(api.ideas.updateIdea);
   const deleteIdea = useMutation(api.ideas.deleteIdea);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingIdeaId, setEditingIdeaId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const handleEditClick = (idea: any) => {
+    setEditingIdeaId(idea._id);
+    setTitle(idea.title);
+    setDescription(idea.description || "");
+    setTagsInput(idea.tags.join(", "));
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleCreate = async () => {
     if (!workspaceId || !convexUser) return;
@@ -38,15 +49,27 @@ export default function IdeasPage() {
     setSubmitting(true);
     try {
       const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
-      await createIdea({
-        workspaceId,
-        title: title.trim(),
-        description: description.trim(),
-        tags,
-        createdBy: convexUser._id,
-      });
-      toast.success("Idea captured successfully.");
-      setTitle(""); setDescription(""); setTagsInput(""); setShowForm(false);
+      
+      if (editingIdeaId) {
+        await updateIdea({
+          id: editingIdeaId as any,
+          title: title.trim(),
+          description: description.trim(),
+          tags,
+        });
+        toast.success("Idea updated successfully.");
+      } else {
+        await createIdea({
+          workspaceId,
+          title: title.trim(),
+          description: description.trim(),
+          tags,
+          createdBy: convexUser._id,
+        });
+        toast.success("Idea captured successfully.");
+      }
+      
+      setTitle(""); setDescription(""); setTagsInput(""); setShowForm(false); setEditingIdeaId(null);
     } catch (e) {
       toast.error("Failed to save idea.");
     } finally {
@@ -90,7 +113,17 @@ export default function IdeasPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) {
+              setShowForm(false);
+              setEditingIdeaId(null);
+              setTitle(""); setDescription(""); setTagsInput("");
+            } else {
+              setShowForm(true);
+              setEditingIdeaId(null);
+              setTitle(""); setDescription(""); setTagsInput("");
+            }
+          }}
           className="btn-primary"
         >
           <Plus size={16} />
@@ -102,7 +135,7 @@ export default function IdeasPage() {
       {showForm && (
         <div className="feature-card mb-12 animate-fade-in-up relative z-10">
           <div className="max-w-3xl mx-auto">
-            <h3 className="text-lg font-medium mb-8" style={{ color: "var(--ink)" }}>Capture a new idea</h3>
+            <h3 className="text-lg font-medium mb-8" style={{ color: "var(--ink)" }}>{editingIdeaId ? "Edit idea" : "Capture a new idea"}</h3>
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Title</label>
@@ -142,10 +175,10 @@ export default function IdeasPage() {
                   disabled={submitting}
                   className="btn-primary"
                 >
-                  {submitting ? "Saving..." : "Save Idea"}
+                  {submitting ? "Saving..." : (editingIdeaId ? "Update Idea" : "Save Idea")}
                 </button>
                 <button
-                  onClick={() => setShowForm(false)}
+                  onClick={() => { setShowForm(false); setEditingIdeaId(null); setTitle(""); setDescription(""); setTagsInput(""); }}
                   className="btn-outline"
                 >
                   Cancel
@@ -189,20 +222,32 @@ export default function IdeasPage() {
                 <h3 className="text-lg font-medium leading-tight" style={{ color: "var(--ink)" }}>
                   {idea.title}
                 </h3>
-                <button
-                  onClick={() => {
-                    if (confirm("Delete this idea?")) {
-                      deleteIdea({ id: idea._id }).then(() => toast.success("Deleted"));
-                    }
-                  }}
-                  className="p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-                  style={{ color: "var(--stone)" }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
-                  aria-label="Delete idea"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                  <button
+                    onClick={() => handleEditClick(idea)}
+                    className="p-1 rounded-md transition-colors"
+                    style={{ color: "var(--stone)" }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--ink)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
+                    aria-label="Edit idea"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm("Delete this idea?")) {
+                        deleteIdea({ id: idea._id }).then(() => toast.success("Deleted"));
+                      }
+                    }}
+                    className="p-1 rounded-md transition-colors"
+                    style={{ color: "var(--stone)" }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
+                    aria-label="Delete idea"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
 
               {idea.description ? (

@@ -11,6 +11,9 @@
   "dependencies": {
     "@clerk/nextjs": "^7.3.3",
     "@convex-dev/react-query": "^0.1.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@tiptap/extension-placeholder": "^3.23.1",
     "@tiptap/react": "^3.23.1",

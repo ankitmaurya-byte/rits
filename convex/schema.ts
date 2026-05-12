@@ -27,6 +27,7 @@ export default defineSchema({
     workspaceId: v.id("workspaces"),
     title: v.string(),
     completed: v.boolean(),
+    status: v.optional(v.string()),
     assignedTo: v.optional(v.id("users")),
     priority: v.string(),
     createdAt: v.number(),

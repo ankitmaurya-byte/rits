@@ -58,7 +58,7 @@ export function Sidebar() {
           alt="Rits Name"
           width={60}
           height={24}
-          className="object-contain "
+          className="object-contain show-in-light"
           priority
         />
       </div>

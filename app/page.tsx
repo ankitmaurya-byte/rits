@@ -3,8 +3,9 @@
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
-import { Zap, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useEffect } from "react";
+import Image from "next/image";
 
 const features = [
   "Capture and organize startup ideas",
@@ -59,8 +60,15 @@ export default function Home() {
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-8 h-[64px]" style={{ borderBottom: "1px solid var(--hairline)" }}>
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white">
-            <Zap size={14} className="text-black" strokeWidth={2.5} />
+          <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white overflow-hidden">
+            <Image 
+              src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png" 
+              alt="Rits Logo" 
+              width={32} 
+              height={32} 
+              className="object-contain scale-[1.7]"
+              priority
+            />
           </div>
           <div className="flex flex-col">
             <span className="font-medium text-sm tracking-tight leading-none" style={{ color: "var(--ink)" }}>
@@ -88,10 +96,16 @@ export default function Home() {
 
       {/* Hero */}
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center py-[128px] animate-fade-in-up">
-        {/* Badge */}
-        <div className="badge-pill mb-10 flex items-center gap-2" style={{ backgroundColor: "var(--surface-elevated)", border: "1px solid var(--hairline-strong)" }}>
-          <span className="status-dot status-green" />
-          System Operational
+        {/* Logo */}
+        <div className="mb-10 flex items-center justify-center">
+          <Image 
+            src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_white.png" 
+            alt="Rits Icon" 
+            width={80} 
+            height={80} 
+            className="object-contain drop-shadow-xl"
+            priority
+          />
         </div>
 
         {/* Hero Text */}
@@ -104,7 +118,7 @@ export default function Home() {
             fontFamily: "'Geist Mono', monospace, sans-serif" // Resend uses Domaine Display, we approximate with a sharp font or standard sans
           }}
         >
-          The OS for founders
+          Research in tech startup
         </h1>
 
         <p

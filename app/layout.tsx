@@ -4,9 +4,12 @@ import { Providers } from "./providers";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "Rits — Startup OS",
+  title: "Rits — Research in tech startup",
   description:
     "The all-in-one workspace for your startup. Manage ideas, todos, and notes.",
+  icons: {
+    icon: "/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png",
+  },
 };
 
 export default function RootLayout({

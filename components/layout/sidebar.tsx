@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Lightbulb,
   CheckSquare,
   FileText,
-  Zap,
   Rocket,
 } from "lucide-react";
 
@@ -35,12 +35,24 @@ export function Sidebar() {
     >
       {/* Brand Header */}
       <div className="flex items-center gap-3 px-6 h-[64px] border-b" style={{ borderColor: "var(--hairline)" }}>
-        <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white">
-          <Zap size={14} className="text-black" strokeWidth={2.5} />
+        <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white overflow-hidden shrink-0">
+          <Image 
+            src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png" 
+            alt="Rits Icon" 
+            width={32} 
+            height={32} 
+            className="object-contain scale-[1.7]"
+            priority
+          />
         </div>
-        <span className="font-medium text-sm text-white tracking-tight">
-          Rits
-        </span>
+        <Image 
+          src="/rits_brand_logo_assets/rits_name_only_complete_transpaent_background_withou_dot_com_text_white.png" 
+          alt="Rits Name" 
+          width={60} 
+          height={24} 
+          className="object-contain"
+          priority
+        />
       </div>
 
       {/* Navigation section */}
@@ -75,13 +87,6 @@ export function Sidebar() {
         </nav>
       </div>
 
-      {/* Footer Area */}
-      <div className="p-4 border-t" style={{ borderColor: "var(--hairline)" }}>
-        <div className="flex items-center gap-3 px-3 py-2 rounded-md border" style={{ backgroundColor: "var(--surface-deep)", borderColor: "var(--hairline-strong)" }}>
-           <div className="status-dot status-green" />
-           <span className="text-xs font-medium" style={{ color: "var(--body)" }}>System Operational</span>
-        </div>
-      </div>
     </aside>
   );
 }

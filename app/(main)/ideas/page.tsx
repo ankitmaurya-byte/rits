@@ -68,14 +68,24 @@ export default function IdeasPage() {
   }
 
   return (
-    <div className="page-container animate-fade-in-up">
+    <div className="page-container animate-fade-in-up relative">
+      
+      {/* Top Atmospheric Glow */}
+      <div 
+        className="absolute top-0 right-1/4 w-[600px] h-[400px] pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse at top, var(--accent-yellow) 0%, transparent 70%)",
+          opacity: 0.15
+        }}
+      />
+
       {/* Header */}
-      <div className="page-header border-b border-[#e2e8f0] pb-6 mb-8">
+      <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
         <div>
-          <h2 className="text-3xl font-bold text-[#0f172a] tracking-tight mb-2">
+          <h2 className="text-3xl font-medium tracking-tight mb-2" style={{ color: "var(--ink)" }}>
             Ideas Hub
           </h2>
-          <p className="text-sm font-medium text-[#64748b]">
+          <p className="text-sm font-medium" style={{ color: "var(--charcoal)" }}>
             {ideas?.length ?? 0} {ideas?.length === 1 ? 'Idea' : 'Ideas'} captured
           </p>
         </div>
@@ -90,12 +100,12 @@ export default function IdeasPage() {
 
       {/* Creation Form */}
       {showForm && (
-        <div className="stripe-card p-8 mb-8 bg-white border-[#cbd5e1] shadow-md animate-fade-in-up">
+        <div className="feature-card mb-12 animate-fade-in-up relative z-10">
           <div className="max-w-3xl mx-auto">
-            <h3 className="text-lg font-semibold text-[#0f172a] mb-6">Capture a new idea</h3>
-            <div className="space-y-4">
+            <h3 className="text-lg font-medium mb-8" style={{ color: "var(--ink)" }}>Capture a new idea</h3>
+            <div className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-[#475569] mb-1">Title</label>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Title</label>
                 <input
                   autoFocus
                   placeholder="e.g. Mobile app redesign..."
@@ -106,7 +116,7 @@ export default function IdeasPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-[#475569] mb-1">Description</label>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Description</label>
                 <textarea
                   placeholder="What's the core concept?"
                   value={description}
@@ -117,7 +127,7 @@ export default function IdeasPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#475569] mb-1">Tags (Optional)</label>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Tags (Optional)</label>
                 <input
                   placeholder="marketing, Q3, design..."
                   value={tagsInput}
@@ -126,7 +136,7 @@ export default function IdeasPage() {
                 />
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-[#f1f5f9]">
+              <div className="flex gap-4 pt-6 border-t" style={{ borderColor: "var(--divider-soft)" }}>
                 <button
                   onClick={handleCreate}
                   disabled={submitting}
@@ -136,7 +146,7 @@ export default function IdeasPage() {
                 </button>
                 <button
                   onClick={() => setShowForm(false)}
-                  className="btn-secondary"
+                  className="btn-outline"
                 >
                   Cancel
                 </button>
@@ -148,12 +158,12 @@ export default function IdeasPage() {
 
       {/* Empty State */}
       {ideas?.length === 0 && !showForm && (
-        <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed border-[#e2e8f0] rounded-xl bg-[#f8fafc]">
-          <div className="w-16 h-16 rounded-full bg-[#fef3c7] flex items-center justify-center mb-6 shadow-sm">
-            <Lightbulb size={28} className="text-[#d97706]" />
+        <div className="flex flex-col items-center justify-center py-32 text-center border rounded-xl relative z-10" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)" }}>
+          <div className="flex items-center justify-center mb-6">
+            <Lightbulb size={32} style={{ color: "var(--accent-yellow)" }} />
           </div>
-          <h3 className="text-xl font-semibold text-[#0f172a] mb-2">No ideas yet</h3>
-          <p className="text-[#64748b] mb-8 max-w-sm">
+          <h3 className="text-xl font-medium mb-3" style={{ color: "var(--ink)" }}>No ideas yet</h3>
+          <p className="mb-10 max-w-sm" style={{ color: "var(--charcoal)" }}>
             Capture your startup ideas, feature requests, and brainstorming sessions here.
           </p>
           <button
@@ -166,17 +176,17 @@ export default function IdeasPage() {
       )}
 
       {/* Ideas Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
         {ideas?.map((idea, i) => (
           <div
             key={idea._id}
-            className="stripe-card flex flex-col group relative overflow-hidden"
-            style={{ animationDelay: `${i * 50}ms` }}
+            className="feature-card flex flex-col group relative overflow-hidden"
+            style={{ animationDelay: `${i * 50}ms`, padding: "24px" }}
           >
             {/* Content */}
-            <div className="p-6 flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col">
               <div className="flex items-start justify-between mb-4 gap-4">
-                <h3 className="text-lg font-semibold text-[#0f172a] leading-tight">
+                <h3 className="text-lg font-medium leading-tight" style={{ color: "var(--ink)" }}>
                   {idea.title}
                 </h3>
                 <button
@@ -185,7 +195,10 @@ export default function IdeasPage() {
                       deleteIdea({ id: idea._id }).then(() => toast.success("Deleted"));
                     }
                   }}
-                  className="p-1.5 text-[#cbd5e1] hover:text-[#ef4444] hover:bg-[#fee2e2] rounded-md transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  className="p-1 rounded-md transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                  style={{ color: "var(--stone)" }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
                   aria-label="Delete idea"
                 >
                   <Trash2 size={16} />
@@ -193,23 +206,23 @@ export default function IdeasPage() {
               </div>
 
               {idea.description ? (
-                <p className="text-[#475569] text-sm leading-relaxed mb-6 line-clamp-4">
+                <p className="text-sm leading-relaxed mb-8 line-clamp-4" style={{ color: "var(--charcoal)" }}>
                   {idea.description}
                 </p>
               ) : (
-                <p className="text-[#94a3b8] text-sm italic mb-6">No description.</p>
+                <p className="text-sm italic mb-8" style={{ color: "var(--stone)" }}>No description.</p>
               )}
 
               {/* Footer */}
-              <div className="mt-auto pt-4 border-t border-[#f1f5f9] flex flex-wrap gap-2 items-center">
+              <div className="mt-auto pt-4 border-t flex flex-wrap gap-2 items-center" style={{ borderColor: "var(--divider-soft)" }}>
                 {idea.tags.length > 0 ? (
                    idea.tags.map(tag => (
-                     <span key={tag} className="badge bg-[#f1f5f9] text-[#475569] border border-[#e2e8f0]">
+                     <span key={tag} className="badge-pill">
                        {tag}
                      </span>
                    ))
                 ) : (
-                  <span className="text-xs font-medium text-[#cbd5e1] flex items-center gap-1">
+                  <span className="text-xs font-medium flex items-center gap-1" style={{ color: "var(--stone)" }}>
                     <Tag size={12} /> No tags
                   </span>
                 )}
@@ -217,7 +230,7 @@ export default function IdeasPage() {
             </div>
             
             {/* Subtle top border accent */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-[#635bff] opacity-0 group-hover:opacity-10 transition-opacity" />
+            <div className="absolute top-0 left-0 right-0 h-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: "var(--accent-yellow)" }} />
           </div>
         ))}
       </div>

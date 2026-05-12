@@ -55,8 +55,8 @@ export default function NotesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full bg-white">
-        <div className="w-72 border-r border-[#e2e8f0] p-4 space-y-3">
+      <div className="flex h-full" style={{ backgroundColor: "var(--canvas)" }}>
+        <div className="w-72 border-r p-4 space-y-3" style={{ borderColor: "var(--hairline-strong)" }}>
           {[...Array(6)].map((_, i) => (
             <div key={i} className="skeleton h-16 rounded-lg w-full" />
           ))}
@@ -70,20 +70,27 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-white animate-fade-in-up">
+    <div className="flex h-full overflow-hidden animate-fade-in-up" style={{ backgroundColor: "var(--canvas)" }}>
       {/* Note list sidebar */}
       <div
-        className={`flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-r border-[#e2e8f0] bg-[#f8fafc]
-          ${sidebarOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 border-r-0'}`}
+        className={`flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-r`}
+        style={{ 
+          borderColor: "var(--hairline-strong)", 
+          backgroundColor: "var(--surface-deep)",
+          width: sidebarOpen ? "288px" : "0px",
+          opacity: sidebarOpen ? 1 : 0,
+          borderRightWidth: sidebarOpen ? "1px" : "0px"
+        }}
       >
         {/* List header */}
-        <div className="flex items-center justify-between px-5 py-4 shrink-0 border-b border-[#e2e8f0] bg-white">
-          <span className="text-sm font-semibold text-[#0f172a]">
+        <div className="flex items-center justify-between px-5 py-4 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
+          <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>
             All Notes ({notes?.length ?? 0})
           </span>
           <button
             onClick={() => setShowCreate(true)}
-            className="p-1.5 text-[#64748b] hover:text-[#635bff] hover:bg-[#f0f0ff] rounded-md transition-colors"
+            className="p-1.5 rounded-md transition-colors hover:bg-[#101012]"
+            style={{ color: "var(--body)" }}
           >
             <Plus size={18} />
           </button>
@@ -91,7 +98,7 @@ export default function NotesPage() {
 
         {/* New note input */}
         {showCreate && (
-          <div className="p-4 border-b border-[#e2e8f0] bg-white shadow-sm z-10 relative">
+          <div className="p-4 border-b z-10 relative" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
             <input
               autoFocus
               placeholder="Note title..."
@@ -107,7 +114,7 @@ export default function NotesPage() {
               <button onClick={handleCreate} className="btn-primary flex-1 py-1.5 text-xs">
                 Create
               </button>
-              <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1 py-1.5 text-xs">
+              <button onClick={() => setShowCreate(false)} className="btn-outline flex-1 py-1.5 text-xs">
                 Cancel
               </button>
             </div>
@@ -118,11 +125,10 @@ export default function NotesPage() {
         <div className="flex-1 overflow-y-auto">
           {notes?.length === 0 && !showCreate && (
             <div className="flex flex-col items-center justify-center h-full text-center p-6">
-              <div className="w-12 h-12 rounded-full bg-[#f1f5f9] flex items-center justify-center mb-3">
-                 <FileText size={20} className="text-[#94a3b8]" />
+              <div className="flex items-center justify-center mb-4">
+                 <FileText size={24} style={{ color: "var(--stone)" }} />
               </div>
-              <p className="text-sm font-medium text-[#475569] mb-1">No notes found</p>
-              <p className="text-xs text-[#94a3b8]">Create a new note to get started.</p>
+              <p className="text-sm font-medium mb-1" style={{ color: "var(--charcoal)" }}>No notes found</p>
             </div>
           )}
           {notes?.map((note) => {
@@ -131,15 +137,18 @@ export default function NotesPage() {
               <button
                 key={note._id}
                 onClick={() => handleSelect(note._id, note.title, note.content)}
-                className={`w-full text-left px-5 py-4 transition-colors border-b border-[#e2e8f0] group relative
-                  ${isSelected ? "bg-white" : "hover:bg-white"}`}
+                className={`w-full text-left px-5 py-4 transition-colors border-b group relative hover:bg-[#101012]`}
+                style={{
+                  borderColor: "var(--hairline)",
+                  backgroundColor: isSelected ? "var(--surface-elevated)" : "transparent"
+                }}
               >
                 {isSelected && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#635bff]" />
+                  <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: "var(--ink)" }} />
                 )}
                 
                 <div className="flex items-start justify-between mb-1">
-                  <h4 className={`text-sm font-semibold truncate pr-2 ${isSelected ? "text-[#635bff]" : "text-[#0f172a]"}`}>
+                  <h4 className={`text-sm font-medium truncate pr-2`} style={{ color: "var(--ink)" }}>
                     {note.title}
                   </h4>
                   <button
@@ -152,12 +161,15 @@ export default function NotesPage() {
                          });
                       }
                     }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-[#cbd5e1] hover:text-[#ef4444] rounded"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                    style={{ color: "var(--stone)" }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
                   >
                     <Trash2 size={14} />
                   </button>
                 </div>
-                <p className="text-xs text-[#64748b] flex items-center gap-1.5">
+                <p className="text-xs flex items-center gap-1.5" style={{ color: "var(--charcoal)" }}>
                   <Clock size={12} />
                   {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
                 </p>
@@ -168,14 +180,25 @@ export default function NotesPage() {
       </div>
 
       {/* Editor */}
-      <div className="flex flex-col flex-1 overflow-hidden bg-white">
+      <div className="flex flex-col flex-1 overflow-hidden relative" style={{ backgroundColor: "var(--canvas)" }}>
+        
+        {/* Top Atmospheric Glow */}
+        <div 
+          className="absolute top-0 right-0 w-[400px] h-[400px] pointer-events-none"
+          style={{
+            background: "radial-gradient(ellipse at top, var(--accent-orange-glow) 0%, transparent 70%)",
+            opacity: 0.15
+          }}
+        />
+
         {selectedNote ? (
           <>
             {/* Editor toolbar */}
-            <div className="flex items-center gap-4 px-6 py-4 shrink-0 border-b border-[#e2e8f0] bg-white shadow-sm z-10 relative">
+            <div className="flex items-center gap-4 px-6 py-4 shrink-0 border-b z-10 relative" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
               <button 
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 text-[#64748b] hover:bg-[#f1f5f9] rounded-md transition-colors"
+                className="p-2 rounded-md transition-colors hover:bg-[#101012]"
+                style={{ color: "var(--body)" }}
                 title="Toggle sidebar"
               >
                  <Menu size={18} />
@@ -184,14 +207,15 @@ export default function NotesPage() {
               <input
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="flex-1 text-xl font-bold text-[#0f172a] placeholder-[#94a3b8] outline-none bg-transparent"
+                className="flex-1 text-xl font-medium outline-none bg-transparent"
+                style={{ color: "var(--ink)" }}
                 placeholder="Note title..."
               />
               
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="btn-primary"
+                className="btn-outline"
               >
                 <Save size={16} />
                 {saving ? "Saving..." : "Save"}
@@ -199,21 +223,21 @@ export default function NotesPage() {
             </div>
             
             {/* Editor Content */}
-            <div className="flex-1 overflow-auto p-8 lg:p-12">
-              <div className="max-w-3xl mx-auto">
+            <div className="flex-1 overflow-auto p-8 lg:p-12 relative z-10">
+              <div className="max-w-3xl mx-auto stripe-card" style={{ padding: "0" }}>
                 <NoteEditor content={editContent} onChange={setEditContent} />
               </div>
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center bg-[#f8fafc]">
-            <div className="w-20 h-20 rounded-2xl bg-white shadow-sm border border-[#e2e8f0] flex items-center justify-center mb-6">
-              <FileText size={36} className="text-[#635bff]" />
+          <div className="flex flex-col items-center justify-center h-full text-center relative z-10">
+            <div className="flex items-center justify-center mb-8">
+              <FileText size={48} style={{ color: "var(--stone)" }} />
             </div>
-            <h3 className="text-xl font-bold text-[#0f172a] mb-2">
+            <h3 className="text-xl font-medium mb-3" style={{ color: "var(--ink)" }}>
               Select a note to view
             </h3>
-            <p className="text-[#64748b] mb-8 max-w-sm">
+            <p className="mb-10 max-w-sm" style={{ color: "var(--charcoal)" }}>
               Choose an existing note from the sidebar or create a new one to start writing.
             </p>
             <button

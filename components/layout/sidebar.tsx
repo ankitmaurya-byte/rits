@@ -22,23 +22,28 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col h-full bg-[#0b1a2e] text-[#cbd5e1] border-r border-[#1e293b]"
-      style={{ width: "240px", flexShrink: 0 }}
+      className="flex flex-col h-full border-r"
+      style={{ 
+        width: "240px", 
+        flexShrink: 0, 
+        backgroundColor: "var(--canvas)",
+        borderColor: "var(--hairline-strong)"
+      }}
       aria-label="Sidebar navigation"
     >
       {/* Brand Header */}
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-[#1e293b]">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#635bff] shadow-[0_0_15px_rgba(99,91,255,0.4)]">
-          <Zap size={18} className="text-white" strokeWidth={2.5} />
+      <div className="flex items-center gap-3 px-6 h-[64px] border-b" style={{ borderColor: "var(--hairline)" }}>
+        <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white">
+          <Zap size={14} className="text-black" strokeWidth={2.5} />
         </div>
-        <span className="font-semibold text-base text-white tracking-tight">
+        <span className="font-medium text-sm text-white tracking-tight">
           Rits
         </span>
       </div>
 
       {/* Navigation section */}
       <div className="flex-1 px-4 py-6 overflow-y-auto">
-        <p className="px-3 mb-3 text-xs font-semibold text-[#64748b] uppercase tracking-wider">
+        <p className="px-3 mb-3 text-xs font-medium uppercase tracking-widest" style={{ color: "var(--mute)" }}>
           Workspace
         </p>
         
@@ -49,21 +54,17 @@ export function Sidebar() {
               <Link
                 key={href}
                 href={href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 group relative overflow-hidden
-                  ${isActive 
-                    ? "bg-[#1e293b] text-white" 
-                    : "text-[#94a3b8] hover:bg-[#1e293b]/50 hover:text-white"
-                  }`}
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 group relative"
+                style={{
+                  color: isActive ? "var(--ink)" : "var(--charcoal)",
+                  backgroundColor: isActive ? "var(--surface-elevated)" : "transparent"
+                }}
               >
-                {/* Active indicator bar */}
-                {isActive && (
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#635bff] rounded-r-full" />
-                )}
-                
                 <Icon
-                  size={18}
+                  size={16}
                   strokeWidth={isActive ? 2 : 1.75}
-                  className={`flex-shrink-0 transition-colors ${isActive ? "text-[#635bff]" : "text-[#64748b] group-hover:text-white"}`}
+                  className="flex-shrink-0 transition-colors"
+                  style={{ color: isActive ? "var(--ink)" : "var(--charcoal)" }}
                 />
                 <span className="flex-1">{label}</span>
               </Link>
@@ -73,10 +74,10 @@ export function Sidebar() {
       </div>
 
       {/* Footer Area */}
-      <div className="p-4 border-t border-[#1e293b]">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-md bg-[#0f172a] border border-[#1e293b]">
-           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-           <span className="text-xs font-medium text-[#94a3b8]">System Online</span>
+      <div className="p-4 border-t" style={{ borderColor: "var(--hairline)" }}>
+        <div className="flex items-center gap-3 px-3 py-2 rounded-md border" style={{ backgroundColor: "var(--surface-deep)", borderColor: "var(--hairline-strong)" }}>
+           <div className="status-dot status-green" />
+           <span className="text-xs font-medium" style={{ color: "var(--body)" }}>System Operational</span>
         </div>
       </div>
     </aside>

@@ -10,10 +10,10 @@ import { toast } from "sonner";
 const PRIORITIES = ["high", "medium", "low"] as const;
 type Priority = (typeof PRIORITIES)[number];
 
-const priorityStyles: Record<Priority, { badge: string; dot: string; bg: string; color: string; border: string }> = {
-  high:   { badge: "badge-red",   dot: "#ef4444", bg: "#fee2e2", color: "#b91c1c", border: "#fca5a5" },
-  medium: { badge: "badge-amber", dot: "#f59e0b", bg: "#fef3c7", color: "#b45309", border: "#fcd34d" },
-  low:    { badge: "badge-blue",  dot: "#3b82f6", bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
+const priorityStyles: Record<Priority, { dot: string; color: string }> = {
+  high:   { dot: "var(--accent-red)",    color: "var(--accent-red)" },
+  medium: { dot: "var(--accent-yellow)", color: "var(--accent-yellow)" },
+  low:    { dot: "var(--accent-blue)",   color: "var(--accent-blue)" },
 };
 
 export default function TodosPage() {
@@ -62,14 +62,24 @@ export default function TodosPage() {
   const completed = todos?.filter((t) =>  t.completed) ?? [];
 
   return (
-    <div className="page-container animate-fade-in-up">
+    <div className="page-container animate-fade-in-up relative">
+      
+      {/* Top Atmospheric Glow */}
+      <div 
+        className="absolute top-0 right-1/4 w-[600px] h-[400px] pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse at top, var(--accent-blue) 0%, transparent 70%)",
+          opacity: 0.15
+        }}
+      />
+
       {/* Header */}
-      <div className="page-header border-b border-[#e2e8f0] pb-6 mb-8">
+      <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
         <div>
-          <h2 className="text-3xl font-bold text-[#0f172a] tracking-tight mb-2">
+          <h2 className="text-3xl font-medium tracking-tight mb-2" style={{ color: "var(--ink)" }}>
             Task Management
           </h2>
-          <p className="text-sm font-medium text-[#64748b]">
+          <p className="text-sm font-medium" style={{ color: "var(--charcoal)" }}>
             {pending.length} active tasks · {completed.length} completed
           </p>
         </div>
@@ -81,28 +91,28 @@ export default function TodosPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 relative z-10">
         {/* Main List Area */}
         <div className="lg:col-span-8">
            
           {/* Creation Form */}
           {showForm && (
-            <div className="stripe-card p-6 mb-8 bg-white border-[#cbd5e1] shadow-md animate-fade-in-up">
-              <h3 className="text-base font-semibold text-[#0f172a] mb-4">Add new task</h3>
+            <div className="feature-card mb-12 animate-fade-in-up">
+              <h3 className="text-lg font-medium mb-6" style={{ color: "var(--ink)" }}>Add new task</h3>
               
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <input
                   autoFocus
                   placeholder="What needs to be done?"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                  className="input-field text-base py-3"
+                  className="input-field"
                 />
                 
                 <div>
-                  <label className="block text-sm font-medium text-[#475569] mb-2">Priority Level</label>
-                  <div className="flex gap-3">
+                  <label className="block text-sm font-medium mb-3" style={{ color: "var(--body)" }}>Priority Level</label>
+                  <div className="flex gap-4">
                     {PRIORITIES.map((p) => {
                       const isActive = priority === p;
                       const style = priorityStyles[p];
@@ -110,14 +120,12 @@ export default function TodosPage() {
                         <button
                           key={p}
                           onClick={() => setPriority(p)}
-                          className={`flex-1 py-2 px-3 rounded-md text-sm font-medium capitalize transition-all border flex items-center justify-center gap-2
-                            ${isActive ? 'ring-2 ring-offset-1' : 'hover:bg-[#f8fafc]'}`}
+                          className="flex-1 py-2 px-3 rounded-md text-sm font-medium capitalize transition-all border flex items-center justify-center gap-2"
                           style={{
-                            backgroundColor: isActive ? style.bg : "white",
-                            borderColor: isActive ? style.border : "var(--border)",
-                            color: isActive ? style.color : "var(--text-secondary)",
-                            "--tw-ring-color": isActive ? style.color : "transparent",
-                          } as React.CSSProperties}
+                            backgroundColor: isActive ? "var(--surface-elevated)" : "transparent",
+                            borderColor: isActive ? "var(--hairline-strong)" : "var(--hairline)",
+                            color: isActive ? "var(--ink)" : "var(--charcoal)",
+                          }}
                         >
                           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: style.dot }} />
                           {p}
@@ -127,8 +135,8 @@ export default function TodosPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-3 pt-4 border-t border-[#f1f5f9] justify-end">
-                  <button onClick={() => setShowForm(false)} className="btn-secondary">
+                <div className="flex gap-4 pt-6 border-t justify-end" style={{ borderColor: "var(--divider-soft)" }}>
+                  <button onClick={() => setShowForm(false)} className="btn-outline">
                     Cancel
                   </button>
                   <button onClick={handleCreate} disabled={submitting} className="btn-primary">
@@ -141,12 +149,12 @@ export default function TodosPage() {
 
           {/* Empty State */}
           {todos?.length === 0 && !showForm && (
-            <div className="flex flex-col items-center justify-center py-24 text-center border-2 border-dashed border-[#e2e8f0] rounded-xl bg-[#f8fafc]">
-              <div className="w-16 h-16 rounded-full bg-[#dbeafe] flex items-center justify-center mb-6 shadow-sm">
-                <CheckSquare size={28} className="text-[#2563eb]" />
+            <div className="flex flex-col items-center justify-center py-32 text-center border rounded-xl" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)" }}>
+              <div className="flex items-center justify-center mb-6">
+                <CheckSquare size={32} style={{ color: "var(--accent-blue)" }} />
               </div>
-              <h3 className="text-xl font-semibold text-[#0f172a] mb-2">You're all caught up!</h3>
-              <p className="text-[#64748b] mb-8 max-w-sm">
+              <h3 className="text-xl font-medium mb-3" style={{ color: "var(--ink)" }}>You're all caught up!</h3>
+              <p className="mb-10 max-w-sm" style={{ color: "var(--charcoal)" }}>
                 There are no tasks on your plate. Enjoy your free time or add a new task to get started.
               </p>
               <button onClick={() => setShowForm(true)} className="btn-primary">
@@ -157,34 +165,40 @@ export default function TodosPage() {
 
           {/* Pending Tasks */}
           {pending.length > 0 && (
-            <div className="mb-10">
-              <div className="stripe-card divide-y divide-[#f1f5f9] overflow-hidden">
+            <div className="mb-12">
+              <div className="stripe-card p-0 divide-y overflow-hidden" style={{ borderColor: "var(--hairline-strong)", "--tw-divide-color": "var(--divider-soft)" } as React.CSSProperties}>
                 {pending.map((todo) => (
                   <div
                     key={todo._id}
-                    className="flex items-center gap-4 px-6 py-4 group hover:bg-[#f8fafc] transition-colors"
+                    className="flex items-center gap-4 px-6 py-4 group transition-colors hover:bg-[#101012]"
                   >
                     <button
                       onClick={() => toggleTodo({ id: todo._id })}
-                      className="text-[#cbd5e1] hover:text-[#10b981] transition-colors flex-shrink-0 focus:outline-none"
+                      className="transition-colors flex-shrink-0"
+                      style={{ color: "var(--stone)" }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-green)")}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
                     >
-                      <Circle size={22} strokeWidth={2} />
+                      <Circle size={20} strokeWidth={2} />
                     </button>
                     
                     <div className="flex-1 min-w-0">
-                      <span className="text-[15px] font-medium text-[#0f172a] block truncate">
+                      <span className="text-[15px] font-medium block truncate" style={{ color: "var(--ink)" }}>
                         {todo.title}
                       </span>
                     </div>
                     
                     <div className="flex items-center gap-4 flex-shrink-0">
-                      <span className={`badge ${priorityStyles[todo.priority as Priority]?.badge ?? "badge-blue"}`}>
+                      <span className="badge-pill" style={{ color: priorityStyles[todo.priority as Priority]?.color }}>
                         {todo.priority}
                       </span>
                       
                       <button
                         onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
-                        className="text-[#cbd5e1] hover:text-[#ef4444] transition-colors opacity-0 group-hover:opacity-100 p-1"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                        style={{ color: "var(--stone)" }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
                         aria-label="Delete task"
                       >
                         <Trash2 size={16} />
@@ -199,31 +213,35 @@ export default function TodosPage() {
           {/* Completed Tasks */}
           {completed.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-[#64748b] mb-4 flex items-center gap-2">
+              <h4 className="text-sm font-medium mb-4 flex items-center gap-2" style={{ color: "var(--charcoal)" }}>
                 <CheckCircle2 size={16} /> Completed
               </h4>
-              <div className="stripe-card divide-y divide-[#f1f5f9] overflow-hidden bg-[#f8fafc]">
+              <div className="stripe-card p-0 divide-y overflow-hidden" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", "--tw-divide-color": "var(--divider-soft)" } as React.CSSProperties}>
                 {completed.map((todo) => (
                   <div
                     key={todo._id}
-                    className="flex items-center gap-4 px-6 py-3 group hover:bg-[#f1f5f9] transition-colors"
+                    className="flex items-center gap-4 px-6 py-3 group transition-colors hover:bg-[#101012]"
                   >
                     <button
                       onClick={() => toggleTodo({ id: todo._id })}
-                      className="text-[#10b981] transition-colors flex-shrink-0 focus:outline-none"
+                      className="transition-colors flex-shrink-0"
+                      style={{ color: "var(--accent-green)" }}
                     >
                       <CheckCircle2 size={20} strokeWidth={2} />
                     </button>
                     
                     <div className="flex-1 min-w-0">
-                      <span className="text-[15px] text-[#94a3b8] line-through block truncate">
+                      <span className="text-[15px] line-through block truncate" style={{ color: "var(--mute)" }}>
                         {todo.title}
                       </span>
                     </div>
                     
                     <button
                       onClick={() => deleteTodo({ id: todo._id }).then(() => toast.success("Deleted"))}
-                      className="text-[#cbd5e1] hover:text-[#ef4444] transition-colors opacity-0 group-hover:opacity-100 p-1"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
+                      style={{ color: "var(--stone)" }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -236,12 +254,12 @@ export default function TodosPage() {
 
         {/* Sidebar Info Area */}
         <div className="lg:col-span-4 space-y-6">
-           <div className="stripe-card p-6 bg-[#f8fafc] border-transparent shadow-none">
-             <div className="flex items-start gap-3 mb-3">
-                <AlertCircle size={20} className="text-[#3b82f6] mt-0.5" />
-                <h4 className="text-sm font-semibold text-[#0f172a]">Task Management</h4>
+           <div className="feature-card" style={{ backgroundColor: "var(--surface-deep)" }}>
+             <div className="flex items-start gap-3 mb-4">
+                <AlertCircle size={20} style={{ color: "var(--accent-blue)", marginTop: "2px" }} />
+                <h4 className="text-base font-medium" style={{ color: "var(--ink)" }}>Task Management</h4>
              </div>
-             <p className="text-sm text-[#475569] leading-relaxed pl-8">
+             <p className="text-sm leading-relaxed" style={{ color: "var(--body)" }}>
                Prioritize your work effectively. High priority tasks are highlighted in red.
                Checking off a task moves it to the completed section at the bottom.
              </p>

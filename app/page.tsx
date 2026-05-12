@@ -3,7 +3,7 @@
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
-import { Zap, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Zap, CheckCircle2 } from "lucide-react";
 import { useEffect } from "react";
 
 const features = [
@@ -23,214 +23,133 @@ export default function Home() {
 
   return (
     <div
-      className="min-h-screen flex flex-col"
-      style={{ background: "var(--sidebar-bg)" }}
+      className="min-h-screen flex flex-col relative"
+      style={{ background: "var(--canvas)", color: "var(--ink)" }}
     >
-      {/* Gradient blob */}
+      {/* Top Atmospheric Glow */}
       <div
         aria-hidden
         style={{
           position: "fixed",
-          top: "-20%",
-          right: "-10%",
-          width: "600px",
+          top: "0",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "1200px",
           height: "600px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(99 91 255 / 0.18) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse at top, var(--hairline-strong) 0%, transparent 70%)",
+          opacity: 0.8,
           pointerEvents: "none",
         }}
       />
+      
+      {/* Accent Glow */}
       <div
         aria-hidden
         style={{
           position: "fixed",
           bottom: "-20%",
-          left: "-5%",
-          width: "500px",
-          height: "500px",
-          borderRadius: "50%",
-          background:
-            "radial-gradient(circle, rgba(5 112 222 / 0.12) 0%, transparent 70%)",
+          right: "-10%",
+          width: "800px",
+          height: "800px",
+          background: "radial-gradient(ellipse at bottom right, var(--accent-orange-glow) 0%, transparent 60%)",
           pointerEvents: "none",
         }}
       />
 
       {/* Nav */}
-      <nav className="relative z-10 flex items-center justify-between px-8 py-5">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="flex items-center justify-center rounded-lg"
-            style={{
-              width: 32,
-              height: 32,
-              background: "var(--brand)",
-              boxShadow: "var(--shadow-brand)",
-            }}
-          >
-            <Zap size={16} color="#fff" strokeWidth={2.5} />
+      <nav className="relative z-10 flex items-center justify-between px-8 h-[64px]" style={{ borderBottom: "1px solid var(--hairline)" }}>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white">
+            <Zap size={14} className="text-black" strokeWidth={2.5} />
           </div>
-          <span
-            className="font-semibold text-base tracking-tight"
-            style={{ color: "#fff" }}
-          >
+          <span className="font-medium text-sm tracking-tight" style={{ color: "var(--ink)" }}>
             Rits
           </span>
         </div>
 
-        <SignInButton mode="modal">
-          <button
-            className="text-sm font-medium px-4 py-2 rounded-lg transition-all"
-            style={{
-              color: "rgba(255 255 255 / 0.7)",
-              border: "1px solid rgba(255 255 255 / 0.12)",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background =
-                "rgba(255 255 255 / 0.06)";
-              (e.currentTarget as HTMLElement).style.color = "#fff";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-              (e.currentTarget as HTMLElement).style.color =
-                "rgba(255 255 255 / 0.7)";
-            }}
-          >
-            Sign in
-          </button>
-        </SignInButton>
+        <div className="flex items-center gap-4">
+          <SignInButton mode="modal">
+            <button className="text-sm font-medium transition-colors hover:underline" style={{ color: "var(--body)" }}>
+              Sign in
+            </button>
+          </SignInButton>
+          <SignUpButton mode="modal">
+            <button className="btn-primary" style={{ padding: "6px 14px" }}>
+              Get Started
+            </button>
+          </SignUpButton>
+        </div>
       </nav>
 
       {/* Hero */}
-      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center py-24 animate-fade-up">
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center py-[128px] animate-fade-in-up">
         {/* Badge */}
-        <div
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-8"
-          style={{
-            background: "rgba(99 91 255 / 0.15)",
-            color: "#a5b4fc",
-            border: "1px solid rgba(99 91 255 / 0.3)",
-          }}
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full"
-            style={{ background: "var(--brand)" }}
-          />
-          Your startup command center
+        <div className="badge-pill mb-10 flex items-center gap-2" style={{ backgroundColor: "var(--surface-elevated)", border: "1px solid var(--hairline-strong)" }}>
+          <span className="status-dot status-green" />
+          System Operational
         </div>
 
+        {/* Hero Text */}
         <h1
-          className="max-w-2xl text-5xl font-bold leading-tight mb-6"
-          style={{ color: "#fff", letterSpacing: "-0.03em" }}
+          className="max-w-4xl mx-auto font-medium leading-[1.0] mb-8"
+          style={{ 
+            color: "var(--ink)", 
+            letterSpacing: "-0.04em",
+            fontSize: "clamp(56px, 8vw, 96px)", // Responsive size from 56px to 96px
+            fontFamily: "'Geist Mono', monospace, sans-serif" // Resend uses Domaine Display, we approximate with a sharp font or standard sans
+          }}
         >
-          The OS for{" "}
-          <span
-            style={{
-              backgroundImage:
-                "linear-gradient(135deg, #635bff 0%, #0570de 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-            }}
-          >
-            ambitious
-          </span>{" "}
-          founders
+          The OS for founders
         </h1>
 
         <p
-          className="max-w-md text-lg mb-10 leading-relaxed"
-          style={{ color: "rgba(255 255 255 / 0.5)" }}
+          className="max-w-2xl text-lg mb-12 leading-relaxed mx-auto"
+          style={{ color: "var(--charcoal)", fontSize: "20px" }}
         >
           Ideas, todos, and notes — all in one beautifully unified workspace.
           Built for startup teams moving fast.
         </p>
 
-        {/* Feature list */}
-        <ul className="flex flex-col sm:flex-row flex-wrap justify-center gap-x-6 gap-y-2 mb-12">
-          {features.map((f) => (
-            <li
-              key={f}
-              className="flex items-center gap-1.5 text-sm"
-              style={{ color: "rgba(255 255 255 / 0.5)" }}
-            >
-              <CheckCircle2
-                size={13}
-                style={{ color: "var(--brand)", flexShrink: 0 }}
-              />
-              {f}
-            </li>
-          ))}
-        </ul>
-
         {/* CTAs */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
           <SignUpButton mode="modal">
-            <button
-              className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all"
-              style={{
-                background: "var(--brand)",
-                color: "#fff",
-                boxShadow: "var(--shadow-brand)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  "var(--brand-hover)";
-                (e.currentTarget as HTMLElement).style.transform =
-                  "translateY(-1px)";
-                (e.currentTarget as HTMLElement).style.boxShadow =
-                  "0 8px 24px rgba(99 91 255 / 0.45)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  "var(--brand)";
-                (e.currentTarget as HTMLElement).style.transform = "none";
-                (e.currentTarget as HTMLElement).style.boxShadow =
-                  "var(--shadow-brand)";
-              }}
-            >
-              Get started free
-              <ArrowRight size={14} />
+            <button className="btn-primary" style={{ height: "48px", padding: "0 24px", fontSize: "16px" }}>
+              Get started for free
             </button>
           </SignUpButton>
 
           <SignInButton mode="modal">
-            <button
-              className="px-6 py-3 rounded-xl text-sm font-medium transition-all"
-              style={{
-                color: "rgba(255 255 255 / 0.6)",
-                border: "1px solid rgba(255 255 255 / 0.1)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background =
-                  "rgba(255 255 255 / 0.06)";
-                (e.currentTarget as HTMLElement).style.color = "#fff";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "transparent";
-                (e.currentTarget as HTMLElement).style.color =
-                  "rgba(255 255 255 / 0.6)";
-              }}
-            >
-              Sign in to existing account
+            <button className="btn-outline" style={{ height: "48px", padding: "0 24px", fontSize: "16px" }}>
+              Sign in to account
             </button>
           </SignInButton>
         </div>
+        
+        {/* Feature list */}
+        <div className="pt-12 border-t" style={{ borderColor: "var(--divider-soft)", width: "100%", maxWidth: "800px" }}>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">
+            {features.map((f) => (
+              <li
+                key={f}
+                className="flex flex-col gap-3 text-sm"
+                style={{ color: "var(--body)" }}
+              >
+                <div className="flex items-center justify-center w-8 h-8 rounded-full" style={{ backgroundColor: "var(--surface-elevated)" }}>
+                  <CheckCircle2 size={16} style={{ color: "var(--ink)" }} />
+                </div>
+                {f}
+              </li>
+            ))}
+          </ul>
+        </div>
       </main>
 
-      {/* Bottom fade */}
-      <div
-        aria-hidden
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: "200px",
-          background:
-            "linear-gradient(to top, rgba(10 37 64 / 0.5), transparent)",
-          pointerEvents: "none",
-        }}
-      />
+      {/* Footer */}
+      <footer className="relative z-10 py-[64px] px-[32px] text-center" style={{ borderTop: "1px solid var(--divider-soft)" }}>
+        <p className="text-sm" style={{ color: "var(--ash)" }}>
+          © 2026 Rits. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }

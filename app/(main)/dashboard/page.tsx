@@ -48,8 +48,7 @@ export default function DashboardPage() {
       label: "Active Ideas",
       value: ideas?.length ?? 0,
       icon: Lightbulb,
-      color: "var(--warning)",
-      bg: "var(--warning-bg)",
+      color: "var(--accent-yellow)",
       href: "/ideas",
       meta: "Needs action",
     },
@@ -57,8 +56,7 @@ export default function DashboardPage() {
       label: "Pending Tasks",
       value: pendingTodos,
       icon: CheckSquare,
-      color: "var(--info)",
-      bg: "var(--info-bg)",
+      color: "var(--accent-blue)",
       href: "/todos",
       meta: `${completedTodos} completed today`,
     },
@@ -66,8 +64,7 @@ export default function DashboardPage() {
       label: "Task Completion",
       value: `${completionRate}%`,
       icon: TrendingUp,
-      color: "var(--success)",
-      bg: "var(--success-bg)",
+      color: "var(--accent-green)",
       href: "/todos",
       meta: completionRate > 50 ? "On track" : "Needs attention",
     },
@@ -75,8 +72,7 @@ export default function DashboardPage() {
       label: "Document Notes",
       value: notes?.length ?? 0,
       icon: FileText,
-      color: "#7e22ce",
-      bg: "#f3e8ff",
+      color: "var(--primary)",
       href: "/notes",
       meta: "Drafts and final",
     },
@@ -85,42 +81,51 @@ export default function DashboardPage() {
   const firstName = user?.firstName ?? user?.username ?? "Founder";
 
   return (
-    <div className="page-container animate-fade-in-up">
+    <div className="page-container animate-fade-in-up relative">
+      
+      {/* Top Atmospheric Glow */}
+      <div 
+        className="absolute top-0 right-0 w-[600px] h-[400px] pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse at top right, var(--accent-orange-glow) 0%, transparent 70%)"
+        }}
+      />
+
       {/* Header */}
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-[#0f172a] tracking-tight mb-2">
-          Welcome back, {firstName}
+      <div className="mb-12 relative z-10">
+        <h2 className="text-3xl font-medium tracking-tight mb-3" style={{ color: "var(--ink)", fontFamily: "'Geist Mono', monospace, sans-serif" }}>
+          Welcome back, {firstName}.
         </h2>
-        <p className="text-[#475569]">
-          Here's what's happening in your startup workspace today.
+        <p className="text-base" style={{ color: "var(--body)" }}>
+          Here is the status of your workspace today.
         </p>
       </div>
 
       {/* Top Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 relative z-10">
         {stats.map((s, i) => {
           const Icon = s.icon;
           return (
-            <Link key={s.label} href={s.href} className="stat-card group relative overflow-hidden transition-all hover:border-[#cbd5e1] hover:-translate-y-0.5">
-               <div className="flex items-start justify-between mb-4">
-                 <div className="p-2.5 rounded-lg flex items-center justify-center" style={{ backgroundColor: s.bg }}>
+            <Link key={s.label} href={s.href} className="feature-card group relative overflow-hidden transition-all hover:bg-[#101012]">
+               <div className="flex items-start justify-between mb-8">
+                 <div className="p-0 flex items-center justify-center">
                    <Icon size={20} style={{ color: s.color }} />
                  </div>
-                 <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-[#e2e8f0] rounded-full p-1 shadow-sm">
-                   <ArrowRight size={14} className="text-[#64748b]" />
+                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                   <ArrowRight size={16} style={{ color: "var(--charcoal)" }} />
                  </div>
                </div>
                
                <div>
-                  <div className="text-3xl font-bold text-[#0f172a] tracking-tight mb-1">
+                  <div className="text-3xl font-medium tracking-tight mb-1" style={{ color: "var(--ink)", fontFamily: "'Geist Mono', monospace" }}>
                     {s.value}
                   </div>
-                  <div className="text-sm font-medium text-[#475569]">
+                  <div className="text-sm font-medium" style={{ color: "var(--body)" }}>
                     {s.label}
                   </div>
                </div>
 
-               <div className="mt-4 pt-3 border-t border-[#f1f5f9] text-xs font-medium text-[#64748b]">
+               <div className="mt-4 pt-4 border-t text-xs font-medium" style={{ borderColor: "var(--divider-soft)", color: "var(--ash)" }}>
                   {s.meta}
                </div>
             </Link>
@@ -129,18 +134,16 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Content Areas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
         
         {/* Recent Ideas */}
-        <div className="stripe-card flex flex-col">
-          <div className="px-6 py-5 border-b border-[#f1f5f9] flex items-center justify-between">
+        <div className="feature-card flex flex-col p-0">
+          <div className="px-8 py-6 border-b flex items-center justify-between" style={{ borderColor: "var(--divider-soft)" }}>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-[#fef3c7]">
-                <Lightbulb size={16} className="text-[#d97706]" />
-              </div>
-              <h3 className="text-base font-semibold text-[#0f172a]">Recent Ideas</h3>
+              <Lightbulb size={16} style={{ color: "var(--accent-yellow)" }} />
+              <h3 className="text-base font-medium" style={{ color: "var(--ink)" }}>Recent Ideas</h3>
             </div>
-            <Link href="/ideas" className="text-sm font-medium text-[#635bff] hover:text-[#544de8] transition-colors">
+            <Link href="/ideas" className="text-sm font-medium hover:underline" style={{ color: "var(--body)" }}>
               View all
             </Link>
           </div>
@@ -148,20 +151,19 @@ export default function DashboardPage() {
           <div className="p-2 flex-1">
             {ideas?.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                <Lightbulb size={32} className="text-[#cbd5e1] mb-3" />
-                <p className="text-sm text-[#64748b]">No ideas captured yet.</p>
+                <Lightbulb size={24} style={{ color: "var(--stone)", marginBottom: "12px" }} />
+                <p className="text-sm" style={{ color: "var(--charcoal)" }}>No ideas captured yet.</p>
               </div>
             ) : (
               <ul className="space-y-1">
                 {ideas?.slice(0, 5).map((idea) => (
                   <li key={idea._id}>
-                    <Link href={`/ideas`} className="flex items-start gap-4 p-4 rounded-lg hover:bg-[#f8fafc] transition-colors group">
-                      <div className="w-2 h-2 rounded-full bg-[#f59e0b] mt-2 flex-shrink-0" />
+                    <Link href={`/ideas`} className="flex items-start gap-4 p-4 rounded-md transition-colors group hover:bg-[#101012]">
+                      <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: "var(--accent-yellow)" }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#0f172a] truncate mb-0.5">{idea.title}</p>
-                        <p className="text-xs text-[#64748b] truncate">{idea.description || "No description provided."}</p>
+                        <p className="text-sm font-medium truncate mb-1" style={{ color: "var(--ink)" }}>{idea.title}</p>
+                        <p className="text-xs truncate" style={{ color: "var(--charcoal)" }}>{idea.description || "No description provided."}</p>
                       </div>
-                      <MoreHorizontal size={16} className="text-[#cbd5e1] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   </li>
                 ))}
@@ -171,15 +173,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Actionable Todos */}
-        <div className="stripe-card flex flex-col">
-          <div className="px-6 py-5 border-b border-[#f1f5f9] flex items-center justify-between">
+        <div className="feature-card flex flex-col p-0">
+          <div className="px-8 py-6 border-b flex items-center justify-between" style={{ borderColor: "var(--divider-soft)" }}>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-[#dbeafe]">
-                <CheckSquare size={16} className="text-[#2563eb]" />
-              </div>
-              <h3 className="text-base font-semibold text-[#0f172a]">Active Tasks</h3>
+              <CheckSquare size={16} style={{ color: "var(--accent-blue)" }} />
+              <h3 className="text-base font-medium" style={{ color: "var(--ink)" }}>Active Tasks</h3>
             </div>
-            <Link href="/todos" className="text-sm font-medium text-[#635bff] hover:text-[#544de8] transition-colors">
+            <Link href="/todos" className="text-sm font-medium hover:underline" style={{ color: "var(--body)" }}>
               Manage
             </Link>
           </div>
@@ -187,19 +187,20 @@ export default function DashboardPage() {
           <div className="p-2 flex-1">
              {todos?.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                <CheckSquare size={32} className="text-[#cbd5e1] mb-3" />
-                <p className="text-sm text-[#64748b]">You're all caught up!</p>
+                <CheckSquare size={24} style={{ color: "var(--stone)", marginBottom: "12px" }} />
+                <p className="text-sm" style={{ color: "var(--charcoal)" }}>You're all caught up!</p>
               </div>
             ) : (
               <ul className="space-y-1">
                 {todos?.filter(t => !t.completed).slice(0, 5).map((todo) => (
-                  <li key={todo._id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-[#f8fafc] transition-colors">
-                    <div className="w-5 h-5 rounded border-2 border-[#cbd5e1] flex-shrink-0" />
-                    <span className="text-sm text-[#0f172a] flex-1 truncate font-medium">{todo.title}</span>
-                    <span className={`badge ${
-                      todo.priority === "high" ? "badge-red" : 
-                      todo.priority === "medium" ? "badge-amber" : "badge-blue"
-                    }`}>
+                  <li key={todo._id} className="flex items-center gap-3 p-4 rounded-md transition-colors hover:bg-[#101012]">
+                    <div className="w-4 h-4 rounded border flex-shrink-0" style={{ borderColor: "var(--mute)" }} />
+                    <span className="text-sm flex-1 truncate font-medium" style={{ color: "var(--ink)" }}>{todo.title}</span>
+                    <span className="badge-pill" style={{ 
+                      color: todo.priority === 'high' ? 'var(--accent-red)' : todo.priority === 'medium' ? 'var(--accent-yellow)' : 'var(--accent-blue)',
+                      backgroundColor: "var(--surface-deep)",
+                      border: "1px solid var(--hairline-strong)"
+                    }}>
                       {todo.priority}
                     </span>
                   </li>

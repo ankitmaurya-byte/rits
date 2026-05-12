@@ -7,8 +7,11 @@ import { useUser } from "@clerk/nextjs";
 import { useQuery as useConvexUserQuery } from "convex/react";
 import { toast } from "sonner";
 import { mockYCStartups } from "@/lib/yc-startups";
-import { FileText, Lightbulb, CheckSquare, Rocket, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { FileText, Lightbulb, CheckSquare, Rocket, ExternalLink, Search, Filter } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react";
+
+const industries = ["All", ...Array.from(new Set(mockYCStartups.map(s => s.industry))).sort()];
+const batches = ["All", ...Array.from(new Set(mockYCStartups.map(s => s.batch))).sort()];
 
 export default function StartupsPage() {
   const { workspaceId, isLoading } = useWorkspace();
@@ -24,6 +27,42 @@ export default function StartupsPage() {
   const createTodo = useMutation(api.todos.createTodo);
 
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+  
+  // Filtering and Pagination State
+  const [search, setSearch] = useState("");
+  const [industryFilter, setIndustryFilter] = useState("All");
+  const [batchFilter, setBatchFilter] = useState("All");
+  const [visibleCount, setVisibleCount] = useState(10);
+  const loaderRef = useRef<HTMLDivElement>(null);
+
+  const filteredStartups = useMemo(() => {
+    return mockYCStartups.filter((startup) => {
+      const matchesSearch = startup.name.toLowerCase().includes(search.toLowerCase()) || 
+                            startup.description.toLowerCase().includes(search.toLowerCase());
+      const matchesIndustry = industryFilter === "All" || startup.industry === industryFilter;
+      const matchesBatch = batchFilter === "All" || startup.batch === batchFilter;
+      return matchesSearch && matchesIndustry && matchesBatch;
+    });
+  }, [search, industryFilter, batchFilter]);
+
+  const visibleStartups = filteredStartups.slice(0, visibleCount);
+
+  useEffect(() => {
+    setVisibleCount(10); // Reset pagination on filter change
+  }, [search, industryFilter, batchFilter]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount((prev) => Math.min(prev + 10, filteredStartups.length));
+      }
+    }, { threshold: 0.1 });
+
+    if (loaderRef.current) {
+      observer.observe(loaderRef.current);
+    }
+    return () => observer.disconnect();
+  }, [filteredStartups.length]);
 
   const handleAddToNotes = async (startup: typeof mockYCStartups[0]) => {
     if (!workspaceId) return;
@@ -120,9 +159,64 @@ export default function StartupsPage() {
         </div>
       </div>
 
+      {/* Filters Bar */}
+      <div className="flex flex-col md:flex-row gap-4 mb-8 relative z-10">
+        <div className="relative flex-1">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search size={16} style={{ color: "var(--mute)" }} />
+          </div>
+          <input
+            type="text"
+            placeholder="Search startups or descriptions..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-lg border focus:outline-none transition-colors"
+            style={{ 
+              backgroundColor: "var(--surface-elevated)", 
+              borderColor: "var(--hairline-strong)",
+              color: "var(--ink)"
+            }}
+          />
+        </div>
+        <div className="flex gap-4">
+          <div className="relative">
+            <select
+              value={industryFilter}
+              onChange={(e) => setIndustryFilter(e.target.value)}
+              className="appearance-none pl-10 pr-8 py-2 rounded-lg border focus:outline-none transition-colors cursor-pointer min-w-[140px]"
+              style={{ 
+                backgroundColor: "var(--surface-elevated)", 
+                borderColor: "var(--hairline-strong)",
+                color: "var(--ink)"
+              }}
+            >
+              {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+            </select>
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Filter size={16} style={{ color: "var(--mute)" }} />
+            </div>
+          </div>
+          
+          <div className="relative">
+             <select
+              value={batchFilter}
+              onChange={(e) => setBatchFilter(e.target.value)}
+              className="appearance-none px-4 py-2 rounded-lg border focus:outline-none transition-colors cursor-pointer min-w-[100px]"
+              style={{ 
+                backgroundColor: "var(--surface-elevated)", 
+                borderColor: "var(--hairline-strong)",
+                color: "var(--ink)"
+              }}
+            >
+              {batches.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 relative z-10">
-        {mockYCStartups.map((startup, i) => (
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 relative z-10 mb-8">
+        {visibleStartups.map((startup, i) => (
           <div
             key={startup.id}
             className="feature-card flex flex-col group relative overflow-hidden"
@@ -202,6 +296,19 @@ export default function StartupsPage() {
           </div>
         ))}
       </div>
+
+      {/* Infinite Scroll Loader */}
+      {visibleCount < filteredStartups.length && (
+        <div ref={loaderRef} className="flex justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: "var(--accent-purple)" }} />
+        </div>
+      )}
+      
+      {filteredStartups.length === 0 && (
+        <div className="text-center py-24 text-sm" style={{ color: "var(--mute)" }}>
+          No startups found matching your criteria.
+        </div>
+      )}
     </div>
   );
 }

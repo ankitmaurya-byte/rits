@@ -134,10 +134,18 @@ export default function NotesPage() {
           {notes?.map((note) => {
             const isSelected = selectedId === note._id;
             return (
-              <button
+              <div
                 key={note._id}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleSelect(note._id, note.title, note.content);
+                  }
+                }}
                 onClick={() => handleSelect(note._id, note.title, note.content)}
-                className={`w-full text-left px-5 py-4 transition-colors border-b group relative hover:bg-[#101012]`}
+                className={`w-full text-left px-5 py-4 transition-colors border-b group relative hover:bg-[#101012] cursor-pointer`}
                 style={{
                   borderColor: "var(--hairline)",
                   backgroundColor: isSelected ? "var(--surface-elevated)" : "transparent"
@@ -173,7 +181,7 @@ export default function NotesPage() {
                   <Clock size={12} />
                   {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
                 </p>
-              </button>
+              </div>
             );
           })}
         </div>

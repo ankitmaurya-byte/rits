@@ -231,19 +231,99 @@ h1, h2, h3, h4, h5, h6 {
 ::-webkit-scrollbar-thumb { background: var(--surface-elevated); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--stone); }
 
-/* Tiptap */
+/* Tiptap Editor Styles */
 .ProseMirror {
   outline: none;
-  min-height: 300px;
-  padding: 24px;
+  min-height: 400px;
+  padding: 32px;
   font-size: 16px;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--body);
 }
-.ProseMirror p { margin-bottom: 1em; }
+
+.ProseMirror > * + * {
+  margin-top: 1.5em;
+}
+
+.ProseMirror h1 {
+  font-size: 32px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.2;
+  margin-top: 2em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror h2 {
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.3;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror p {
+  margin: 0;
+}
+
+.ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+}
+
+.ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+}
+
+.ProseMirror li > p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid var(--hairline-strong);
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  font-style: italic;
+  color: var(--charcoal);
+}
+
+.ProseMirror code {
+  font-family: 'Geist Mono', monospace, sans-serif;
+  font-size: 13px;
+  background-color: var(--surface-deep);
+  padding: 0.2em 0.4em;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+  color: var(--ink);
+}
+
+.ProseMirror pre {
+  background-color: var(--surface-deep);
+  color: var(--body);
+  font-family: 'Geist Mono', monospace, sans-serif;
+  padding: 1.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline-strong);
+  overflow-x: auto;
+}
+
+.ProseMirror pre code {
+  color: inherit;
+  padding: 0;
+  background: none;
+  font-size: 13px;
+  border: none;
+}
+
 .ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
   color: var(--mute);
+  content: attr(data-placeholder);
   float: left;
   height: 0;
   pointer-events: none;

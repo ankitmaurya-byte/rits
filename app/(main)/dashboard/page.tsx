@@ -106,7 +106,7 @@ export default function DashboardPage() {
         {stats.map((s, i) => {
           const Icon = s.icon;
           return (
-            <Link key={s.label} href={s.href} className="feature-card group relative overflow-hidden transition-all hover:bg-[#101012]">
+            <Link key={s.label} href={s.href} className="feature-card group relative overflow-hidden transition-all hover:bg-[var(--surface-elevated)]">
                <div className="flex items-start justify-between mb-8">
                  <div className="p-0 flex items-center justify-center">
                    <Icon size={20} style={{ color: s.color }} />
@@ -158,7 +158,7 @@ export default function DashboardPage() {
               <ul className="space-y-1">
                 {ideas?.slice(0, 5).map((idea) => (
                   <li key={idea._id}>
-                    <Link href={`/ideas`} className="flex items-start gap-4 p-4 rounded-md transition-colors group hover:bg-[#101012]">
+                    <Link href={`/ideas`} className="flex items-start gap-4 p-4 rounded-md transition-colors group hover:bg-[var(--surface-elevated)]">
                       <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: "var(--accent-yellow)" }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate mb-1" style={{ color: "var(--ink)" }}>{idea.title}</p>
@@ -193,7 +193,7 @@ export default function DashboardPage() {
             ) : (
               <ul className="space-y-1">
                 {todos?.filter(t => !t.completed).slice(0, 5).map((todo) => (
-                  <li key={todo._id} className="flex items-center gap-3 p-4 rounded-md transition-colors hover:bg-[#101012]">
+                  <li key={todo._id} className="flex items-center gap-3 p-4 rounded-md transition-colors hover:bg-[var(--surface-elevated)]">
                     <div className="w-4 h-4 rounded border flex-shrink-0" style={{ borderColor: "var(--mute)" }} />
                     <span className="text-sm flex-1 truncate font-medium" style={{ color: "var(--ink)" }}>{todo.title}</span>
                     <span className="badge-pill" style={{ 

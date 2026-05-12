@@ -120,6 +120,20 @@
   --radius-full: 9999px;
 }
 
+/* Theme Visibility Helpers */
+.show-in-light { display: none; }
+.show-in-dark { display: block; }
+
+[data-theme='light'] .show-in-light,
+[data-theme='solarized-light'] .show-in-light {
+  display: block;
+}
+
+[data-theme='light'] .show-in-dark,
+[data-theme='solarized-light'] .show-in-dark {
+  display: none;
+}
+
 /* ─── Base Styles ───────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;

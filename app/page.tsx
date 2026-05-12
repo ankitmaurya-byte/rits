@@ -43,7 +43,7 @@ export default function Home() {
           pointerEvents: "none",
         }}
       />
-      
+
       {/* Accent Glow */}
       <div
         aria-hidden
@@ -62,11 +62,11 @@ export default function Home() {
       <nav className="relative z-10 flex items-center justify-between px-8 h-[64px]" style={{ borderBottom: "1px solid var(--hairline)" }}>
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white overflow-hidden">
-            <Image 
-              src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png" 
-              alt="Rits Logo" 
-              width={32} 
-              height={32} 
+            <Image
+              src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png"
+              alt="Rits Logo"
+              width={32}
+              height={32}
               className="object-contain scale-[1.7]"
               priority
             />
@@ -100,12 +100,20 @@ export default function Home() {
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 text-center py-[128px] animate-fade-in-up">
         {/* Logo */}
         <div className="mb-10 flex items-center justify-center">
-          <Image 
-            src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_white.png" 
-            alt="Rits Icon" 
-            width={80} 
-            height={80} 
-            className="object-contain drop-shadow-xl"
+          <Image
+            src="/rits_brand_logo_assets/rits_name_only_complete_transpaent_background_withou_dot_com_text_white.png"
+            alt="Rits Icon"
+            width={120}
+            height={48}
+            className="object-contain drop-shadow-xl show-in-dark"
+            priority
+          />
+          <Image
+            src="/rits_brand_logo_assets/rits_name_only_without_dot_com_transparent_but_light_white_background_text_dark.png"
+            alt="Rits Icon"
+            width={120}
+            height={48}
+            className="object-contain drop-shadow-xl show-in-light"
             priority
           />
         </div>
@@ -113,8 +121,8 @@ export default function Home() {
         {/* Hero Text */}
         <h1
           className="max-w-4xl mx-auto font-medium leading-[1.0] mb-8"
-          style={{ 
-            color: "var(--ink)", 
+          style={{
+            color: "var(--ink)",
             letterSpacing: "-0.04em",
             fontSize: "clamp(56px, 8vw, 96px)", // Responsive size from 56px to 96px
             fontFamily: "'Geist Mono', monospace, sans-serif" // Resend uses Domaine Display, we approximate with a sharp font or standard sans
@@ -145,7 +153,7 @@ export default function Home() {
             </button>
           </SignInButton>
         </div>
-        
+
         {/* Feature list */}
         <div className="pt-12 border-t" style={{ borderColor: "var(--divider-soft)", width: "100%", maxWidth: "800px" }}>
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left">

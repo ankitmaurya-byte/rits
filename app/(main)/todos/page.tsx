@@ -185,7 +185,7 @@ export default function TodosPage() {
                 {pending.map((todo) => (
                   <div
                     key={todo._id}
-                    className="flex items-center gap-4 px-6 py-4 group transition-colors hover:bg-[#101012]"
+                    className="flex items-center gap-4 px-6 py-4 group transition-colors hover:bg-[var(--surface-elevated)]"
                   >
                     <button
                       onClick={() => toggleTodo({ id: todo._id })}
@@ -265,7 +265,7 @@ export default function TodosPage() {
                 {completed.map((todo) => (
                   <div
                     key={todo._id}
-                    className="flex items-center gap-4 px-6 py-3 group transition-colors hover:bg-[#101012]"
+                    className="flex items-center gap-4 px-6 py-3 group transition-colors hover:bg-[var(--surface-elevated)]"
                   >
                     <button
                       onClick={() => toggleTodo({ id: todo._id })}

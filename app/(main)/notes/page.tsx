@@ -89,7 +89,7 @@ export default function NotesPage() {
           </span>
           <button
             onClick={() => setShowCreate(true)}
-            className="p-1.5 rounded-md transition-colors hover:bg-[#101012]"
+            className="p-1.5 rounded-md transition-colors hover:bg-[var(--surface-elevated)]"
             style={{ color: "var(--body)" }}
           >
             <Plus size={18} />
@@ -145,7 +145,7 @@ export default function NotesPage() {
                   }
                 }}
                 onClick={() => handleSelect(note._id, note.title, note.content)}
-                className={`w-full text-left px-5 py-4 transition-colors border-b group relative hover:bg-[#101012] cursor-pointer`}
+                className={`w-full text-left px-5 py-4 transition-colors border-b group relative hover:bg-[var(--surface-elevated)] cursor-pointer`}
                 style={{
                   borderColor: "var(--hairline)",
                   backgroundColor: isSelected ? "var(--surface-elevated)" : "transparent"
@@ -205,7 +205,7 @@ export default function NotesPage() {
             <div className="flex items-center gap-4 px-6 py-4 shrink-0 border-b z-10 relative" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
               <button 
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-md transition-colors hover:bg-[#101012]"
+                className="p-2 rounded-md transition-colors hover:bg-[var(--surface-elevated)]"
                 style={{ color: "var(--body)" }}
                 title="Toggle sidebar"
               >

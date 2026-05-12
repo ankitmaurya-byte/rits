@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
   "/ideas":     "Ideas",
   "/todos":     "Todos",
   "/notes":     "Notes",
+  "/startups":  "Startups",
 };
 
 export default function MainLayout({

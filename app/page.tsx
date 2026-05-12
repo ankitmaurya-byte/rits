@@ -62,9 +62,14 @@ export default function Home() {
           <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white">
             <Zap size={14} className="text-black" strokeWidth={2.5} />
           </div>
-          <span className="font-medium text-sm tracking-tight" style={{ color: "var(--ink)" }}>
-            Rits
-          </span>
+          <div className="flex flex-col">
+            <span className="font-medium text-sm tracking-tight leading-none" style={{ color: "var(--ink)" }}>
+              Rits
+            </span>
+            <span className="text-[10px] font-medium opacity-50 mt-1" style={{ color: "var(--charcoal)" }}>
+              Research in tech startup
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -147,7 +152,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="relative z-10 py-[64px] px-[32px] text-center" style={{ borderTop: "1px solid var(--divider-soft)" }}>
         <p className="text-sm" style={{ color: "var(--ash)" }}>
-          © 2026 Rits. All rights reserved.
+          © 2026 Rits (Research in tech startup). All rights reserved.
         </p>
       </footer>
     </div>

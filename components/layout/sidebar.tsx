@@ -8,6 +8,7 @@ import {
   CheckSquare,
   FileText,
   Zap,
+  Rocket,
 } from "lucide-react";
 
 const links = [
@@ -15,6 +16,7 @@ const links = [
   { href: "/ideas",     label: "Ideas",     icon: Lightbulb       },
   { href: "/todos",     label: "Todos",     icon: CheckSquare     },
   { href: "/notes",     label: "Notes",     icon: FileText        },
+  { href: "/startups",  label: "Startups",  icon: Rocket          },
 ];
 
 export function Sidebar() {

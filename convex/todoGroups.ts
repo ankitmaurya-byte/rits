@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 
 export const getGroups = query({
   args: { workspaceId: v.id("workspaces") },
@@ -23,14 +23,14 @@ export const createGroup = mutation({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
       .first();
-    if (!user) throw new Error("User not found");
+    if (!user) throw new ConvexError("User not found");
 
     const workspace = await ctx.db.get(args.workspaceId);
-    if (!workspace) throw new Error("Workspace not found");
+    if (!workspace) throw new ConvexError("Workspace not found");
     
     // Check if owner
     if (workspace.ownerId !== user._id) {
-      throw new Error("Only the workspace owner can create a new group");
+      throw new ConvexError("Only the workspace owner can create a new group");
     }
 
     return await ctx.db.insert("todoGroups", {

@@ -22,12 +22,21 @@ function JoinContent() {
     token ? { token } : "skip"
   );
   const joinByToken = useMutation(api.workspaces.joinByToken);
+  const ensureUser = useMutation(api.users.ensureUser);
   const setSelectedWorkspace = useWorkspaceStore((s) => s.setSelectedWorkspace);
 
   const handleJoin = async () => {
     if (!user) { toast.error("You must be logged in to join a workspace"); return; }
     setJoining(true);
     try {
+      // Ensure the user record exists in the DB before attempting to join
+      await ensureUser({
+        clerkId: user.id,
+        name: user.fullName ?? user.username ?? "User",
+        email: user.primaryEmailAddress?.emailAddress ?? "",
+        image: user.imageUrl,
+      });
+
       const workspaceId = await joinByToken({ token, clerkId: user.id });
       setSelectedWorkspace(workspaceId);
       setJoined(true);

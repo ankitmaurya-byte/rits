@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { Id } from "./_generated/dataModel";
 
 // Helper: generate a random token
@@ -13,7 +13,7 @@ async function requireUser(ctx: any, clerkId: string) {
     .query("users")
     .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", clerkId))
     .first();
-  if (!user) throw new Error("User not found");
+  if (!user) throw new ConvexError("User not found");
   return user;
 }
 
@@ -124,7 +124,7 @@ export const joinByToken = mutation({
       .query("workspaces")
       .withIndex("by_invite_token", (q) => q.eq("inviteToken", args.token))
       .first();
-    if (!ws) throw new Error("Invalid invite link");
+    if (!ws) throw new ConvexError("Invalid invite link");
 
     // Check if already a member
     const existing = await ctx.db
@@ -152,8 +152,8 @@ export const regenerateInviteToken = mutation({
     const user = await requireUser(ctx, args.clerkId);
 
     const ws = await ctx.db.get(args.workspaceId);
-    if (!ws) throw new Error("Workspace not found");
-    if (ws.ownerId !== user._id) throw new Error("Only the owner can regenerate the invite token");
+    if (!ws) throw new ConvexError("Workspace not found");
+    if (ws.ownerId !== user._id) throw new ConvexError("Only the owner can regenerate the invite token");
 
     const newToken = generateToken();
     await ctx.db.patch(args.workspaceId, { inviteToken: newToken });
@@ -178,7 +178,7 @@ export const inviteByEmail = mutation({
         q.eq("workspaceId", args.workspaceId).eq("userId", user._id)
       )
       .first();
-    if (!membership) throw new Error("You are not a member of this workspace");
+    if (!membership) throw new ConvexError("You are not a member of this workspace");
 
     // Check for existing pending invite
     const existing = await ctx.db
@@ -278,12 +278,12 @@ export const removeMember = mutation({
   handler: async (ctx, args) => {
     const currentUser = await requireUser(ctx, args.clerkId);
     const ws = await ctx.db.get(args.workspaceId);
-    if (!ws) throw new Error("Workspace not found");
+    if (!ws) throw new ConvexError("Workspace not found");
 
     const isOwner = ws.ownerId === currentUser._id;
     const isSelf = currentUser._id === args.userId;
-    if (!isOwner && !isSelf) throw new Error("Not authorized");
-    if (isOwner && isSelf) throw new Error("Owner cannot leave workspace");
+    if (!isOwner && !isSelf) throw new ConvexError("Not authorized");
+    if (isOwner && isSelf) throw new ConvexError("Owner cannot leave workspace");
 
     const membership = await ctx.db
       .query("workspaceMembers")

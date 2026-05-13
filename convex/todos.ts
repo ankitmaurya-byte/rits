@@ -9,6 +9,7 @@ export const createTodo = mutation({
     priority: v.string(),
     status: v.optional(v.string()),
     createdBy: v.optional(v.id("users")),
+    groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("todos", {
@@ -19,6 +20,7 @@ export const createTodo = mutation({
       status: args.status || "todo",
       completed: args.status === "completed",
       createdBy: args.createdBy,
+      groupId: args.groupId,
       createdAt: Date.now(),
     });
   },
@@ -75,6 +77,7 @@ export const updateTodo = mutation({
     title: v.optional(v.string()),
     priority: v.optional(v.string()),
     status: v.optional(v.string()),
+    groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;

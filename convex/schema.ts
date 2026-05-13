@@ -56,6 +56,7 @@ export default defineSchema({
   todos: defineTable({
     scope: v.optional(v.union(v.literal("private"), v.literal("workspace"))),
     workspaceId: v.optional(v.id("workspaces")),
+    groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
     title: v.string(),
     completed: v.boolean(),
     status: v.optional(v.string()),
@@ -77,4 +78,10 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_user_private", ["createdBy", "scope"]),
+
+  todoGroups: defineTable({
+    workspaceId: v.id("workspaces"),
+    name: v.string(),
+    createdAt: v.number(),
+  }).index("by_workspace", ["workspaceId"]),
 });

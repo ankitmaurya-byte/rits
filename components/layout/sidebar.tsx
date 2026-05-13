@@ -7,6 +7,7 @@ import {
   Lightbulb,
   CheckSquare,
   FileText,
+  Link2,
   Rocket,
   Lock,
   Users,
@@ -17,12 +18,14 @@ const privateLinks = [
   { href: "/private/ideas", label: "Ideas", icon: Lightbulb },
   { href: "/private/todos", label: "Todos", icon: CheckSquare },
   { href: "/private/notes", label: "Notes", icon: FileText },
+  { href: "/private/resources", label: "Resources", icon: Link2 },
 ];
 
 const workspaceLinks = [
   { href: "/workspace/ideas", label: "Ideas", icon: Lightbulb },
   { href: "/workspace/todos", label: "Todos", icon: CheckSquare },
   { href: "/workspace/notes", label: "Notes", icon: FileText },
+  { href: "/workspace/resources", label: "Resources", icon: Link2 },
   { href: "/workspace/members", label: "Members", icon: Users },
 ];
 

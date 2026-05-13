@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useQuery as useConvexUserQuery } from "convex/react";
+import { getIdeaTitle, IdeaDescription } from "@/components/ideas/idea-text";
 import { Plus, Lightbulb, Trash2, Tag, ArrowRight, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,7 +46,8 @@ export default function IdeasPage() {
 
   const handleCreate = async () => {
     if (!workspaceId || !convexUser) return;
-    if (!title.trim()) { toast.error("Title is required"); return; }
+    const normalizedTitle = getIdeaTitle(title, description);
+    if (!normalizedTitle) { toast.error("Add a title or description"); return; }
     setSubmitting(true);
     try {
       const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
@@ -53,7 +55,7 @@ export default function IdeasPage() {
       if (editingIdeaId) {
         await updateIdea({
           id: editingIdeaId as any,
-          title: title.trim(),
+          title: normalizedTitle,
           description: description.trim(),
           tags,
         });
@@ -62,7 +64,7 @@ export default function IdeasPage() {
         await createIdea({
           workspaceId,
           scope: "workspace",
-          title: title.trim(),
+          title: normalizedTitle,
           description: description.trim(),
           tags,
           createdBy: convexUser._id,
@@ -152,12 +154,15 @@ export default function IdeasPage() {
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Description</label>
                 <textarea
-                  placeholder="What's the core concept?"
+                  placeholder="Paste rough bullets, feature notes, or the full concept here..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
+                  rows={6}
                   className="input-field resize-none"
                 />
+                <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>
+                  Leave the title blank and the first description line becomes the title. Line breaks are preserved.
+                </p>
               </div>
 
               <div>
@@ -252,9 +257,7 @@ export default function IdeasPage() {
               </div>
 
               {idea.description ? (
-                <p className="text-sm leading-relaxed mb-8 line-clamp-4" style={{ color: "var(--charcoal)" }}>
-                  {idea.description}
-                </p>
+                <IdeaDescription className="text-sm leading-relaxed mb-8 line-clamp-5" style={{ color: "var(--charcoal)" }} description={idea.description} />
               ) : (
                 <p className="text-sm italic mb-8" style={{ color: "var(--stone)" }}>No description.</p>
               )}

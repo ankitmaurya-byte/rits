@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useWorkspaceStore } from "@/store/workspace-store";
+import { getIdeaTitle, IdeaDescription } from "@/components/ideas/idea-text";
 import { Plus, Lightbulb, Trash2, Tag, Pencil, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,15 +42,16 @@ export default function WorkspaceIdeasPage() {
 
   const handleCreate = async () => {
     if (!selectedWorkspaceId || !convexUser) return;
-    if (!title.trim()) { toast.error("Title is required"); return; }
+    const normalizedTitle = getIdeaTitle(title, description);
+    if (!normalizedTitle) { toast.error("Add a title or description"); return; }
     setSubmitting(true);
     try {
       const tags = tagsInput.split(",").map((t) => t.trim()).filter(Boolean);
       if (editingIdeaId) {
-        await updateIdea({ id: editingIdeaId as any, title: title.trim(), description: description.trim(), tags });
+        await updateIdea({ id: editingIdeaId as any, title: normalizedTitle, description: description.trim(), tags });
         toast.success("Idea updated.");
       } else {
-        await createIdea({ scope: "workspace", workspaceId: selectedWorkspaceId, title: title.trim(), description: description.trim(), tags, createdBy: convexUser._id });
+        await createIdea({ scope: "workspace", workspaceId: selectedWorkspaceId, title: normalizedTitle, description: description.trim(), tags, createdBy: convexUser._id });
         toast.success("Idea captured.");
       }
       setTitle(""); setDescription(""); setTagsInput(""); setShowForm(false); setEditingIdeaId(null);
@@ -95,7 +97,8 @@ export default function WorkspaceIdeasPage() {
               <div><label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Title</label>
                 <input autoFocus placeholder="e.g. Mobile app redesign..." value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" /></div>
               <div><label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Description</label>
-                <textarea placeholder="What's the core concept?" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className="input-field resize-none" /></div>
+                <textarea placeholder="Paste rough bullets, feature notes, or the full concept here..." value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className="input-field resize-none" />
+                <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Leave the title blank and the first description line becomes the title. Line breaks are preserved.</p></div>
               <div><label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Tags (optional)</label>
                 <input placeholder="marketing, Q3, design..." value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className="input-field" /></div>
               <div className="flex gap-4 pt-6 border-t" style={{ borderColor: "var(--divider-soft)" }}>
@@ -134,7 +137,7 @@ export default function WorkspaceIdeasPage() {
                 </div>
               </div>
               {idea.description ? (
-                <p className="text-sm leading-relaxed mb-8 line-clamp-4" style={{ color: "var(--charcoal)" }}>{idea.description}</p>
+                <IdeaDescription className="text-sm leading-relaxed mb-8 line-clamp-5" style={{ color: "var(--charcoal)" }} description={idea.description} />
               ) : <p className="text-sm italic mb-8" style={{ color: "var(--stone)" }}>No description.</p>}
               <div className="mt-auto pt-4 border-t flex flex-wrap gap-2 items-center" style={{ borderColor: "var(--divider-soft)" }}>
                 {idea.tags.length > 0 ? idea.tags.map(tag => <span key={tag} className="badge-pill">{tag}</span>) : (

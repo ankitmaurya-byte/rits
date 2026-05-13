@@ -17,9 +17,11 @@ const pageTitles: Record<string, string> = {
   "/private/ideas":      "Private · Ideas",
   "/private/todos":      "Private · Todos",
   "/private/notes":      "Private · Notes",
+  "/private/resources":  "Private · Resources",
   "/workspace/ideas":    "Workspace · Ideas",
   "/workspace/todos":    "Workspace · Todos",
   "/workspace/notes":    "Workspace · Notes",
+  "/workspace/resources": "Workspace · Resources",
   "/workspace/members":  "Workspace · Members",
   "/workspace/join":     "Join Workspace",
 };

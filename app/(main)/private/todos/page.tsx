@@ -162,6 +162,14 @@ const STATUSES_MAP = [
   { id: "completed", label: "Complete" },
 ];
 
+function getSourceLabel(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "Open source";
+  }
+}
+
 function TaskCard({ task, isOverlay, deleteTodo, handleUpdateStatus }: any) {
   return (
     <div className={`feature-card p-4 rounded-xl relative border transition-colors bg-[var(--surface-card)] ${isOverlay ? "shadow-2xl scale-105 border-[var(--hairline-strong)] z-50 cursor-grabbing" : "shadow-sm border-[var(--hairline)] hover:border-[var(--hairline-strong)]"}`}>
@@ -184,6 +192,23 @@ function TaskCard({ task, isOverlay, deleteTodo, handleUpdateStatus }: any) {
       <div className="flex items-start gap-2 mb-3 pr-8">
         <span className="text-[14px] font-medium leading-tight select-none" style={{ color: task.status === "completed" || task.completed ? "var(--mute)" : "var(--ink)", textDecoration: task.status === "completed" || task.completed ? "line-through" : "none" }}>{task.title}</span>
       </div>
+      {task.sourceDescription ? (
+        <p className="text-xs leading-relaxed mb-3 line-clamp-3" style={{ color: "var(--charcoal)" }}>
+          {task.sourceDescription}
+        </p>
+      ) : null}
+      {task.sourceUrl ? (
+        <a
+          href={task.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          onPointerDown={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1.5 text-xs font-medium mb-3"
+          style={{ color: "var(--accent-blue)" }}
+        >
+          <ExternalLinkIcon /> {getSourceLabel(task.sourceUrl)}
+        </a>
+      ) : null}
       <div className="flex items-center gap-3 mt-4 text-xs font-medium select-none" style={{ color: "var(--mute)" }}>
         <span className="flex items-center gap-1.5 bg-[var(--surface-elevated)] px-2 py-1 rounded-md">
           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.priority === "high" ? "var(--accent-red)" : task.priority === "medium" ? "var(--accent-yellow)" : "var(--accent-blue)" }} />
@@ -192,5 +217,14 @@ function TaskCard({ task, isOverlay, deleteTodo, handleUpdateStatus }: any) {
         <span>{format(task.createdAt, "MMM d, yyyy")}</span>
       </div>
     </div>
+  );
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 17 17 7" />
+      <path d="M7 7h10v10" />
+    </svg>
   );
 }

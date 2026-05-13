@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
 import { Id } from "@/convex/_generated/dataModel";
 import { Plus, FileText, Trash2, Save, Clock, Menu, Lock } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +13,7 @@ import { formatDistanceToNow } from "date-fns";
 
 export default function PrivateNotesPage() {
   const { user } = useUser();
+  const searchParams = useSearchParams();
   const convexUser = useQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
 
   const notes = useQuery(api.notes.getPrivateNotes, convexUser ? { createdBy: convexUser._id } : "skip");
@@ -28,15 +30,31 @@ export default function PrivateNotesPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const selectedNote = notes?.find((n) => n._id === selectedId);
+  const requestedNoteId = searchParams.get("note");
+  const autoSelectedNote = selectedNote
+    ? null
+    : notes?.find((item) => item._id === requestedNoteId) ?? null;
+  const activeNote = selectedNote ?? autoSelectedNote;
+  const activeTitle = selectedNote ? editTitle : autoSelectedNote?.title ?? "";
+  const activeContent = selectedNote ? editContent : autoSelectedNote?.content ?? "";
 
   const handleSelect = (id: Id<"notes">, title: string, content: string) => {
     setSelectedId(id); setEditTitle(title); setEditContent(content);
   };
 
   const handleSave = async () => {
-    if (!selectedId) return;
+    const noteId = selectedId ?? autoSelectedNote?._id;
+    if (!noteId) return;
+
     setSaving(true);
-    try { await updateNote({ id: selectedId, title: editTitle, content: editContent }); toast.success("Note saved"); }
+    try {
+      await updateNote({
+        id: noteId,
+        title: selectedNote ? editTitle : autoSelectedNote?.title ?? "",
+        content: selectedNote ? editContent : autoSelectedNote?.content ?? "",
+      });
+      toast.success("Note saved");
+    }
     finally { setSaving(false); }
   };
 
@@ -85,7 +103,7 @@ export default function PrivateNotesPage() {
             </div>
           )}
           {notes?.map((note) => {
-            const isSelected = selectedId === note._id;
+            const isSelected = activeNote?._id === note._id;
             return (
               <div key={note._id} role="button" tabIndex={0}
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelect(note._id, note.title, note.content); } }}
@@ -116,18 +134,28 @@ export default function PrivateNotesPage() {
         <div className="absolute top-0 right-0 w-[400px] h-[400px] pointer-events-none"
           style={{ background: "radial-gradient(ellipse at top, var(--accent-orange-glow) 0%, transparent 70%)", opacity: 0.15 }} />
 
-        {selectedNote ? (
+        {activeNote ? (
           <>
             <div className="flex items-center gap-4 px-6 py-4 shrink-0 border-b z-10 relative" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
               <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-md transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--body)" }} title="Toggle sidebar">
                 <Menu size={18} />
               </button>
-              <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="flex-1 text-xl font-medium outline-none bg-transparent" style={{ color: "var(--ink)" }} placeholder="Note title..." />
+              <input value={activeTitle} onChange={(e) => {
+                if (!selectedNote && autoSelectedNote) {
+                  handleSelect(autoSelectedNote._id, autoSelectedNote.title, autoSelectedNote.content);
+                }
+                setEditTitle(e.target.value);
+              }} className="flex-1 text-xl font-medium outline-none bg-transparent" style={{ color: "var(--ink)" }} placeholder="Note title..." />
               <button onClick={handleSave} disabled={saving} className="btn-outline"><Save size={16} />{saving ? "Saving..." : "Save"}</button>
             </div>
             <div className="flex-1 overflow-auto p-8 lg:p-12 relative z-10">
               <div className="max-w-3xl mx-auto stripe-card" style={{ padding: "0" }}>
-                <NoteEditor content={editContent} onChange={setEditContent} />
+                <NoteEditor content={activeContent} onChange={(value) => {
+                  if (!selectedNote && autoSelectedNote) {
+                    handleSelect(autoSelectedNote._id, autoSelectedNote.title, autoSelectedNote.content);
+                  }
+                  setEditContent(value);
+                }} />
               </div>
             </div>
           </>

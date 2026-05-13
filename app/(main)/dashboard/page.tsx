@@ -4,6 +4,7 @@ import { useWorkspace } from "@/lib/use-workspace";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
+import { IdeaDescription } from "@/components/ideas/idea-text";
 import {
   Lightbulb,
   CheckSquare,
@@ -162,7 +163,11 @@ export default function DashboardPage() {
                       <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: "var(--accent-yellow)" }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate mb-1" style={{ color: "var(--ink)" }}>{idea.title}</p>
-                        <p className="text-xs truncate" style={{ color: "var(--charcoal)" }}>{idea.description || "No description provided."}</p>
+                        {idea.description ? (
+                          <IdeaDescription className="text-xs line-clamp-2" style={{ color: "var(--charcoal)" }} description={idea.description} />
+                        ) : (
+                          <p className="text-xs truncate" style={{ color: "var(--charcoal)" }}>No description provided.</p>
+                        )}
                       </div>
                     </Link>
                   </li>
@@ -188,7 +193,7 @@ export default function DashboardPage() {
              {todos?.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                 <CheckSquare size={24} style={{ color: "var(--stone)", marginBottom: "12px" }} />
-                <p className="text-sm" style={{ color: "var(--charcoal)" }}>You're all caught up!</p>
+                <p className="text-sm" style={{ color: "var(--charcoal)" }}>You&apos;re all caught up!</p>
               </div>
             ) : (
               <ul className="space-y-1">

@@ -58,6 +58,8 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
     title: v.string(),
+    sourceUrl: v.optional(v.string()),
+    sourceDescription: v.optional(v.string()),
     completed: v.boolean(),
     status: v.optional(v.string()),
     assignedTo: v.optional(v.id("users")),
@@ -84,4 +86,15 @@ export default defineSchema({
     name: v.string(),
     createdAt: v.number(),
   }).index("by_workspace", ["workspaceId"]),
+
+  resources: defineTable({
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
+    url: v.string(),
+    description: v.string(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_private", ["createdBy", "scope"]),
 });

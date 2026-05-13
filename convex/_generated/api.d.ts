@@ -10,6 +10,7 @@
 
 import type * as ideas from "../ideas.js";
 import type * as notes from "../notes.js";
+import type * as resources from "../resources.js";
 import type * as todoGroups from "../todoGroups.js";
 import type * as todos from "../todos.js";
 import type * as users from "../users.js";
@@ -24,6 +25,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   ideas: typeof ideas;
   notes: typeof notes;
+  resources: typeof resources;
   todoGroups: typeof todoGroups;
   todos: typeof todos;
   users: typeof users;

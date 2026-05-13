@@ -10,12 +10,16 @@ export const createTodo = mutation({
     status: v.optional(v.string()),
     createdBy: v.optional(v.id("users")),
     groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
+    sourceUrl: v.optional(v.string()),
+    sourceDescription: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("todos", {
       scope: args.scope,
       workspaceId: args.workspaceId,
       title: args.title,
+      sourceUrl: args.sourceUrl,
+      sourceDescription: args.sourceDescription,
       priority: args.priority,
       status: args.status || "todo",
       completed: args.status === "completed",

@@ -57,7 +57,7 @@ export default function TodosPage() {
     }
     
     try {
-      await createTodo({ workspaceId, title: newTitle.trim(), priority: "medium", status });
+      await createTodo({ workspaceId, scope: "workspace", title: newTitle.trim(), priority: "medium", status });
       setNewTitle("");
       setCreatingInStatus(null);
       toast.success("Task added.");

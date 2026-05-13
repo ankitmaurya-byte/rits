@@ -9,11 +9,19 @@ import { Bell, Search, Command } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/ideas":     "Ideas",
-  "/todos":     "Todos",
-  "/notes":     "Notes",
-  "/startups":  "Startups",
+  "/dashboard":          "Dashboard",
+  "/ideas":              "Ideas",
+  "/todos":              "Todos",
+  "/notes":              "Notes",
+  "/startups":           "Startup Directory",
+  "/private/ideas":      "Private · Ideas",
+  "/private/todos":      "Private · Todos",
+  "/private/notes":      "Private · Notes",
+  "/workspace/ideas":    "Workspace · Ideas",
+  "/workspace/todos":    "Workspace · Todos",
+  "/workspace/notes":    "Workspace · Notes",
+  "/workspace/members":  "Workspace · Members",
+  "/workspace/join":     "Join Workspace",
 };
 
 export default function MainLayout({

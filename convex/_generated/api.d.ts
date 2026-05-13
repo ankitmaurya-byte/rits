@@ -12,6 +12,7 @@ import type * as ideas from "../ideas.js";
 import type * as notes from "../notes.js";
 import type * as todos from "../todos.js";
 import type * as users from "../users.js";
+import type * as workspaces from "../workspaces.js";
 
 import type {
   ApiFromModules,
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   notes: typeof notes;
   todos: typeof todos;
   users: typeof users;
+  workspaces: typeof workspaces;
 }>;
 
 /**

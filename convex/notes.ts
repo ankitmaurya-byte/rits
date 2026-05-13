@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+// Get notes for a workspace
 export const getNotes = query({
   args: {
     workspaceId: v.id("workspaces"),
@@ -12,15 +13,33 @@ export const getNotes = query({
         q.eq("workspaceId", args.workspaceId)
       )
       .order("desc")
-      .collect();
+      .take(100);
+  },
+});
+
+// Get private notes for a user
+export const getPrivateNotes = query({
+  args: {
+    createdBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("notes")
+      .withIndex("by_user_private", (q) =>
+        q.eq("createdBy", args.createdBy).eq("scope", "private")
+      )
+      .order("desc")
+      .take(100);
   },
 });
 
 export const createNote = mutation({
   args: {
-    workspaceId: v.id("workspaces"),
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     content: v.string(),
+    createdBy: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("notes", {

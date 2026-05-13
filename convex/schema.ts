@@ -7,36 +7,74 @@ export default defineSchema({
     name: v.string(),
     email: v.string(),
     image: v.optional(v.string()),
-  }),
+  }).index("by_clerk_id", ["clerkId"]),
 
   workspaces: defineTable({
     name: v.string(),
+    description: v.optional(v.string()),
     ownerId: v.id("users"),
-  }),
+    inviteToken: v.optional(v.string()), // optional for existing records; always set on create
+  }).index("by_invite_token", ["inviteToken"]),
+
+  // Many-to-many: users <-> workspaces
+  workspaceMembers: defineTable({
+    workspaceId: v.id("workspaces"),
+    userId: v.id("users"),
+    role: v.union(v.literal("owner"), v.literal("member")),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user", ["userId"])
+    .index("by_workspace_and_user", ["workspaceId", "userId"]),
+
+  // Email invites (pending)
+  workspaceInvites: defineTable({
+    workspaceId: v.id("workspaces"),
+    email: v.string(),
+    token: v.string(),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("expired")),
+    invitedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_token", ["token"])
+    .index("by_email", ["email"]),
 
   ideas: defineTable({
-    workspaceId: v.id("workspaces"),
+    // scope: "private" = personal only, "workspace" = belongs to a workspace
+    // Optional for backward compat with existing records; defaults to "workspace" if missing
+    scope: v.optional(v.union(v.literal("private"), v.literal("workspace"))),
+    workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     description: v.string(),
     tags: v.array(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
-  }).index("by_workspace", ["workspaceId"]),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_private", ["createdBy", "scope"]),
 
   todos: defineTable({
-    workspaceId: v.id("workspaces"),
+    scope: v.optional(v.union(v.literal("private"), v.literal("workspace"))),
+    workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     completed: v.boolean(),
     status: v.optional(v.string()),
     assignedTo: v.optional(v.id("users")),
     priority: v.string(),
+    createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
-  }).index("by_workspace", ["workspaceId"]),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_private", ["createdBy", "scope"]),
 
   notes: defineTable({
-    workspaceId: v.id("workspaces"),
+    scope: v.optional(v.union(v.literal("private"), v.literal("workspace"))),
+    workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     content: v.string(),
+    createdBy: v.optional(v.id("users")),
     updatedAt: v.number(),
-  }).index("by_workspace", ["workspaceId"]),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_private", ["createdBy", "scope"]),
 });

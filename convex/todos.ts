@@ -3,23 +3,28 @@ import { v } from "convex/values";
 
 export const createTodo = mutation({
   args: {
-    workspaceId: v.id("workspaces"),
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     priority: v.string(),
-    status: v.optional(v.string()), // 'todo', 'in-progress', 'completed'
+    status: v.optional(v.string()),
+    createdBy: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("todos", {
+      scope: args.scope,
       workspaceId: args.workspaceId,
       title: args.title,
       priority: args.priority,
       status: args.status || "todo",
-      completed: args.status === "completed", // Legacy compat
+      completed: args.status === "completed",
+      createdBy: args.createdBy,
       createdAt: Date.now(),
     });
   },
 });
 
+// Get todos for a workspace
 export const getTodos = query({
   args: {
     workspaceId: v.id("workspaces"),
@@ -31,7 +36,23 @@ export const getTodos = query({
         q.eq("workspaceId", args.workspaceId)
       )
       .order("desc")
-      .collect();
+      .take(200);
+  },
+});
+
+// Get private todos for a user
+export const getPrivateTodos = query({
+  args: {
+    createdBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("todos")
+      .withIndex("by_user_private", (q) =>
+        q.eq("createdBy", args.createdBy).eq("scope", "private")
+      )
+      .order("desc")
+      .take(200);
   },
 });
 
@@ -41,9 +62,9 @@ export const toggleTodo = mutation({
     const todo = await ctx.db.get(args.id);
     if (!todo) throw new Error("Todo not found");
     const newCompleted = !todo.completed;
-    return await ctx.db.patch(args.id, { 
+    return await ctx.db.patch(args.id, {
       completed: newCompleted,
-      status: newCompleted ? "completed" : "todo" 
+      status: newCompleted ? "completed" : "todo",
     });
   },
 });

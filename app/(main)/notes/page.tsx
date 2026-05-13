@@ -44,7 +44,7 @@ export default function NotesPage() {
   const handleCreate = async () => {
     if (!workspaceId || !newTitle.trim()) { toast.error("Title is required"); return; }
     try {
-      const id = await createNote({ workspaceId, title: newTitle.trim(), content: "" });
+      const id = await createNote({ workspaceId, scope: "workspace", title: newTitle.trim(), content: "" });
       setNewTitle(""); setShowCreate(false);
       handleSelect(id as Id<"notes">, newTitle.trim(), "");
       toast.success("Note created!");

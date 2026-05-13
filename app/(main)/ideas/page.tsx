@@ -61,6 +61,7 @@ export default function IdeasPage() {
       } else {
         await createIdea({
           workspaceId,
+          scope: "workspace",
           title: title.trim(),
           description: description.trim(),
           tags,

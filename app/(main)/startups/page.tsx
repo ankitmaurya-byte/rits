@@ -70,6 +70,7 @@ export default function StartupsPage() {
     try {
       await createNote({
         workspaceId,
+        scope: "workspace",
         title: `Research Note: ${startup.name}`,
         content: `# ${startup.name} (${startup.batch})\n\n**Industry:** ${startup.industry}\n\n**Founders:** ${startup.founders.join(", ")}\n\n**Website:** ${startup.website}\n\n## Description\n${startup.description}\n\n## My Thoughts\n...`,
       });
@@ -87,6 +88,7 @@ export default function StartupsPage() {
     try {
       await createIdea({
         workspaceId,
+        scope: "workspace",
         title: `Idea inspired by ${startup.name}`,
         description: `How can we apply the ${startup.name} model to a new industry?\n\nContext: ${startup.description}`,
         tags: ["research", startup.industry.toLowerCase()],
@@ -106,6 +108,7 @@ export default function StartupsPage() {
     try {
       await createTodo({
         workspaceId,
+        scope: "workspace",
         title: `Deep dive research on ${startup.name}'s growth strategy`,
         priority: "medium",
       });

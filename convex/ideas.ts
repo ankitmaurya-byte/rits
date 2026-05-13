@@ -3,7 +3,8 @@ import { v } from "convex/values";
 
 export const createIdea = mutation({
   args: {
-    workspaceId: v.id("workspaces"),
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     description: v.string(),
     tags: v.array(v.string()),
@@ -17,6 +18,7 @@ export const createIdea = mutation({
   },
 });
 
+// Get ideas for a workspace
 export const getIdeas = query({
   args: {
     workspaceId: v.id("workspaces"),
@@ -28,7 +30,23 @@ export const getIdeas = query({
         q.eq("workspaceId", args.workspaceId)
       )
       .order("desc")
-      .collect();
+      .take(100);
+  },
+});
+
+// Get private ideas for a user
+export const getPrivateIdeas = query({
+  args: {
+    createdBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("ideas")
+      .withIndex("by_user_private", (q) =>
+        q.eq("createdBy", args.createdBy).eq("scope", "private")
+      )
+      .order("desc")
+      .take(100);
   },
 });
 

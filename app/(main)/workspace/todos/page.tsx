@@ -268,7 +268,7 @@ function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInS
           </div>
         ) : (
           <button onClick={() => setCreatingInStatus(droppableId)}
-            className="flex items-center gap-2 p-2 w-full rounded-md text-sm transition-colors hover:bg-[var(--surface-elevated)] opacity-0 hover:opacity-100"
+            className="flex items-center gap-2 p-2 w-full rounded-md text-sm transition-colors hover:bg-[var(--surface-elevated)]"
             style={{ color: "var(--mute)" }}>
             <Plus size={16} /> New page
           </button>
@@ -288,28 +288,23 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateStatus }: any) {
   );
 }
 
-const STATUSES_MAP = [
-  { id: "todo", label: "To-do" }, { id: "in-progress", label: "In progress" }, { id: "completed", label: "Complete" },
-];
-
 function TaskCard({ task, isOverlay, deleteTodo, handleUpdateStatus }: any) {
   return (
     <div className={`feature-card p-4 rounded-xl relative border transition-colors bg-[var(--surface-card)] ${isOverlay ? "shadow-2xl scale-105 border-[var(--hairline-strong)] z-50 cursor-grabbing" : "shadow-sm border-[var(--hairline)] hover:border-[var(--hairline-strong)]"}`}>
       {!isOverlay && deleteTodo && (
-        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-[var(--surface-card)] rounded-md shadow-sm border p-0.5 z-20" style={{ borderColor: "var(--hairline-strong)" }}>
-          <select value="" onChange={(e) => {
-            if (e.target.value === "delete") deleteTodo({ id: task._id }).then(() => toast.success("Deleted"));
-            else if (e.target.value) handleUpdateStatus(task._id, e.target.value, task.groupId || null);
-          }} className="appearance-none bg-transparent text-xs pl-2 pr-6 py-1 outline-none cursor-pointer" style={{ color: "var(--ink)" }}
-            onPointerDown={(e) => e.stopPropagation()}>
-            <option value="" disabled>Move to...</option>
-            {STATUSES_MAP.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-            <option value="delete">Delete</option>
-          </select>
-          <div className="absolute right-2 pointer-events-none">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
-          </div>
-        </div>
+        <button 
+          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-[var(--surface-card)] rounded-md shadow-sm border p-1 z-20 hover:bg-[var(--surface-elevated)]" 
+          style={{ borderColor: "var(--hairline-strong)", color: "var(--mute)" }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => {
+            if (confirm("Are you sure you want to delete this task?")) {
+              deleteTodo({ id: task._id }).then(() => toast.success("Deleted"));
+            }
+          }}
+          title="Delete task"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+        </button>
       )}
       <div className="flex items-start gap-2 mb-3 pr-8">
         <span className="text-[14px] font-medium leading-tight select-none" style={{ color: task.status === "completed" || task.completed ? "var(--mute)" : "var(--ink)", textDecoration: task.status === "completed" || task.completed ? "line-through" : "none" }}>{task.title}</span>

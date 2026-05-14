@@ -89,10 +89,13 @@ export default defineSchema({
     .index("by_user_private", ["createdBy", "scope"]),
 
   todoGroups: defineTable({
-    workspaceId: v.id("workspaces"),
+    workspaceId: v.optional(v.id("workspaces")),
+    createdBy: v.optional(v.id("users")),
     name: v.string(),
     createdAt: v.number(),
-  }).index("by_workspace", ["workspaceId"]),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user", ["createdBy"]),
 
   resources: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),

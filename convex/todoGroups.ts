@@ -12,6 +12,17 @@ export const getGroups = query({
   },
 });
 
+export const getPrivateGroups = query({
+  args: { createdBy: v.id("users") },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("todoGroups")
+      .withIndex("by_user", (q) => q.eq("createdBy", args.createdBy))
+      .order("asc")
+      .collect();
+  },
+});
+
 export const createGroup = mutation({
   args: {
     workspaceId: v.id("workspaces"),
@@ -35,6 +46,20 @@ export const createGroup = mutation({
 
     return await ctx.db.insert("todoGroups", {
       workspaceId: args.workspaceId,
+      name: args.name,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+export const createPrivateGroup = mutation({
+  args: {
+    name: v.string(),
+    createdBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("todoGroups", {
+      createdBy: args.createdBy,
       name: args.name,
       createdAt: Date.now(),
     });

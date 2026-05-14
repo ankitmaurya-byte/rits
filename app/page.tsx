@@ -14,42 +14,6 @@ const NAV_LINKS = [
   { label: "Pricing", href: "#pricing" },
 ];
 
-const PARTICLES = [
-  { id: 0, x: 8, y: 12, size: 1.8, duration: 9, delay: 0.2, opacity: 0.18 },
-  { id: 1, x: 16, y: 72, size: 1.2, duration: 11, delay: 1.1, opacity: 0.16 },
-  { id: 2, x: 24, y: 34, size: 2.2, duration: 10, delay: 2.2, opacity: 0.2 },
-  { id: 3, x: 32, y: 58, size: 1.4, duration: 12, delay: 0.8, opacity: 0.14 },
-  { id: 4, x: 41, y: 18, size: 1.6, duration: 8, delay: 1.7, opacity: 0.18 },
-  { id: 5, x: 48, y: 80, size: 2.1, duration: 13, delay: 2.6, opacity: 0.22 },
-  { id: 6, x: 55, y: 44, size: 1.1, duration: 10, delay: 0.5, opacity: 0.12 },
-  { id: 7, x: 62, y: 24, size: 1.9, duration: 9, delay: 1.3, opacity: 0.19 },
-  { id: 8, x: 68, y: 66, size: 1.3, duration: 14, delay: 2.9, opacity: 0.15 },
-  { id: 9, x: 74, y: 10, size: 2.4, duration: 11, delay: 1.9, opacity: 0.2 },
-  { id: 10, x: 81, y: 52, size: 1.5, duration: 8, delay: 0.4, opacity: 0.12 },
-  { id: 11, x: 88, y: 30, size: 1.8, duration: 12, delay: 2.1, opacity: 0.18 },
-  { id: 12, x: 93, y: 76, size: 1.1, duration: 10, delay: 0.9, opacity: 0.13 },
-  { id: 13, x: 12, y: 90, size: 1.7, duration: 13, delay: 2.4, opacity: 0.17 },
-  { id: 14, x: 28, y: 6, size: 2, duration: 9, delay: 1.5, opacity: 0.21 },
-  { id: 15, x: 36, y: 86, size: 1.2, duration: 11, delay: 0.7, opacity: 0.11 },
-  { id: 16, x: 46, y: 60, size: 1.5, duration: 12, delay: 2.7, opacity: 0.14 },
-  { id: 17, x: 58, y: 8, size: 2.1, duration: 8, delay: 1.6, opacity: 0.2 },
-  { id: 18, x: 66, y: 92, size: 1.3, duration: 13, delay: 2.8, opacity: 0.16 },
-  { id: 19, x: 78, y: 40, size: 1.9, duration: 9, delay: 0.3, opacity: 0.18 },
-  { id: 20, x: 84, y: 62, size: 1.4, duration: 10, delay: 1.8, opacity: 0.12 },
-  { id: 21, x: 6, y: 48, size: 2.3, duration: 14, delay: 2.5, opacity: 0.19 },
-  { id: 22, x: 52, y: 28, size: 1.2, duration: 11, delay: 0.6, opacity: 0.14 },
-  { id: 23, x: 96, y: 18, size: 1.6, duration: 12, delay: 1.2, opacity: 0.17 },
-];
-
-/* ─── Floating Orb SVG ─── */
-function FloatingOrb({ cx, cy, r, color, delay, duration }: { cx: number; cy: number; r: number; color: string; delay: number; duration: number }) {
-  return (
-    <circle
-      cx={cx} cy={cy} r={r} fill={color} opacity={0.18}
-      style={{ animation: `floatOrb ${duration}s ease-in-out ${delay}s infinite alternate` }}
-    />
-  );
-}
 
 /* ─── Full-page warp grid ─── */
 function WarpGrid({ mousePos }: { mousePos: { x: number; y: number } }) {
@@ -97,31 +61,6 @@ function WarpGrid({ mousePos }: { mousePos: { x: number; y: number } }) {
   );
 }
 
-function OrbitalNetwork() {
-  return (
-    <svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", maxWidth: 520 }}>
-      <defs>
-        <radialGradient id="orbGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.22)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-        </radialGradient>
-      </defs>
-      <circle cx="260" cy="260" r="180" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
-      <circle cx="260" cy="260" r="120" stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" strokeDasharray="6 10" />
-      <circle cx="260" cy="260" r="58" fill="url(#orbGlow)" />
-      <circle cx="260" cy="260" r="10" fill="#fcfdff" opacity="0.95" />
-      <path d="M260 80 L160 180 L260 260 L372 190 L438 258" stroke="rgba(255,255,255,0.18)" strokeWidth="1" fill="none" strokeDasharray="5 8" />
-      <path d="M120 320 L210 282 L260 260 L314 326 L402 372" stroke="rgba(255,255,255,0.14)" strokeWidth="1" fill="none" strokeDasharray="4 10" />
-      <FloatingOrb cx={260} cy={80} r={10} color="#ffc53d" delay={0} duration={5} />
-      <FloatingOrb cx={160} cy={180} r={8} color="#11ff99" delay={0.8} duration={6.5} />
-      <FloatingOrb cx={372} cy={190} r={9} color="#3b9eff" delay={1.2} duration={7} />
-      <FloatingOrb cx={438} cy={258} r={7} color="#ff801f" delay={0.4} duration={5.8} />
-      <FloatingOrb cx={120} cy={320} r={8} color="#a78bfa" delay={1.7} duration={6.8} />
-      <FloatingOrb cx={402} cy={372} r={9} color="#ff2047" delay={0.6} duration={7.2} />
-      <FloatingOrb cx={314} cy={326} r={6} color="#fcfdff" delay={1.4} duration={5.4} />
-    </svg>
-  );
-}
 
 /* ─── Feature Card SVG Icons ─── */
 function IdeaIcon() {
@@ -242,87 +181,115 @@ function Reveal({ children, delay = 0, className = "" }: { children: React.React
   );
 }
 
-/* ─── Floating particles ─── */
-function Particles() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {PARTICLES.map(p => (
-        <div key={p.id} style={{
-          position: "absolute",
-          left: `${p.x}%`,
-          top: `${p.y}%`,
-          width: p.size,
-          height: p.size,
-          borderRadius: "50%",
-          background: "white",
-          opacity: p.opacity,
-          animation: `floatParticle ${p.duration}s ease-in-out ${p.delay}s infinite alternate`,
-        }} />
-      ))}
-    </div>
-  );
-}
-
 /* ─── Research diagram SVG ─── */
 function WorkflowDiagram() {
   return (
-    <svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", maxWidth: 720 }}>
+    <svg viewBox="0 0 820 420" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "100%" }}>
       <defs>
         <linearGradient id="panelStroke" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
           <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
+        </linearGradient>
+        <linearGradient id="panelFill" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.02)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.005)" />
         </linearGradient>
         <linearGradient id="signalLine" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#3b9eff" />
           <stop offset="50%" stopColor="#ffc53d" />
           <stop offset="100%" stopColor="#ff801f" />
         </linearGradient>
+        <linearGradient id="scanBand" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0)" />
+          <stop offset="50%" stopColor="rgba(255,255,255,0.08)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
+        <filter id="softBlur" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="10" />
+        </filter>
       </defs>
 
-      <rect x="24" y="28" width="672" height="304" rx="18" fill="#06060a" stroke="url(#panelStroke)" strokeWidth="1" />
+      <rect x="24" y="28" width="772" height="364" rx="18" fill="#06060a" stroke="url(#panelStroke)" strokeWidth="1" />
+      <rect x="24" y="28" width="772" height="364" rx="18" fill="url(#panelFill)" />
 
-      <rect x="56" y="58" width="156" height="96" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-      <text x="76" y="82" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">INPUT STREAM</text>
-      <text x="76" y="104" fontSize="14" fill="#fcfdff" fontFamily="monospace">Interviews</text>
-      <text x="76" y="124" fontSize="14" fill="#11ff99" fontFamily="monospace">Docs</text>
-      <text x="76" y="144" fontSize="12" fill="rgba(252,253,255,0.45)" fontFamily="monospace">raw material</text>
+      <g opacity="0.7">
+        <line x1="56" y1="92" x2="764" y2="92" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+        <line x1="56" y1="156" x2="764" y2="156" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+        <line x1="56" y1="220" x2="764" y2="220" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+        <line x1="56" y1="284" x2="764" y2="284" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+        <line x1="56" y1="348" x2="764" y2="348" stroke="rgba(255,255,255,0.04)" strokeWidth="1" />
+      </g>
 
-      <rect x="244" y="58" width="212" height="232" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-      <text x="272" y="82" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">ANALYSIS SURFACE</text>
-      <path d="M272 216 C304 176, 338 244, 376 182 S430 134, 452 156" fill="none" stroke="url(#signalLine)" strokeWidth="2.2" strokeLinecap="round">
-        <animate attributeName="d" dur="7s" repeatCount="indefinite"
-          values="M272 216 C304 176, 338 244, 376 182 S430 134, 452 156;M272 204 C304 164, 338 254, 376 174 S430 144, 452 164;M272 216 C304 176, 338 244, 376 182 S430 134, 452 156" />
-      </path>
-      <circle cx="312" cy="126" r="4" fill="#3b9eff">
-        <animate attributeName="cy" dur="4.4s" values="126;116;126" repeatCount="indefinite" />
-      </circle>
-      <circle cx="368" cy="102" r="4" fill="#ffc53d">
-        <animate attributeName="cy" dur="4.8s" values="102;112;102" repeatCount="indefinite" />
-      </circle>
-      <circle cx="418" cy="88" r="4" fill="#ff801f">
-        <animate attributeName="cy" dur="5.1s" values="88;96;88" repeatCount="indefinite" />
-      </circle>
-      <rect x="272" y="252" width="156" height="8" rx="4" fill="rgba(255,255,255,0.06)" />
-      <rect x="272" y="252" width="92" height="8" rx="4" fill="#11ff99" opacity="0.72">
-        <animate attributeName="width" dur="5.5s" values="92;128;104;92" repeatCount="indefinite" />
-      </rect>
+      <g>
+        <rect x="58" y="54" width="184" height="300" rx="14" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+        <text x="80" y="78" fontSize="9" fill="rgba(252,253,255,0.34)" fontFamily="monospace">INPUT SET</text>
+        <text x="80" y="102" fontSize="15" fill="#fcfdff" fontFamily="monospace">Interviews</text>
+        <text x="80" y="121" fontSize="10" fill="rgba(252,253,255,0.58)" fontFamily="monospace">transcripts</text>
+        <text x="80" y="168" fontSize="15" fill="#11ff99" fontFamily="monospace">Documents</text>
+        <text x="80" y="187" fontSize="10" fill="rgba(252,253,255,0.58)" fontFamily="monospace">briefs + reports</text>
+        <text x="80" y="234" fontSize="15" fill="#3b9eff" fontFamily="monospace">Signals</text>
+        <text x="80" y="253" fontSize="10" fill="rgba(252,253,255,0.58)" fontFamily="monospace">sources + evidence</text>
+        <text x="80" y="300" fontSize="15" fill="#ff801f" fontFamily="monospace">Patterns</text>
+        <text x="80" y="319" fontSize="10" fill="rgba(252,253,255,0.58)" fontFamily="monospace">emerging themes</text>
+      </g>
 
-      <rect x="488" y="58" width="164" height="104" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-      <text x="488" y="82" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">RECOMMENDATION</text>
-      <text x="508" y="112" fontSize="18" fill="#fcfdff" fontFamily="monospace">Memo</text>
-      <text x="508" y="136" fontSize="12" fill="rgba(252,253,255,0.45)" fontFamily="monospace">evidence-backed</text>
+      <g>
+        <rect x="304" y="64" width="208" height="252" rx="14" fill="#09090b" stroke="rgba(255,255,255,0.09)" strokeWidth="1" />
+        <rect x="320" y="80" width="208" height="252" rx="14" fill="#0a0a0c" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+        <text x="348" y="102" fontSize="9" fill="rgba(252,253,255,0.34)" fontFamily="monospace">ANALYSIS SURFACE</text>
+        <rect x="348" y="124" width="156" height="190" rx="12" fill="#06060a" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+        <rect x="348" y="150" width="156" height="18" rx="9" fill="rgba(255,255,255,0.02)" />
+        <rect x="348" y="184" width="156" height="18" rx="9" fill="rgba(255,255,255,0.02)" />
+        <rect x="348" y="218" width="156" height="18" rx="9" fill="rgba(255,255,255,0.02)" />
+        <rect x="348" y="252" width="156" height="18" rx="9" fill="rgba(255,255,255,0.02)" />
+        <path d="M358 286 C382 236, 402 184, 434 188 S470 136, 486 154" fill="none" stroke="url(#signalLine)" strokeWidth="2.4" strokeLinecap="round">
+          <animate attributeName="d" dur="7s" repeatCount="indefinite" values="M326 250 C350 216, 370 174, 402 178 S438 126, 454 144;M326 242 C352 206, 374 182, 404 170 S438 136, 454 152;M326 250 C350 216, 370 174, 402 178 S438 126, 454 144" />
+        </path>
+        <rect x="348" y="132" width="156" height="20" rx="10" fill="url(#scanBand)" opacity="0.65">
+          <animate attributeName="y" dur="5.8s" values="132;286;132" repeatCount="indefinite" />
+        </rect>
+        <circle cx="382" cy="214" r="4" fill="#3b9eff" />
+        <circle cx="424" cy="180" r="4" fill="#ffc53d" />
+        <circle cx="466" cy="150" r="4" fill="#ff801f" />
+        <circle cx="382" cy="214" r="11" fill="#3b9eff" opacity="0.12" filter="url(#softBlur)" />
+        <circle cx="424" cy="180" r="11" fill="#ffc53d" opacity="0.12" filter="url(#softBlur)" />
+        <circle cx="466" cy="150" r="11" fill="#ff801f" opacity="0.12" filter="url(#softBlur)" />
+        <g>
+          <line x1="382" y1="214" x2="320" y2="198" stroke="rgba(59,158,255,0.35)" strokeWidth="1" strokeDasharray="3 4" />
+          <line x1="424" y1="180" x2="542" y2="174" stroke="rgba(255,197,61,0.35)" strokeWidth="1" strokeDasharray="3 4" />
+          <line x1="466" y1="150" x2="544" y2="122" stroke="rgba(255,128,31,0.35)" strokeWidth="1" strokeDasharray="3 4" />
+          <rect x="276" y="186" width="48" height="16" rx="8" fill="#0a0a0c" stroke="rgba(59,158,255,0.18)" strokeWidth="1" />
+          <text x="300" y="197" textAnchor="middle" fontSize="8" fill="#3b9eff" fontFamily="monospace">theme</text>
+          <rect x="542" y="166" width="66" height="16" rx="8" fill="#0a0a0c" stroke="rgba(255,197,61,0.18)" strokeWidth="1" />
+          <text x="575" y="177" textAnchor="middle" fontSize="8" fill="#ffc53d" fontFamily="monospace">evidence</text>
+          <rect x="544" y="114" width="68" height="16" rx="8" fill="#0a0a0c" stroke="rgba(255,128,31,0.18)" strokeWidth="1" />
+          <text x="578" y="125" textAnchor="middle" fontSize="8" fill="#ff801f" fontFamily="monospace">insight</text>
+        </g>
+      </g>
 
-      <rect x="488" y="186" width="164" height="104" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-      <text x="508" y="210" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">CONSULTANT TRUST</text>
-      <text x="508" y="240" fontSize="18" fill="#fcfdff" fontFamily="monospace">Traceable</text>
-      <text x="508" y="262" fontSize="12" fill="rgba(252,253,255,0.45)" fontFamily="monospace">source-linked</text>
+      <g>
+        <rect x="620" y="58" width="136" height="128" rx="14" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+        <text x="640" y="82" fontSize="9" fill="rgba(252,253,255,0.34)" fontFamily="monospace">DELIVERABLE</text>
+        <text x="640" y="110" fontSize="16" fill="#fcfdff" fontFamily="monospace">Memo</text>
+        <text x="640" y="131" fontSize="10" fill="rgba(252,253,255,0.58)" fontFamily="monospace">evidence-backed</text>
+      </g>
 
-      <line x1="212" y1="108" x2="244" y2="108" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
-      <line x1="456" y1="108" x2="488" y2="108" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
-      <line x1="456" y1="238" x2="488" y2="238" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
+      <g>
+        <rect x="620" y="214" width="136" height="128" rx="14" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+        <text x="640" y="238" fontSize="9" fill="rgba(252,253,255,0.34)" fontFamily="monospace">TRUST</text>
+        <text x="640" y="266" fontSize="16" fill="#fcfdff" fontFamily="monospace">Traceable</text>
+        <text x="640" y="287" fontSize="10" fill="rgba(252,253,255,0.58)" fontFamily="monospace">source-linked</text>
+      </g>
+
+      <line x1="242" y1="176" x2="320" y2="176" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
+      <line x1="504" y1="130" x2="620" y2="112" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
+      <line x1="504" y1="248" x2="620" y2="268" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
 
       <circle r="3.5" fill="#fcfdff" opacity="0.9">
-        <animateMotion dur="6.5s" repeatCount="indefinite" path="M 212 108 L 244 108 L 384 108 L 456 108 L 488 108" />
+        <animateMotion dur="6.5s" repeatCount="indefinite" path="M 242 176 L 320 176 L 422 176 L 504 130 L 620 112" />
+      </circle>
+      <circle r="3" fill="#ffc53d" opacity="0.9">
+        <animateMotion dur="7.8s" repeatCount="indefinite" path="M 242 176 L 320 176 L 422 176 L 504 248 L 620 268" />
       </circle>
     </svg>
   );
@@ -419,10 +386,6 @@ export default function Home() {
           from { transform: translateY(0px) scale(1); }
           to { transform: translateY(-24px) scale(1.06); }
         }
-        @keyframes floatParticle {
-          from { transform: translate(0,0); opacity: 0.05; }
-          to { transform: translate(12px, -20px); opacity: 0.25; }
-        }
         @keyframes dashFlow {
           from { stroke-dashoffset: 0; }
           to { stroke-dashoffset: -24; }
@@ -506,11 +469,6 @@ export default function Home() {
       <div aria-hidden style={{ position: "fixed", bottom: "-20%", right: "-10%", width: 800, height: 800, background: "radial-gradient(ellipse at bottom right, rgba(255,89,0,0.08) 0%, transparent 60%)", pointerEvents: "none", zIndex: 0 }} />
       <div aria-hidden style={{ position: "fixed", top: "30%", left: "-10%", width: 600, height: 600, background: "radial-gradient(ellipse, rgba(0,117,255,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
 
-      {/* ── Floating particles ── */}
-      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
-        <Particles />
-      </div>
-
       {/* ─────────── NAV ─────────── */}
       <nav className="relative z-10 flex h-[64px] items-center justify-between px-5 sm:px-8" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.6)" }}>
         <div className="flex items-center gap-3">
@@ -592,24 +550,9 @@ export default function Home() {
         </div>
 
         {/* Workflow diagram */}
-        <div className="grid w-full max-w-6xl items-center gap-10 pt-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)] lg:pt-12">
-          <div style={{ animation: "fadeInUp 0.8s ease 0.9s both", width: "100%" }}>
-            <WorkflowDiagram />
-          </div>
-          <div style={{ animation: "fadeInUp 0.8s ease 1.05s both" }}>
-            <div className="mx-auto max-w-[420px] rounded-[28px] border border-white/10 bg-[#06060a] p-6 text-left">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-white/35">Research operating layer</p>
-              <h3 className="mt-3 text-2xl font-normal tracking-tight text-white" style={{ fontFamily: "monospace" }}>
-                Built for research agencies and serious analysis work.
-              </h3>
-              <p className="mt-4 text-[13px] leading-7 text-white/45" style={{ fontFamily: "monospace" }}>
-                From intake to recommendation, Rits keeps evidence, notes, analysis, and consultant judgment in one readable system clients can trust.
-              </p>
-              <div className="mt-6">
-                <OrbitalNetwork />
-              </div>
-            </div>
-          </div>
+        <div className="relative aspect-[12/7] w-full max-w-[1180px] pt-8 lg:pt-12" style={{ animation: "fadeInUp 0.8s ease 0.9s both" }}>
+          <WorkflowDiagram />
+      
         </div>
       </section>
 

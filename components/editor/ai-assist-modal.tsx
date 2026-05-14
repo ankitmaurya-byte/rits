@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import {
-  BrainCircuit,
   ChevronDown,
   ChevronUp,
   Loader2,
@@ -12,6 +11,7 @@ import {
   Sparkles,
   ClipboardPaste,
 } from "lucide-react";
+import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
 
 // ---------------------------------------------------------------------------
 // Suggested prompts
@@ -240,7 +240,7 @@ export function AiAssistModal({
                 color: "var(--ink)",
               }}
             >
-              <BrainCircuit size={14} />
+              <RitsAiLogo size={14} />
             </div>
             <div>
               <p className="text-[14px] font-semibold" style={{ color: "var(--ink)" }}>
@@ -484,7 +484,7 @@ export function AiAssistButton({
         (e.currentTarget as HTMLButtonElement).style.color = "var(--charcoal)";
       }}
     >
-      <BrainCircuit size={11} />
+      <RitsAiLogo size={11}  />
       {label}
     </button>
   );

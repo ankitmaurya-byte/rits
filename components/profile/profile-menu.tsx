@@ -19,7 +19,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -82,25 +81,6 @@ export function ProfileMenu() {
           boxShadow: "0 18px 50px rgba(0, 0, 0, 0.28)",
         }}
       >
-        <DropdownMenuLabel className="px-3 py-2">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-10" size="lg">
-              <AvatarImage src={image} alt={name} />
-              <AvatarFallback>{getInitials(name)}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>
-                {name}
-              </p>
-              <p className="truncate text-xs" style={{ color: "var(--mute)" }}>
-                {email}
-              </p>
-            </div>
-          </div>
-        </DropdownMenuLabel>
-
-        <DropdownMenuSeparator className="bg-[var(--hairline)] opacity-50" />
-
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link href="/profile">

@@ -7,7 +7,6 @@ import { useQuery } from "convex/react";
 import { formatDistanceToNow } from "date-fns";
 import {
   ArrowUp,
-  BrainCircuit,
   Check,
   CheckSquare,
   ChevronDown,
@@ -33,6 +32,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
 import { useWorkspaceStore } from "@/store/workspace-store";
 
 // ---------------------------------------------------------------------------
@@ -599,14 +599,14 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
             {/* Left: identity */}
             <div className="flex items-center gap-3">
               <div
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm border"
                 style={{
                   borderColor: "var(--hairline-strong)",
                   backgroundColor: "var(--surface-elevated)",
                   color: "var(--ink)",
                 }}
               >
-                <BrainCircuit size={15} />
+                <RitsAiLogo size={15} />
               </div>
               <div>
                 <SheetTitle
@@ -919,7 +919,7 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                           "You"
                         ) : (
                           <>
-                            <BrainCircuit size={10} /> Rits AI
+                            <RitsAiLogo size={10}  /> Rits AI
                           </>
                         )}
                       </div>
@@ -1057,7 +1057,7 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                           color: "var(--mute)",
                         }}
                       >
-                        <BrainCircuit size={10} />
+                        <RitsAiLogo size={32} />
                         Rits AI
                       </div>
                       <div

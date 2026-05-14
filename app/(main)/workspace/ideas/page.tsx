@@ -5,7 +5,8 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useWorkspaceStore } from "@/store/workspace-store";
-import { getIdeaTitle, IdeaDescription } from "@/components/ideas/idea-text";
+import { getIdeaTitle } from "@/components/ideas/idea-text";
+import { RichEditor } from "@/components/editor/rich-editor";
 import { Plus, Lightbulb, Trash2, Tag, Pencil, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -42,7 +43,9 @@ export default function WorkspaceIdeasPage() {
 
   const handleCreate = async () => {
     if (!selectedWorkspaceId || !convexUser) return;
-    const normalizedTitle = getIdeaTitle(title, description);
+    // Strip HTML tags for title extraction
+    const plainDesc = description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const normalizedTitle = getIdeaTitle(title, plainDesc);
     if (!normalizedTitle) { toast.error("Add a title or description"); return; }
     setSubmitting(true);
     try {
@@ -96,9 +99,17 @@ export default function WorkspaceIdeasPage() {
             <div className="space-y-6">
               <div><label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Title</label>
                 <input autoFocus placeholder="e.g. Mobile app redesign..." value={title} onChange={(e) => setTitle(e.target.value)} className="input-field" /></div>
-              <div><label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Description</label>
-                <textarea placeholder="Paste rough bullets, feature notes, or the full concept here..." value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className="input-field resize-none" />
-                <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Leave the title blank and the first description line becomes the title. Line breaks are preserved.</p></div>
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Description</label>
+                <RichEditor
+                  content={description}
+                  onChange={setDescription}
+                  placeholder="Paste rough bullets, feature notes, or the full concept here…"
+                  minHeight="220px"
+                  showCount={false}
+                />
+                <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Leave the title blank and the first description line becomes the title.</p>
+              </div>
               <div><label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Tags (optional)</label>
                 <input placeholder="marketing, Q3, design..." value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className="input-field" /></div>
               <div className="flex gap-4 pt-6 border-t" style={{ borderColor: "var(--divider-soft)" }}>
@@ -137,7 +148,12 @@ export default function WorkspaceIdeasPage() {
                 </div>
               </div>
               {idea.description ? (
-                <IdeaDescription className="text-sm leading-relaxed mb-8 line-clamp-5" style={{ color: "var(--charcoal)" }} description={idea.description} />
+                <div
+                  className="text-sm leading-relaxed mb-8 line-clamp-5 prose-sm"
+                  style={{ color: "var(--charcoal)" }}
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: idea.description }}
+                />
               ) : <p className="text-sm italic mb-8" style={{ color: "var(--stone)" }}>No description.</p>}
               <div className="mt-auto pt-4 border-t flex flex-wrap gap-2 items-center" style={{ borderColor: "var(--divider-soft)" }}>
                 {idea.tags.length > 0 ? idea.tags.map(tag => <span key={tag} className="badge-pill">{tag}</span>) : (

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
-import { getIdeaTitle, IdeaDescription } from "@/components/ideas/idea-text";
+import { getIdeaTitle } from "@/components/ideas/idea-text";
+import { RichEditor } from "@/components/editor/rich-editor";
 import { Plus, Lightbulb, Trash2, Tag, Pencil, Lock } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,7 +44,8 @@ export default function PrivateIdeasPage() {
 
   const handleCreate = async () => {
     if (!convexUser) return;
-    const normalizedTitle = getIdeaTitle(title, description);
+    const plainDesc = description.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const normalizedTitle = getIdeaTitle(title, plainDesc);
     if (!normalizedTitle) { toast.error("Add a title or description"); return; }
     setSubmitting(true);
     try {
@@ -124,8 +126,14 @@ export default function PrivateIdeasPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Description</label>
-                <textarea placeholder="Paste rough bullets, feature notes, or the full concept here..." value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className="input-field resize-none" />
-                <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Leave the title blank and the first description line becomes the title. Line breaks are preserved.</p>
+                <RichEditor
+                  content={description}
+                  onChange={setDescription}
+                  placeholder="Paste rough bullets, feature notes, or the full concept here…"
+                  minHeight="220px"
+                  showCount={false}
+                />
+                <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Leave the title blank and the first description line becomes the title.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Tags (optional)</label>
@@ -180,7 +188,11 @@ export default function PrivateIdeasPage() {
                 </div>
               </div>
               {idea.description ? (
-                <IdeaDescription className="text-sm leading-relaxed mb-8 line-clamp-5" style={{ color: "var(--charcoal)" }} description={idea.description} />
+                <div
+                  className="text-sm leading-relaxed mb-8 line-clamp-5"
+                  style={{ color: "var(--charcoal)" }}
+                  dangerouslySetInnerHTML={{ __html: idea.description }}
+                />
               ) : (
                 <p className="text-sm italic mb-8" style={{ color: "var(--stone)" }}>No description.</p>
               )}

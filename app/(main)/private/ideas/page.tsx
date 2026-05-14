@@ -132,6 +132,7 @@ export default function PrivateIdeasPage() {
                   placeholder="Paste rough bullets, feature notes, or the full concept here…"
                   minHeight="220px"
                   showCount={false}
+                  contextType="idea"
                 />
                 <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Leave the title blank and the first description line becomes the title.</p>
               </div>

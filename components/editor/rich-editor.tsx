@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
+import { AiAssistModal } from "./ai-assist-modal";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -38,6 +39,7 @@ import {
   Undo2,
   Redo2,
   RemoveFormatting,
+  Sparkles,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -101,7 +103,13 @@ function Divider() {
 // Toolbar
 // ---------------------------------------------------------------------------
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({
+  editor,
+  onAiAssist,
+}: {
+  editor: Editor;
+  onAiAssist: () => void;
+}) {
   const setLink = useCallback(() => {
     const prev = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("URL", prev ?? "");
@@ -224,6 +232,32 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolBtn title="Clear formatting" onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
         <RemoveFormatting size={14} />
       </ToolBtn>
+
+      <Divider />
+
+      {/* AI Assist */}
+      <button
+        type="button"
+        onMouseDown={(e) => { e.preventDefault(); onAiAssist(); }}
+        title="AI Writing Assistant"
+        className="ml-auto flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors"
+        style={{
+          borderColor: "var(--hairline-strong)",
+          backgroundColor: "var(--surface-elevated)",
+          color: "var(--charcoal)",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--ink)";
+          (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--hairline-strong)";
+          (e.currentTarget as HTMLButtonElement).style.color = "var(--charcoal)";
+        }}
+      >
+        <Sparkles size={12} />
+        AI
+      </button>
     </div>
   );
 }
@@ -239,6 +273,8 @@ interface RichEditorProps {
   minHeight?: string;
   /** If true, shows word/char count in status bar */
   showCount?: boolean;
+  /** "note" or "idea" — controls AI prompt suggestions */
+  contextType?: "note" | "idea";
 }
 
 export function RichEditor({
@@ -247,7 +283,9 @@ export function RichEditor({
   placeholder = "Start writing…",
   minHeight = "300px",
   showCount = true,
+  contextType = "note",
 }: RichEditorProps) {
+  const [aiOpen, setAiOpen] = useState(false);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -309,7 +347,12 @@ export function RichEditor({
       }}
     >
       {/* Toolbar */}
-      {editor && <Toolbar editor={editor} />}
+      {editor && (
+        <Toolbar
+          editor={editor}
+          onAiAssist={() => setAiOpen(true)}
+        />
+      )}
 
       {/* Editor body */}
       <div
@@ -334,6 +377,22 @@ export function RichEditor({
           <span>{chars} char{chars !== 1 ? "s" : ""}</span>
         </div>
       )}
+
+      {/* AI Assist Modal */}
+      <AiAssistModal
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        contextHtml={editor ? editor.getHTML() : content}
+        contextType={contextType}
+        onAppend={(html) => {
+          editor?.chain().focus().insertContentAt(editor.state.doc.content.size, html).run();
+          onChange(editor?.getHTML() ?? content);
+        }}
+        onReplace={(html) => {
+          editor?.commands.setContent(html, true);
+          onChange(editor?.getHTML() ?? html);
+        }}
+      />
 
       {/* Editor styles */}
       <style>{`

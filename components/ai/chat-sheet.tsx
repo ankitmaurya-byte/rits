@@ -8,8 +8,10 @@ import { formatDistanceToNow } from "date-fns";
 import {
   ArrowUp,
   BrainCircuit,
+  Check,
   CheckSquare,
   ChevronDown,
+  Copy,
   FileText,
   Lightbulb,
   Link2,
@@ -18,6 +20,8 @@ import {
   MessageSquarePlus,
 } from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { Id } from "@/convex/_generated/dataModel";
 import { api } from "@/convex/_generated/api";
@@ -226,6 +230,145 @@ async function requestChatState(
 // Sub-components
 // ---------------------------------------------------------------------------
 
+/** Renders markdown from AI responses with GFM (tables, task lists, etc.) */
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        // Headings
+        h1: ({ children }) => (
+          <h1 className="mb-3 mt-5 text-[16px] font-semibold leading-snug tracking-tight first:mt-0" style={{ color: "var(--ink)" }}>{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="mb-2 mt-4 text-[14px] font-semibold leading-snug tracking-tight first:mt-0" style={{ color: "var(--ink)" }}>{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="mb-1.5 mt-3 text-[13px] font-semibold leading-snug first:mt-0" style={{ color: "var(--ink)" }}>{children}</h3>
+        ),
+        // Paragraphs
+        p: ({ children }) => (
+          <p className="mb-3 text-[13.5px] leading-7 last:mb-0" style={{ color: "var(--body)" }}>{children}</p>
+        ),
+        // Inline styles
+        strong: ({ children }) => (
+          <strong className="font-semibold" style={{ color: "var(--ink)" }}>{children}</strong>
+        ),
+        em: ({ children }) => (
+          <em className="italic" style={{ color: "var(--charcoal)" }}>{children}</em>
+        ),
+        // Lists
+        ul: ({ children }) => (
+          <ul className="mb-3 ml-4 list-disc space-y-1.5 last:mb-0" style={{ color: "var(--body)" }}>{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="mb-3 ml-4 list-decimal space-y-1.5 last:mb-0" style={{ color: "var(--body)" }}>{children}</ol>
+        ),
+        li: ({ children }) => (
+          <li className="text-[13.5px] leading-7 pl-0.5">{children}</li>
+        ),
+        // Code
+        code: ({ children, className }) => {
+          const isBlock = className?.startsWith("language-");
+          if (isBlock) {
+            return (
+              <code
+                className="block w-full overflow-x-auto whitespace-pre text-[12px] leading-6"
+                style={{ color: "var(--ink)" }}
+              >
+                {children}
+              </code>
+            );
+          }
+          return (
+            <code
+              className="mx-0.5 rounded px-1.5 py-0.5 text-[12px] font-mono"
+              style={{
+                backgroundColor: "rgba(255,255,255,0.07)",
+                border: "1px solid var(--hairline-strong)",
+                color: "var(--ink)",
+              }}
+            >
+              {children}
+            </code>
+          );
+        },
+        pre: ({ children }) => (
+          <pre
+            className="mb-3 mt-2 overflow-x-auto rounded-xl border p-4 last:mb-0"
+            style={{
+              backgroundColor: "rgba(255,255,255,0.03)",
+              borderColor: "var(--hairline-strong)",
+            }}
+          >
+            {children}
+          </pre>
+        ),
+        // Blockquote
+        blockquote: ({ children }) => (
+          <blockquote
+            className="mb-3 border-l-2 pl-4 italic last:mb-0"
+            style={{
+              borderColor: "var(--hairline-strong)",
+              color: "var(--charcoal)",
+            }}
+          >
+            {children}
+          </blockquote>
+        ),
+        // Horizontal rule
+        hr: () => (
+          <hr className="my-4" style={{ borderColor: "var(--hairline)" }} />
+        ),
+        // Table
+        table: ({ children }) => (
+          <div className="mb-3 overflow-x-auto last:mb-0">
+            <table
+              className="w-full border-collapse text-[12.5px]"
+              style={{ borderColor: "var(--hairline-strong)" }}
+            >
+              {children}
+            </table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>{children}</thead>
+        ),
+        th: ({ children }) => (
+          <th
+            className="border px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.12em]"
+            style={{ borderColor: "var(--hairline-strong)", color: "var(--mute)" }}
+          >
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td
+            className="border px-3 py-2 text-[13px] leading-6"
+            style={{ borderColor: "var(--hairline)", color: "var(--body)" }}
+          >
+            {children}
+          </td>
+        ),
+        // Links
+        a: ({ children, href }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 transition-opacity hover:opacity-70"
+            style={{ color: "var(--accent-blue)" }}
+          >
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+}
+
 /** Minimal native-style select with a custom chevron overlay */
 function MinimalSelect<T extends string>({
   value,
@@ -423,6 +566,15 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
   const visibleLoadError =
     !user && isLoaded ? "Sign in to use Rits AI." : loadError;
 
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyMessage = (id: string, content: string) => {
+    void navigator.clipboard.writeText(content).then(() => {
+      setCopiedId(id);
+      window.setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -499,16 +651,6 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                   ? currentWorkspace.name
                   : activeScope.label}
               </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={startNewConversation}
-                className="rounded-full px-3 text-[11px]"
-              >
-                <MessageSquarePlus size={13} />
-                New chat
-              </Button>
             </div>
           </div>
         </SheetHeader>
@@ -525,60 +667,44 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
               backgroundColor: "var(--surface-card)",
             }}
           >
-            {/* Summary chip */}
+            {/* New chat button */}
             <div
-              className="border-b px-4 py-3"
+              className="shrink-0 border-b px-3 py-2.5"
               style={{ borderColor: "var(--hairline)" }}
             >
-              <div
-                className="rounded-xl border px-3 py-3"
-                style={{
-                  borderColor: "var(--hairline-strong)",
-                  backgroundColor: "var(--surface-elevated)",
+              <button
+                type="button"
+                onClick={startNewConversation}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors"
+                style={{ color: "var(--charcoal)" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(255,255,255,0.06)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
                 }}
               >
-                <p
-                  className="text-[10px] font-medium uppercase tracking-[0.18em]"
-                  style={{ color: "var(--mute)" }}
-                >
-                  Saved chats
-                </p>
-                <div className="mt-1 flex items-end justify-between gap-2">
-                  <p className="text-2xl font-semibold" style={{ color: "var(--ink)" }}>
-                    {conversationCount}
-                  </p>
-                  <p className="text-[11px]" style={{ color: "var(--charcoal)" }}>
-                    {activeAgent.label}
-                  </p>
-                </div>
-                <p className="mt-1.5 text-[11px] leading-[1.6]" style={{ color: "var(--charcoal)" }}>
-                  {activeScope.description}
-                </p>
-              </div>
+                <MessageSquarePlus size={15} style={{ color: "var(--mute)" }} />
+                New chat
+              </button>
             </div>
 
             {/* List */}
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <div className="min-h-0 flex-1 overflow-y-auto py-2">
               {isLoadingChat && conversationCount === 0 ? (
                 <div
-                  className="flex items-center gap-2 rounded-xl border px-3 py-3 text-xs"
-                  style={{
-                    borderColor: "var(--hairline-strong)",
-                    color: "var(--charcoal)",
-                  }}
+                  className="flex items-center gap-2 px-5 py-2 text-[12px]"
+                  style={{ color: "var(--charcoal)" }}
                 >
-                  <Loader2 size={13} className="animate-spin" />
-                  Loading conversations…
+                  <Loader2 size={12} className="animate-spin" />
+                  Loading…
                 </div>
               ) : null}
 
               {visibleLoadError ? (
                 <div
-                  className="rounded-xl border px-3 py-3 text-xs leading-6"
-                  style={{
-                    borderColor: "var(--hairline-strong)",
-                    color: "var(--charcoal)",
-                  }}
+                  className="px-5 py-2 text-[12px] leading-5"
+                  style={{ color: "var(--charcoal)" }}
                 >
                   {visibleLoadError}
                 </div>
@@ -586,17 +712,14 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
 
               {!isLoadingChat && !visibleLoadError && conversationCount === 0 ? (
                 <div
-                  className="rounded-xl border px-3 py-3 text-xs leading-6"
-                  style={{
-                    borderColor: "var(--hairline-strong)",
-                    color: "var(--charcoal)",
-                  }}
+                  className="px-5 py-2 text-[12px] leading-5"
+                  style={{ color: "var(--mute)" }}
                 >
-                  Conversations appear here after your first prompt.
+                  No conversations yet.
                 </div>
               ) : null}
 
-              <div className="mt-2 flex flex-col gap-1.5">
+              <div className="flex flex-col">
                 {conversations.map((conversation) => {
                   const isActive =
                     conversation._id === activeConversationId && !isStartingNew;
@@ -605,68 +728,49 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                       key={conversation._id}
                       type="button"
                       onClick={() => void openConversation(conversation._id)}
-                      className="group rounded-xl border px-3 py-2.5 text-left transition-all"
+                      className="group flex w-full items-center gap-2.5 px-3 py-[7px] text-left transition-colors"
                       style={{
-                        borderColor: isActive
-                          ? "var(--ink)"
-                          : "var(--hairline-strong)",
                         backgroundColor: isActive
-                          ? "var(--surface-elevated)"
+                          ? "rgba(255,255,255,0.07)"
                           : "transparent",
+                        borderLeft: isActive
+                          ? "2px solid var(--ink)"
+                          : "2px solid transparent",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive)
+                          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                            "rgba(255,255,255,0.04)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive)
+                          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+                            "transparent";
                       }}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className="h-1.5 w-1.5 shrink-0 rounded-full"
-                              style={{
-                                backgroundColor: isActive
-                                  ? "var(--accent-blue)"
-                                  : "var(--stone)",
-                              }}
-                            />
-                            <span
-                              className="truncate text-[13px] font-medium"
-                              style={{ color: "var(--ink)" }}
-                            >
-                              {conversation.title}
-                            </span>
-                          </div>
-                          <p
-                            className="mt-1 line-clamp-2 text-[11px] leading-[1.55]"
-                            style={{ color: "var(--charcoal)" }}
-                          >
-                            {conversation.lastMessagePreview ?? "No messages yet"}
-                          </p>
-                          <div
-                            className="mt-2 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-[0.14em]"
-                            style={{ color: "var(--mute)" }}
-                          >
-                            <span>
-                              {agents.find(
-                                (a) =>
-                                  a.key ===
-                                  (conversation.agentKey ??
-                                    "workspace-strategist"),
-                              )?.label ?? "Strategist"}
-                            </span>
-                            <span>·</span>
-                            <span>
-                              {scopeOptions.find(
-                                (s) =>
-                                  s.key === (conversation.scopeMode ?? "all"),
-                              )?.label ?? "All workspaces"}
-                            </span>
-                          </div>
-                        </div>
-                        <span
-                          className="shrink-0 text-[10px] uppercase tracking-[0.14em]"
-                          style={{ color: "var(--mute)" }}
-                        >
-                          {formatMessageTime(conversation.updatedAt)}
-                        </span>
-                      </div>
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor: isActive
+                            ? "var(--accent-blue)"
+                            : "var(--stone)",
+                        }}
+                      />
+                      <span
+                        className="flex-1 truncate text-[13px]"
+                        style={{
+                          color: isActive ? "var(--ink)" : "var(--charcoal)",
+                          fontWeight: isActive ? 500 : 400,
+                        }}
+                      >
+                        {conversation.title}
+                      </span>
+                      <span
+                        className="shrink-0 text-[10px] tabular-nums"
+                        style={{ color: "var(--mute)" }}
+                      >
+                        {formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: false })}
+                      </span>
                     </button>
                   );
                 })}
@@ -836,51 +940,80 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                             : "0 0 0 1px var(--hairline) inset",
                         }}
                       >
-                        <div className="whitespace-pre-wrap break-words text-[13.5px] leading-7">
-                          {message.content}
-                        </div>
-
-                        {/* Citations */}
-                        {citations.length > 0 ? (
-                          <div
-                            className="mt-3 border-t pt-3"
-                            style={{ borderColor: "var(--hairline)" }}
-                          >
-                            <div
-                              className="mb-2 text-[10px] font-medium uppercase tracking-[0.16em]"
-                              style={{ color: "var(--mute)" }}
-                            >
-                              Sources used
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {citations.map((citation) => (
-                                <button
-                                  key={`${message._id}-${citation.refId}`}
-                                  type="button"
-                                  onClick={() => handleCitationClick(citation)}
-                                  className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors"
-                                  style={{
-                                    borderColor: "var(--hairline-strong)",
-                                    backgroundColor: "var(--surface-elevated)",
-                                    color: "var(--body)",
-                                  }}
-                                >
-                                  <Link2 size={11} />
-                                  <span className="shrink-0 font-medium">
-                                    {citation.refId}
-                                  </span>
-                                  <span className="truncate">{citation.title}</span>
-                                  <span
-                                    className="shrink-0"
-                                    style={{ color: "var(--mute)" }}
-                                  >
-                                    {getCitationScopeLabel(citation)}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
+                        {isUser ? (
+                          <div className="whitespace-pre-wrap break-words text-[13.5px] leading-7" style={{ color: "var(--ink)" }}>
+                            {message.content}
                           </div>
-                        ) : null}
+                        ) : (
+                          <div className="min-w-0">
+                            <MarkdownContent content={message.content} />
+                          </div>
+                        )}
+
+                        {/* Citations + copy row */}
+                        <div className={`flex flex-wrap items-end justify-between gap-3 ${!isUser && (citations.length > 0) ? "mt-3 border-t pt-3" : !isUser ? "mt-2" : ""}`}
+                          style={{ borderColor: "var(--hairline)" }}
+                        >
+                          {/* Citations */}
+                          {citations.length > 0 ? (
+                            <div className="min-w-0 flex-1">
+                              <div
+                                className="mb-2 text-[10px] font-medium uppercase tracking-[0.16em]"
+                                style={{ color: "var(--mute)" }}
+                              >
+                                Sources used
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {citations.map((citation) => (
+                                  <button
+                                    key={`${message._id}-${citation.refId}`}
+                                    type="button"
+                                    onClick={() => handleCitationClick(citation)}
+                                    className="inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors"
+                                    style={{
+                                      borderColor: "var(--hairline-strong)",
+                                      backgroundColor: "var(--surface-elevated)",
+                                      color: "var(--body)",
+                                    }}
+                                  >
+                                    <Link2 size={11} />
+                                    <span className="shrink-0 font-medium">
+                                      {citation.refId}
+                                    </span>
+                                    <span className="truncate">{citation.title}</span>
+                                    <span
+                                      className="shrink-0"
+                                      style={{ color: "var(--mute)" }}
+                                    >
+                                      {getCitationScopeLabel(citation)}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : <div className="flex-1" />}
+
+                          {/* Copy button — only on AI messages */}
+                          {!isUser && (
+                            <button
+                              type="button"
+                              onClick={() => copyMessage(message._id, message.content)}
+                              title="Copy response"
+                              className="shrink-0 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.14em] transition-all duration-150"
+                              style={{
+                                borderColor: "var(--hairline-strong)",
+                                backgroundColor: copiedId === message._id ? "rgba(255,255,255,0.06)" : "transparent",
+                                color: copiedId === message._id ? "var(--charcoal)" : "var(--mute)",
+                              }}
+                            >
+                              {copiedId === message._id ? (
+                                <><Check size={10} /> Copied</>
+                              ) : (
+                                <><Copy size={10} /> Copy</>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -962,76 +1095,63 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
             >
               <div className="mx-auto max-w-3xl">
                 <div
-                  className="rounded-2xl border p-3.5"
+                  className="flex items-end gap-3 rounded-full border px-4 py-2.5"
                   style={{
                     borderColor: "var(--hairline-strong)",
                     backgroundColor: "var(--surface-elevated)",
                   }}
                 >
-                  {/* Top meta row */}
-                  <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.16em]"
-                        style={{
-                          borderColor: "var(--hairline)",
-                          backgroundColor: "var(--surface-card)",
-                          color: "var(--mute)",
-                        }}
-                      >
-                        <Lock size={9} />
-                        {scopeMode === "current" && currentWorkspace
-                          ? currentWorkspace.name
-                          : activeScope.label}
-                      </div>
-                      <span
-                        className="text-[10px] uppercase tracking-[0.14em]"
-                        style={{ color: "var(--mute)" }}
-                      >
-                        {activeAgent.label}
-                      </span>
-                    </div>
-                    <p
-                      className="text-[10px] uppercase tracking-[0.14em]"
-                      style={{ color: "var(--mute)" }}
-                    >
-                      ⌘ Enter to send
-                    </p>
-                  </div>
-
                   <Textarea
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    placeholder="Ask for synthesis, priorities, contradictions, open questions, or action items across your Rits workspace memory…"
-                    className="min-h-[110px] resize-none border-0 bg-transparent px-0 py-0 text-[13.5px] leading-7 shadow-none focus-visible:ring-0"
-                    style={{ color: "var(--ink)" }}
+                    onChange={(e) => {
+                      setDraft(e.target.value);
+                      // auto-grow: reset then re-apply
+                      e.target.style.height = "auto";
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`;
+                    }}
+                    placeholder="Ask anything…"
+                    rows={1}
+                    className="flex-1 resize-none border-0 bg-transparent px-0 py-0 text-[13.5px] leading-6 shadow-none focus-visible:ring-0"
+                    style={{
+                      color: "var(--ink)",
+                      minHeight: "24px",
+                      maxHeight: "160px",
+                      overflowY: "auto",
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        void handleSend();
+                      }
+                      // Enter alone sends (no shift)
+                      if (e.key === "Enter" && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
                         e.preventDefault();
                         void handleSend();
                       }
                     }}
                     disabled={!isLoaded || !user || isSending}
                   />
-
-                  <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
-                    <p className="max-w-sm text-[11px] leading-5" style={{ color: "var(--charcoal)" }}>
-                      Comparative questions yield better summaries, priorities, and next steps.
-                    </p>
-                    <Button
-                      onClick={() => void handleSend()}
-                      disabled={!isLoaded || !user || isSending || !draft.trim()}
-                      className="h-9 rounded-full px-4 text-[13px]"
-                    >
-                      {isSending ? (
-                        <Loader2 size={14} className="animate-spin" />
-                      ) : (
-                        <ArrowUp size={14} />
-                      )}
-                      Send
-                    </Button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleSend()}
+                    disabled={!isLoaded || !user || isSending || !draft.trim()}
+                    className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full transition-opacity disabled:opacity-30"
+                    style={{
+                      backgroundColor: "var(--ink)",
+                      color: "var(--canvas)",
+                    }}
+                    title="Send (Enter)"
+                  >
+                    {isSending ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <ArrowUp size={14} />
+                    )}
+                  </button>
                 </div>
+                <p className="mt-1.5 text-center text-[10.5px]" style={{ color: "var(--mute)" }}>
+                  Enter to send · Shift+Enter for newline
+                </p>
               </div>
             </div>
           </div>

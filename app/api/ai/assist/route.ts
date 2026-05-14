@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         ? `Here is the current content of the ${contextLabel} (use this as context):\n\n"""\n${plainContext.slice(0, 8000)}\n"""`
         : `The ${contextLabel} is currently empty.`,
       ``,
-      `Follow the user's instruction precisely. Return only the written content — no preamble, no meta commentary, no markdown code fences unless the user asks for code.`,
+      `Follow the user's instruction precisely. Return only the written content  no preamble, no meta commentary, no markdown code fences unless the user asks for code.`,
       `Format your response as clean rich text: use paragraphs, bullet points, headings, or numbered lists as appropriate for the content.`,
       `If the user asks you to improve, rewrite, summarise, expand, or continue the existing content, do so relative to the context provided.`,
     ].join("\n");

@@ -273,7 +273,7 @@ interface RichEditorProps {
   minHeight?: string;
   /** If true, shows word/char count in status bar */
   showCount?: boolean;
-  /** "note" or "idea" — controls AI prompt suggestions */
+  /** "note" or "idea"  controls AI prompt suggestions */
   contextType?: "note" | "idea";
 }
 
@@ -290,7 +290,7 @@ export function RichEditor({
     extensions: [
       StarterKit.configure({
         // StarterKit includes heading, bold, italic, strike, code, blockquote,
-        // lists, codeBlock, horizontalRule, hardBreak, history — all covered.
+        // lists, codeBlock, horizontalRule, hardBreak, history  all covered.
       }),
       Underline,
       TextAlign.configure({ types: ["heading", "paragraph"] }),
@@ -318,7 +318,7 @@ export function RichEditor({
       },
       // Preserve rich formatting when pasting from Word, Google Docs, etc.
       // TipTap's default paste handler already handles this via ProseMirror's
-      // transformPastedHTML — we just make sure it's not stripped.
+      // transformPastedHTML  we just make sure it's not stripped.
       transformPastedHTML(html) {
         return html;
       },

@@ -114,22 +114,22 @@ const scopeOptions: Array<{
   label: string;
   description: string;
 }> = [
-  {
-    key: "all",
-    label: "All workspaces",
-    description: "Private items plus every workspace you can access.",
-  },
-  {
-    key: "current",
-    label: "Current workspace",
-    description: "Private items plus only the selected workspace.",
-  },
-  {
-    key: "private",
-    label: "Private only",
-    description: "Use only your private notes, todos, ideas, and resources.",
-  },
-];
+    {
+      key: "all",
+      label: "All workspaces",
+      description: "Private items plus every workspace you can access.",
+    },
+    {
+      key: "current",
+      label: "Current workspace",
+      description: "Private items plus only the selected workspace.",
+    },
+    {
+      key: "private",
+      label: "Private only",
+      description: "Use only your private notes, todos, ideas, and resources.",
+    },
+  ];
 
 const promptSuggestions = [
   {
@@ -212,12 +212,12 @@ async function requestChatState(
       : undefined,
     body: options?.message
       ? JSON.stringify({
-          conversationId,
-          message: options.message,
-          agentKey: options.agentKey,
-          scopeMode: options.scopeMode,
-          workspaceId: options.workspaceId,
-        })
+        conversationId,
+        message: options.message,
+        agentKey: options.agentKey,
+        scopeMode: options.scopeMode,
+        workspaceId: options.workspaceId,
+      })
       : undefined,
     cache: "no-store",
   });
@@ -459,8 +459,8 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
       setIsStartingNew(state.activeConversationId === null);
       const activeStateConversation = state.activeConversationId
         ? (state.conversations.find(
-            (c) => c._id === state.activeConversationId,
-          ) ?? null)
+          (c) => c._id === state.activeConversationId,
+        ) ?? null)
         : null;
       if (activeStateConversation) {
         setAgentKey(activeStateConversation.agentKey ?? "workspace-strategist");
@@ -993,7 +993,7 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                             </div>
                           ) : <div className="flex-1" />}
 
-                          {/* Copy button — only on AI messages */}
+                          {/* Copy button  only on AI messages */}
                           {!isUser && (
                             <button
                               type="button"

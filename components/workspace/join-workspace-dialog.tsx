@@ -118,7 +118,7 @@ export function JoinWorkspaceDialog({ open, onClose }: JoinWorkspaceDialogProps)
           )}
           {token.length > 8 && preview === null && (
             <div className="rounded-lg p-3 border" style={{ backgroundColor: "rgba(239,68,68,0.05)", borderColor: "rgba(239,68,68,0.2)" }}>
-              <p className="text-xs" style={{ color: "var(--accent-red)" }}>Invalid invite link — workspace not found</p>
+              <p className="text-xs" style={{ color: "var(--accent-red)" }}>Invalid invite link  workspace not found</p>
             </div>
           )}
         </div>

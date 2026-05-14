@@ -163,7 +163,7 @@ export default function PrivateNotesPage() {
           <div className="flex flex-col items-center justify-center h-full text-center relative z-10">
             <FileText size={48} className="mb-8" style={{ color: "var(--stone)" }} />
             <h3 className="text-xl font-medium mb-3" style={{ color: "var(--ink)" }}>Select a note to view</h3>
-            <p className="mb-10 max-w-sm" style={{ color: "var(--charcoal)" }}>Your private notes — only visible to you.</p>
+            <p className="mb-10 max-w-sm" style={{ color: "var(--charcoal)" }}>Your private notes  only visible to you.</p>
             <button onClick={() => { setSidebarOpen(true); setShowCreate(true); }} className="btn-primary">
               <Plus size={16} /> Create Private Note
             </button>

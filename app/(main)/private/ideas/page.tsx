@@ -98,7 +98,7 @@ export default function PrivateIdeasPage() {
           </div>
           <h2 className="text-3xl font-medium tracking-tight mb-1" style={{ color: "var(--ink)" }}>Ideas</h2>
           <p className="text-sm font-medium" style={{ color: "var(--charcoal)" }}>
-            {ideas?.length ?? 0} {ideas?.length === 1 ? "idea" : "ideas"} — only visible to you
+            {ideas?.length ?? 0} {ideas?.length === 1 ? "idea" : "ideas"}  only visible to you
           </p>
         </div>
         <button

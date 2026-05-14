@@ -43,7 +43,7 @@ const SUGGESTIONS = {
 interface AiAssistModalProps {
   open: boolean;
   onClose: () => void;
-  /** Current HTML content of the editor — used as context */
+  /** Current HTML content of the editor  used as context */
   contextHtml: string;
   contextType: "note" | "idea";
   /** Called when user clicks Insert (appends to editor) */
@@ -399,7 +399,7 @@ export function AiAssistModal({
                 className="border-b px-4 py-2.5 text-[11px] font-medium uppercase tracking-[0.14em]"
                 style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}
               >
-                AI response — choose what to do with it
+                AI response  choose what to do with it
               </div>
               <div
                 className="max-h-64 overflow-y-auto whitespace-pre-wrap px-4 py-3 text-[13.5px] leading-7"
@@ -455,7 +455,7 @@ export function AiAssistModal({
 }
 
 // ---------------------------------------------------------------------------
-// Trigger button — drop this wherever you need it outside the editor
+// Trigger button  drop this wherever you need it outside the editor
 // ---------------------------------------------------------------------------
 
 export function AiAssistButton({

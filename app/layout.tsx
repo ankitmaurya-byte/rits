@@ -4,7 +4,7 @@ import { Providers } from "./providers";
 import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
-  title: "Rits — Research in tech startup",
+  title: "Rits  Research in tech startup",
   description:
     "The all-in-one workspace for your startup. Manage ideas, todos, and notes.",
   icons: {

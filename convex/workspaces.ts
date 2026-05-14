@@ -100,7 +100,7 @@ export const getWorkspaceById = query({
   },
 });
 
-// Get workspace info by invite token (public — for join page preview)
+// Get workspace info by invite token (public  for join page preview)
 export const getWorkspaceByToken = query({
   args: { token: v.string() },
   handler: async (ctx, args) => {

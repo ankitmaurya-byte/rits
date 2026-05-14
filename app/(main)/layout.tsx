@@ -1,7 +1,7 @@
 "use client";
 
 import { Sidebar } from "@/components/layout/sidebar";
-import { UserButton } from "@clerk/nextjs";
+import { ProfileMenu } from "@/components/profile/profile-menu";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -26,6 +26,9 @@ const pageTitles: Record<string, string> = {
   "/workspace/resources": "Workspace · Resources",
   "/workspace/members":  "Workspace · Members",
   "/workspace/join":     "Join Workspace",
+  "/profile":            "Profile",
+  "/settings":           "Settings",
+  "/feedback":           "Feedback",
 };
 
 export default function MainLayout({
@@ -106,27 +109,7 @@ export default function MainLayout({
 
             <div className="w-px h-6 mx-1" style={{ backgroundColor: "var(--hairline)" }} />
 
-            {/* User Profile */}
-            <div className="flex items-center gap-3 pl-1">
-              <div className="text-right hidden md:block">
-                <p className="text-sm font-medium leading-tight" style={{ color: "var(--ink)" }}>
-                  {user.firstName || user.username || "User"}
-                </p>
-                <p className="text-xs leading-tight mt-0.5" style={{ color: "var(--mute)" }}>
-                  {user.primaryEmailAddress?.emailAddress}
-                </p>
-              </div>
-              <div style={{ filter: "grayscale(100%) brightness(1.2)" }}>
-                <UserButton 
-                  appearance={{
-                    elements: {
-                      userButtonAvatarBox: "w-8 h-8 rounded-full border border-gray-700",
-                      userButtonPopoverCard: "bg-black border border-gray-800 rounded-xl"
-                    }
-                  }}
-                />
-              </div>
-            </div>
+            <ProfileMenu />
           </div>
         </header>
 

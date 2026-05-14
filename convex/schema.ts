@@ -8,6 +8,10 @@ export default defineSchema({
     name: v.string(),
     email: v.string(),
     image: v.optional(v.string()),
+    status: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    description: v.optional(v.string()),
+    currentCompany: v.optional(v.string()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_token_identifier", ["tokenIdentifier"]),

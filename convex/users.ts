@@ -1,7 +1,12 @@
 import { mutation, query, internalMutation } from "./_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
-import { requireIdentity } from "./authHelpers";
+import { findCurrentUser, requireCurrentUser, requireIdentity } from "./authHelpers";
+
+function normalizeOptionalString(value: string | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
 
 // Called from the client after Clerk sign-in to ensure user record exists
 export const ensureUser = mutation({
@@ -47,6 +52,42 @@ export const getUser = query({
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
       .first();
+  },
+});
+
+export const getCurrentUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await findCurrentUser(ctx);
+    return user;
+  },
+});
+
+export const updateCurrentUserProfile = mutation({
+  args: {
+    name: v.string(),
+    status: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    description: v.optional(v.string()),
+    currentCompany: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    const name = args.name.trim();
+
+    if (!name) {
+      throw new ConvexError("Name is required");
+    }
+
+    await ctx.db.patch(user._id, {
+      name,
+      status: normalizeOptionalString(args.status),
+      bio: normalizeOptionalString(args.bio),
+      description: normalizeOptionalString(args.description),
+      currentCompany: normalizeOptionalString(args.currentCompany),
+    });
+
+    return await ctx.db.get(user._id);
   },
 });
 

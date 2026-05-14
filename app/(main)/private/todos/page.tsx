@@ -287,7 +287,7 @@ function TaskCard({ task, isOverlay, deleteTodo, handleUpdateStatus }: any) {
           <select value="" onChange={(e) => {
             if (e.target.value === "delete") deleteTodo({ id: task._id }).then(() => toast.success("Deleted"));
             else if (e.target.value) handleUpdateStatus(task._id, e.target.value);
-          }} className="appearance-none bg-transparent text-xs pl-2 pr-6 py-1 outline-none cursor-pointer" style={{ color: "var(--ink)" }}
+          }} className="appearance-none rounded-md bg-[var(--surface-elevated)] text-xs pl-2.5 pr-6 py-1.5 outline-none cursor-pointer border border-[var(--hairline)]" style={{ color: "var(--ink)" }}
             onPointerDown={(e) => e.stopPropagation()}>
             <option value="" disabled>Move to...</option>
             {STATUSES_MAP.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}

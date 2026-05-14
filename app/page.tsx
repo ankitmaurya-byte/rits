@@ -51,42 +51,49 @@ function FloatingOrb({ cx, cy, r, color, delay, duration }: { cx: number; cy: nu
   );
 }
 
-/* ─── Grid Background SVG ─── */
-function GridSVG() {
-  return (
-    <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.035 }}>
-      <defs>
-        <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
-          <path d="M 48 0 L 0 0 0 48" fill="none" stroke="white" strokeWidth="0.5" />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#grid)" />
-    </svg>
-  );
-}
+/* ─── Full-page warp grid ─── */
+function WarpGrid({ mousePos }: { mousePos: { x: number; y: number } }) {
+  const x = `${mousePos.x}px`;
+  const y = `${mousePos.y}px`;
 
-/* ─── Hero Constellation SVG ─── */
-function ConstellationSVG() {
-  const nodes = [
-    { x: 120, y: 80 }, { x: 300, y: 40 }, { x: 480, y: 120 },
-    { x: 600, y: 60 }, { x: 700, y: 160 }, { x: 200, y: 200 },
-    { x: 420, y: 220 }, { x: 560, y: 240 }, { x: 80, y: 260 },
-  ];
-  const edges = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[2,6],[1,5],[4,7]];
   return (
-    <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", opacity: 0.22 }}>
-      {edges.map(([a, b], i) => (
-        <line key={i} x1={nodes[a].x} y1={nodes[a].y} x2={nodes[b].x} y2={nodes[b].y}
-          stroke="rgba(255,255,255,0.4)" strokeWidth="0.5"
-          strokeDasharray="4 4"
-          style={{ animation: `dashFlow 4s linear ${i * 0.3}s infinite` }} />
-      ))}
-      {nodes.map((n, i) => (
-        <circle key={i} cx={n.x} cy={n.y} r={i % 3 === 0 ? 3 : 1.5}
-          fill="white" opacity={i % 3 === 0 ? 0.9 : 0.5}
-          style={{ animation: `pulse 3s ease-in-out ${i * 0.4}s infinite alternate` }} />
-      ))}
-    </svg>
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div
+        className="absolute inset-0"
+        style={{
+          opacity: 0.14,
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px)",
+          backgroundSize: "14px 14px",
+          backgroundPosition: "center center",
+        }}
+      />
+      <div
+        className="absolute inset-0 transition-transform duration-200 ease-out"
+        style={{
+          opacity: 0.3,
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.09) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+          backgroundPosition: `${mousePos.x * -0.05}px ${mousePos.y * -0.05}px`,
+          maskImage: `radial-gradient(circle 180px at ${x} ${y}, rgba(0,0,0,1) 0%, rgba(0,0,0,0.84) 35%, rgba(0,0,0,0) 72%)`,
+          WebkitMaskImage: `radial-gradient(circle 180px at ${x} ${y}, rgba(0,0,0,1) 0%, rgba(0,0,0,0.84) 35%, rgba(0,0,0,0) 72%)`,
+          transform: `perspective(1000px) translate(${(mousePos.x - 720) * 0.008}px, ${(mousePos.y - 400) * 0.008}px) scale(1.04)`,
+        }}
+      />
+      <div
+        className="absolute rounded-full"
+        style={{
+          left: mousePos.x - 170,
+          top: mousePos.y - 170,
+          width: 340,
+          height: 340,
+          background: "radial-gradient(circle, rgba(59,158,255,0.08) 0%, rgba(59,158,255,0.03) 36%, transparent 72%)",
+          filter: "blur(18px)",
+          transition: "left 120ms ease-out, top 120ms ease-out",
+        }}
+      />
+    </div>
   );
 }
 
@@ -256,38 +263,66 @@ function Particles() {
   );
 }
 
-/* ─── Workflow SVG ─── */
+/* ─── Research diagram SVG ─── */
 function WorkflowDiagram() {
   return (
-    <svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", maxWidth: 640 }}>
-      {/* connecting lines */}
-      <line x1="120" y1="100" x2="200" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
-      <line x1="280" y1="100" x2="360" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
-      <line x1="440" y1="100" x2="520" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
+    <svg viewBox="0 0 720 360" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", maxWidth: 720 }}>
+      <defs>
+        <linearGradient id="panelStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
+        </linearGradient>
+        <linearGradient id="signalLine" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#3b9eff" />
+          <stop offset="50%" stopColor="#ffc53d" />
+          <stop offset="100%" stopColor="#ff801f" />
+        </linearGradient>
+      </defs>
 
-      {/* node 1  Capture */}
-      <rect x="20" y="70" width="100" height="60" rx="8" fill="#0a0a0c" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
-      <text x="70" y="96" textAnchor="middle" fontSize="10" fill="#ffc53d" fontFamily="monospace">●</text>
-      <text x="70" y="112" textAnchor="middle" fontSize="11" fill="rgba(252,253,255,0.7)" fontFamily="monospace">Capture</text>
+      <rect x="24" y="28" width="672" height="304" rx="18" fill="#06060a" stroke="url(#panelStroke)" strokeWidth="1" />
 
-      {/* node 2  Organize */}
-      <rect x="200" y="70" width="100" height="60" rx="8" fill="#0a0a0c" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
-      <text x="250" y="96" textAnchor="middle" fontSize="10" fill="#11ff99" fontFamily="monospace">◆</text>
-      <text x="250" y="112" textAnchor="middle" fontSize="11" fill="rgba(252,253,255,0.7)" fontFamily="monospace">Organize</text>
+      <rect x="56" y="58" width="156" height="96" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+      <text x="76" y="82" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">INPUT STREAM</text>
+      <text x="76" y="104" fontSize="14" fill="#fcfdff" fontFamily="monospace">Interviews</text>
+      <text x="76" y="124" fontSize="14" fill="#11ff99" fontFamily="monospace">Docs</text>
+      <text x="76" y="144" fontSize="12" fill="rgba(252,253,255,0.45)" fontFamily="monospace">raw material</text>
 
-      {/* node 3  Collaborate */}
-      <rect x="360" y="70" width="100" height="60" rx="8" fill="#0a0a0c" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
-      <text x="410" y="96" textAnchor="middle" fontSize="10" fill="#3b9eff" fontFamily="monospace">▲</text>
-      <text x="410" y="112" textAnchor="middle" fontSize="11" fill="rgba(252,253,255,0.7)" fontFamily="monospace">Collaborate</text>
+      <rect x="244" y="58" width="212" height="232" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+      <text x="272" y="82" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">ANALYSIS SURFACE</text>
+      <path d="M272 216 C304 176, 338 244, 376 182 S430 134, 452 156" fill="none" stroke="url(#signalLine)" strokeWidth="2.2" strokeLinecap="round">
+        <animate attributeName="d" dur="7s" repeatCount="indefinite"
+          values="M272 216 C304 176, 338 244, 376 182 S430 134, 452 156;M272 204 C304 164, 338 254, 376 174 S430 144, 452 164;M272 216 C304 176, 338 244, 376 182 S430 134, 452 156" />
+      </path>
+      <circle cx="312" cy="126" r="4" fill="#3b9eff">
+        <animate attributeName="cy" dur="4.4s" values="126;116;126" repeatCount="indefinite" />
+      </circle>
+      <circle cx="368" cy="102" r="4" fill="#ffc53d">
+        <animate attributeName="cy" dur="4.8s" values="102;112;102" repeatCount="indefinite" />
+      </circle>
+      <circle cx="418" cy="88" r="4" fill="#ff801f">
+        <animate attributeName="cy" dur="5.1s" values="88;96;88" repeatCount="indefinite" />
+      </circle>
+      <rect x="272" y="252" width="156" height="8" rx="4" fill="rgba(255,255,255,0.06)" />
+      <rect x="272" y="252" width="92" height="8" rx="4" fill="#11ff99" opacity="0.72">
+        <animate attributeName="width" dur="5.5s" values="92;128;104;92" repeatCount="indefinite" />
+      </rect>
 
-      {/* node 4  Ship */}
-      <rect x="520" y="70" width="100" height="60" rx="8" fill="#101012" stroke="rgba(255,255,255,0.24)" strokeWidth="1" />
-      <text x="570" y="96" textAnchor="middle" fontSize="10" fill="#ff801f" fontFamily="monospace">★</text>
-      <text x="570" y="112" textAnchor="middle" fontSize="11" fill="#fcfdff" fontFamily="monospace">Ship</text>
+      <rect x="488" y="58" width="164" height="104" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+      <text x="488" y="82" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">RECOMMENDATION</text>
+      <text x="508" y="112" fontSize="18" fill="#fcfdff" fontFamily="monospace">Memo</text>
+      <text x="508" y="136" fontSize="12" fill="rgba(252,253,255,0.45)" fontFamily="monospace">evidence-backed</text>
 
-      {/* animated dot along lines */}
-      <circle r="3" fill="#ff801f" opacity="0.9">
-        <animateMotion dur="3s" repeatCount="indefinite" path="M 120 100 L 200 100 M 280 100 L 360 100 M 440 100 L 520 100" />
+      <rect x="488" y="186" width="164" height="104" rx="12" fill="#0a0a0c" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+      <text x="508" y="210" fontSize="10" fill="rgba(252,253,255,0.34)" fontFamily="monospace">CONSULTANT TRUST</text>
+      <text x="508" y="240" fontSize="18" fill="#fcfdff" fontFamily="monospace">Traceable</text>
+      <text x="508" y="262" fontSize="12" fill="rgba(252,253,255,0.45)" fontFamily="monospace">source-linked</text>
+
+      <line x1="212" y1="108" x2="244" y2="108" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
+      <line x1="456" y1="108" x2="488" y2="108" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
+      <line x1="456" y1="238" x2="488" y2="238" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeDasharray="5 7" />
+
+      <circle r="3.5" fill="#fcfdff" opacity="0.9">
+        <animateMotion dur="6.5s" repeatCount="indefinite" path="M 212 108 L 244 108 L 384 108 L 456 108 L 488 108" />
       </circle>
     </svg>
   );
@@ -311,53 +346,53 @@ function StatsBar({ label, value, color, pct }: { label: string; value: string; 
 const features = [
   {
     icon: <IdeaIcon />,
-    title: "Idea Capture",
-    desc: "Never lose a thought. Tag, describe, and link ideas with rich text and AI-assisted writing.",
+    title: "Research Intake",
+    desc: "Capture briefs, hypotheses, market signals, and client questions in one place.",
     color: "#ffc53d",
     glow: "rgba(255,197,61,0.12)",
   },
   {
     icon: <TodoIcon />,
-    title: "Smart Todos",
-    desc: "Kanban boards with priority levels, drag-and-drop lanes, and workspace collaboration.",
+    title: "Analysis Workflow",
+    desc: "Structure research tasks, review queues, and analyst follow-ups with clear status lanes.",
     color: "#11ff99",
     glow: "rgba(17,255,153,0.12)",
   },
   {
     icon: <NoteIcon />,
-    title: "Rich Notes",
-    desc: "TipTap-powered editor with headings, code blocks, task lists, and live sync.",
+    title: "Research Notes",
+    desc: "Build layered notes, interview summaries, findings, and internal memos with rich editing.",
     color: "#3b9eff",
     glow: "rgba(59,158,255,0.12)",
   },
   {
     icon: <AIIcon />,
     title: "Rits AI",
-    desc: "Contextual AI that reads your entire workspace and helps you write, reason, and ship faster.",
+    desc: "Contextual AI that reads your research base and helps summarize, compare, and surface patterns.",
     color: "#ff801f",
     glow: "rgba(255,128,31,0.12)",
   },
   {
     icon: <WorkspaceIcon />,
-    title: "Team Workspace",
-    desc: "Shared boards, ideas, and notes with real-time collaboration for your founding team.",
+    title: "Consultant Workspace",
+    desc: "Give researchers and consultants a shared operating layer clients can trust and teams can navigate.",
     color: "#a78bfa",
     glow: "rgba(167,139,250,0.12)",
   },
   {
     icon: <ResourceIcon />,
-    title: "Resource Hub",
-    desc: "Save URLs, docs, and links with context. Never lose a useful reference again.",
+    title: "Evidence Library",
+    desc: "Save sources, documents, links, and references with enough context to support final recommendations.",
     color: "#ff2047",
     glow: "rgba(255,32,71,0.12)",
   },
 ];
 
 const stats = [
-  { label: "Ideas captured", value: "12K+", target: 12, suffix: "K+", color: "#ffc53d", pct: 85 },
-  { label: "Tasks completed", value: "48K+", target: 48, suffix: "K+", color: "#11ff99", pct: 92 },
-  { label: "AI conversations", value: "8K+", target: 8, suffix: "K+", color: "#3b9eff", pct: 60 },
-  { label: "Teams onboarded", value: "340+", target: 340, suffix: "+", color: "#ff801f", pct: 70 },
+  { label: "Research briefs", value: "12K+", target: 12, suffix: "K+", color: "#ffc53d", pct: 85 },
+  { label: "Analyses completed", value: "48K+", target: 48, suffix: "K+", color: "#11ff99", pct: 92 },
+  { label: "AI queries", value: "8K+", target: 8, suffix: "K+", color: "#3b9eff", pct: 60 },
+  { label: "Consulting teams", value: "340+", target: 340, suffix: "+", color: "#ff801f", pct: 70 },
 ];
 
 export default function Home() {
@@ -461,15 +496,15 @@ export default function Home() {
         transition: "transform 0.15s ease",
       }} />
 
-      {/* ── Background grid ── */}
+      {/* ── Background warp grid ── */}
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 0 }}>
-        <GridSVG />
+        <WarpGrid mousePos={mousePos} />
       </div>
 
       {/* ── Atmospheric glows ── */}
-      <div aria-hidden style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: 1200, height: 600, background: "radial-gradient(ellipse at top, rgba(255,255,255,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
-      <div aria-hidden style={{ position: "fixed", bottom: "-20%", right: "-10%", width: 800, height: 800, background: "radial-gradient(ellipse at bottom right, rgba(255,89,0,0.12) 0%, transparent 60%)", pointerEvents: "none", zIndex: 0 }} />
-      <div aria-hidden style={{ position: "fixed", top: "30%", left: "-10%", width: 600, height: 600, background: "radial-gradient(ellipse, rgba(0,117,255,0.08) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+      <div aria-hidden style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: 1200, height: 600, background: "radial-gradient(ellipse at top, rgba(255,255,255,0.05) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
+      <div aria-hidden style={{ position: "fixed", bottom: "-20%", right: "-10%", width: 800, height: 800, background: "radial-gradient(ellipse at bottom right, rgba(255,89,0,0.08) 0%, transparent 60%)", pointerEvents: "none", zIndex: 0 }} />
+      <div aria-hidden style={{ position: "fixed", top: "30%", left: "-10%", width: 600, height: 600, background: "radial-gradient(ellipse, rgba(0,117,255,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
 
       {/* ── Floating particles ── */}
       <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
@@ -526,16 +561,11 @@ export default function Home() {
       </nav>
 
       {/* ─────────── HERO ─────────── */}
-      <section className="relative z-10 flex flex-col items-center px-6 pt-20  text-center  ">
+      <section className="relative z-10 flex flex-col items-center px-6 pt-20 text-center">
 
-        {/* Constellation */}
-        <div className="relative flex w-full max-w-[900px] justify-center" style={{ marginBottom: 24, animation: "fadeInUp 0.8s ease 0.1s both" }}>
-          <div style={{ width: "100%", maxWidth: 800, opacity: 0.6 }}>
-            <ConstellationSVG />
-          </div>
-
-          {/* Hero headline */}
-          <h1 className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 px-4" style={{ fontSize: "clamp(52px, 9vw, 96px)", fontWeight: 400, lineHeight: 1.0, letterSpacing: "-0.04em", color: "#fcfdff", maxWidth: 900, margin: "0 auto", fontFamily: "monospace", textShadow: "0 10px 40px rgba(0,0,0,0.45)" }}>
+        <div className="relative w-full max-w-[980px]" style={{ marginBottom: 24, animation: "fadeInUp 0.8s ease 0.1s both" }}>
+          <div className="absolute inset-x-[8%] top-1/2 h-40 -translate-y-1/2 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(59,158,255,0.025) 34%, transparent 74%)", filter: "blur(18px)" }} />
+          <h1 className="relative px-4" style={{ fontSize: "clamp(52px, 9vw, 96px)", fontWeight: 400, lineHeight: 1.0, letterSpacing: "-0.04em", color: "#fcfdff", maxWidth: 900, margin: "0 auto", fontFamily: "monospace", textShadow: "0 10px 40px rgba(0,0,0,0.45)" }}>
             <span className="hero-word">Research&nbsp;</span>
             <span className="hero-word">in&nbsp;</span>
             <span className="hero-word">tech&nbsp;</span>
@@ -543,9 +573,8 @@ export default function Home() {
           </h1>
         </div>
 
-        <p style={{ animation: "fadeInUp 0.8s ease 0.6s both", maxWidth: 560, fontSize: 18, lineHeight: 1.6, color: "rgba(252,253,255,0.55)", marginBottom: 48, fontFamily: "monospace" }}>
-          Ideas, todos, and notes — all in one beautifully unified workspace.
-          Built for startup teams moving fast.
+        <p style={{ animation: "fadeInUp 0.8s ease 0.6s both", maxWidth: 620, fontSize: 18, lineHeight: 1.6, color: "rgba(252,253,255,0.55)", marginBottom: 48, fontFamily: "monospace" }}>
+          Research briefs, analysis systems, consultant-grade notes, and AI-assisted evaluation in one operating layer.
         </p>
 
         {/* CTAs */}
@@ -569,12 +598,12 @@ export default function Home() {
           </div>
           <div style={{ animation: "fadeInUp 0.8s ease 1.05s both" }}>
             <div className="mx-auto max-w-[420px] rounded-[28px] border border-white/10 bg-[#06060a] p-6 text-left">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-white/35">Operating layer</p>
+              <p className="text-[11px] uppercase tracking-[0.14em] text-white/35">Research operating layer</p>
               <h3 className="mt-3 text-2xl font-normal tracking-tight text-white" style={{ fontFamily: "monospace" }}>
-                Structured chaos for founding teams.
+                Built for research agencies and serious analysis work.
               </h3>
               <p className="mt-4 text-[13px] leading-7 text-white/45" style={{ fontFamily: "monospace" }}>
-                From raw thoughts to shippable work, Rits keeps every thread in one place and gives AI enough context to be useful instead of generic.
+                From intake to recommendation, Rits keeps evidence, notes, analysis, and consultant judgment in one readable system clients can trust.
               </p>
               <div className="mt-6">
                 <OrbitalNetwork />
@@ -608,9 +637,9 @@ export default function Home() {
         <div style={{ maxWidth: 1080, margin: "0 auto" }}>
           <Reveal>
             <div style={{ textAlign: "center", marginBottom: 64 }}>
-              <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>Everything you need</p>
+              <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>Research tools</p>
               <h2 style={{ fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff" }}>
-                One workspace.<br />Every tool.
+                One system.<br />Every research tool.
               </h2>
             </div>
           </Reveal>
@@ -648,14 +677,14 @@ export default function Home() {
         <div className="mx-auto grid max-w-[1080px] items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,128,31,0.7)", fontFamily: "monospace", marginBottom: 16 }}>Rits AI</p>
-            <h2 style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff", marginBottom: 24 }}>
-              Your AI layer that reads the whole workspace
-            </h2>
-            <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(252,253,255,0.5)", fontFamily: "monospace", marginBottom: 32 }}>
-              Rits AI doesn't just generate text  it reads your ideas, todos, and notes to give contextual, workspace-aware answers. Ask it to reason across your entire startup context.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {["Contextual writing assistant inside notes & ideas", "Full-conversation chat with workspace memory", "Private + shared workspace scope modes"].map((item, i) => (
+              <h2 style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff", marginBottom: 24 }}>
+                Your AI layer that reads the full research record
+              </h2>
+              <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(252,253,255,0.5)", fontFamily: "monospace", marginBottom: 32 }}>
+              Rits AI does not stop at drafting. It reads briefs, notes, findings, and sources to help consultants compare evidence, summarize patterns, and prepare recommendations.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {["Contextual writing inside research notes", "Conversation memory across projects and sources", "Private analyst space plus shared client-facing work"].map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(252,253,255,0.6)", fontFamily: "monospace" }}>
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                     <circle cx="7" cy="7" r="6" stroke="#ff801f" strokeWidth="1" />
@@ -675,19 +704,19 @@ export default function Home() {
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ff2047" }} />
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ffc53d" }} />
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#11ff99" }} />
-                <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(252,253,255,0.3)", fontFamily: "monospace" }}>Rits AI · workspace context</span>
+                <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(252,253,255,0.3)", fontFamily: "monospace" }}>Rits AI · research context</span>
               </div>
               <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16, minHeight: 220 }}>
                 {/* user message */}
                 <div style={{ alignSelf: "flex-end", background: "#101012", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px 12px 2px 12px", padding: "8px 14px", fontSize: 12, color: "rgba(252,253,255,0.7)", fontFamily: "monospace", maxWidth: "80%" }}>
-                  What are my top-priority todos this week?
+                  What themes are repeating across these interview notes?
                 </div>
                 {/* AI response */}
                 <div style={{ alignSelf: "flex-start", background: "#0a0a0c", border: "1px solid rgba(255,128,31,0.2)", borderRadius: "12px 12px 12px 2px", padding: "10px 14px", fontSize: 12, color: "rgba(252,253,255,0.6)", fontFamily: "monospace", maxWidth: "90%", lineHeight: 1.7 }}>
-                  <span style={{ color: "#ff801f" }}>Rits AI</span> · Based on your workspace:<br />
-                  <span style={{ color: "#11ff99" }}>①</span> Ship landing page <span style={{ color: "#ff2047", fontSize: 10 }}>high</span><br />
-                  <span style={{ color: "#11ff99" }}>②</span> Set up Convex auth <span style={{ color: "#ffc53d", fontSize: 10 }}>medium</span><br />
-                  <span style={{ color: "#11ff99" }}>③</span> Investor deck draft <span style={{ color: "#ff2047", fontSize: 10 }}>high</span>
+                  <span style={{ color: "#ff801f" }}>Rits AI</span> · Based on your research set:<br />
+                  <span style={{ color: "#11ff99" }}>①</span> Pricing clarity is the strongest recurring pain point<br />
+                  <span style={{ color: "#11ff99" }}>②</span> Buyers trust peer referrals more than landing page claims<br />
+                  <span style={{ color: "#11ff99" }}>③</span> Enterprise prospects want implementation support before purchase
                 </div>
                 {/* typing indicator */}
                 <div style={{ alignSelf: "flex-start", display: "flex", gap: 4, padding: "10px 14px" }}>
@@ -719,9 +748,9 @@ export default function Home() {
 
         <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 32px", textAlign: "center" }}>
           <Reveal>
-            <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>The stack</p>
+            <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>Method and infrastructure</p>
             <h2 style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff", marginBottom: 48 }}>
-              Built on what moves fast
+              Built for trusted research delivery
             </h2>
           </Reveal>
 
@@ -756,18 +785,18 @@ export default function Home() {
           <Reveal delay={180} className="mt-14">
             <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="rounded-[24px] border border-white/10 bg-[#0a0a0c] p-6 text-left">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Workspace memory</p>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Consulting structure</p>
                 <h3 className="mt-3 text-2xl font-normal text-white" style={{ fontFamily: "monospace" }}>
-                  Shared context, not scattered tabs.
+                  Shared context, clear evidence, and visible reasoning.
                 </h3>
                 <p className="mt-4 max-w-2xl text-[13px] leading-7 text-white/45" style={{ fontFamily: "monospace" }}>
-                  Private work stays private. Team work becomes legible. Every idea, todo, note, and resource can live in the right scope without losing velocity.
+                  Analysts keep working notes private when needed, research teams share structured findings, and client-ready recommendations can be assembled from the same source base.
                 </p>
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
                   {[
-                    ["Private", "Founder notes, personal ideas, deep work drafts"],
-                    ["Workspace", "Shared boards, group lanes, and collaborative notes"],
-                    ["AI-ready", "Context assembled across both scopes when needed"],
+                    ["Private", "Draft interpretations, raw notes, and internal analyst thinking"],
+                    ["Shared", "Team-visible findings, project lanes, and collaborative review"],
+                    ["Advisory", "Evidence assembled into decision-ready recommendations"],
                   ].map(([title, text]) => (
                     <div key={title} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
                       <p className="text-sm text-white" style={{ fontFamily: "monospace" }}>{title}</p>
@@ -777,12 +806,12 @@ export default function Home() {
                 </div>
               </div>
               <div className="rounded-[24px] border border-white/10 bg-[#06060a] p-6 text-left">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Signal</p>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Trust signals</p>
                 <div className="mt-4 flex flex-col gap-4">
                   {[
-                    ["Notes", "Knowledge stays searchable and structured", "#3b9eff"],
-                    ["Todos", "Execution turns into visible momentum", "#11ff99"],
-                    ["Ideas", "Exploration accumulates instead of disappearing", "#ffc53d"],
+                    ["Traceability", "Every recommendation can point back to notes and sources", "#3b9eff"],
+                    ["Consistency", "Research process becomes repeatable across engagements", "#11ff99"],
+                    ["Clarity", "Clients see conclusions with stronger narrative support", "#ffc53d"],
                   ].map(([label, text, color]) => (
                     <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between">
@@ -802,18 +831,18 @@ export default function Home() {
       {/* ─────────── CTA BAND ─────────── */}
       <section id="pricing" className="relative z-10 py-32 px-8 text-center" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         {/* large glow behind CTA */}
-        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(59,158,255,0.07) 0%, transparent 70%)", pointerEvents: "none" }} />
+        <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(59,158,255,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
         <Reveal>
           <h2 style={{ fontSize: "clamp(40px, 7vw, 80px)", fontWeight: 400, lineHeight: 1.0, letterSpacing: "-0.04em", fontFamily: "monospace", color: "#fcfdff", marginBottom: 24 }}>
             Start building<br />
-            <span style={{ color: "rgba(252,253,255,0.3)" }}>your startup OS.</span>
+            <span style={{ color: "rgba(252,253,255,0.3)" }}>your research operating layer.</span>
           </h2>
           <p style={{ fontSize: 16, color: "rgba(252,253,255,0.4)", fontFamily: "monospace", marginBottom: 40 }}>
-            Free to start. No credit card required.
+            For consultants, research teams, and serious analysis workflows.
           </p>
           <SignUpButton mode="modal">
             <button className="btn-primary-rits" style={{ height: 52, padding: "0 36px", fontSize: 16 }}>
-              Create your workspace
+              Start your research workspace
             </button>
           </SignUpButton>
         </Reveal>

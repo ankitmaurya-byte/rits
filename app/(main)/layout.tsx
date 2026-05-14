@@ -5,7 +5,7 @@ import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
 import { ProfileMenu } from "@/components/profile/profile-menu";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Search, Command } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ChatSheet } from "@/components/ai/chat-sheet";
@@ -32,6 +32,27 @@ const pageTitles: Record<string, string> = {
   "/feedback": "Feedback",
 };
 
+const searchEntries = [
+  { href: "/dashboard", title: "Dashboard", keywords: ["home", "overview", "summary"] },
+  { href: "/ideas", title: "Ideas", keywords: ["brainstorm", "concepts"] },
+  { href: "/todos", title: "Todos", keywords: ["tasks", "kanban"] },
+  { href: "/notes", title: "Notes", keywords: ["documents", "writing"] },
+  { href: "/startups", title: "Startup Directory", keywords: ["companies", "directory"] },
+  { href: "/private/ideas", title: "Private Ideas", keywords: ["personal ideas"] },
+  { href: "/private/todos", title: "Private Todos", keywords: ["personal tasks"] },
+  { href: "/private/notes", title: "Private Notes", keywords: ["personal notes"] },
+  { href: "/private/resources", title: "Private Resources", keywords: ["personal links"] },
+  { href: "/workspace/ideas", title: "Workspace Ideas", keywords: ["team ideas"] },
+  { href: "/workspace/todos", title: "Workspace Todos", keywords: ["team tasks"] },
+  { href: "/workspace/notes", title: "Workspace Notes", keywords: ["team notes"] },
+  { href: "/workspace/resources", title: "Workspace Resources", keywords: ["team resources"] },
+  { href: "/workspace/members", title: "Workspace Members", keywords: ["team", "people"] },
+  { href: "/workspace/join", title: "Join Workspace", keywords: ["invite", "join"] },
+  { href: "/profile", title: "Profile", keywords: ["account", "me"] },
+  { href: "/settings", title: "Settings", keywords: ["preferences", "config"] },
+  { href: "/feedback", title: "Feedback", keywords: ["support", "message"] },
+];
+
 export default function MainLayout({
   children,
 }: {
@@ -41,10 +62,36 @@ export default function MainLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isAiOpen, setIsAiOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const matches = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    if (!query) return searchEntries.slice(0, 6);
+
+    return searchEntries
+      .filter((entry) => {
+        const haystack = [entry.title, entry.href, ...entry.keywords].join(" ").toLowerCase();
+        return haystack.includes(query);
+      })
+      .slice(0, 6);
+  }, [searchValue]);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/");
   }, [isLoaded, isSignedIn, router]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!searchRef.current?.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (!isLoaded || !isSignedIn) {
     return (
@@ -60,6 +107,12 @@ export default function MainLayout({
   }
 
   const title = pageTitles[pathname] ?? "Rits";
+
+  const openSearchResult = (href: string) => {
+    setSearchValue("");
+    setSearchOpen(false);
+    router.push(href);
+  };
 
   return (
     <div
@@ -119,7 +172,7 @@ export default function MainLayout({
   <div className="w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
 
   {/* Search */}
-  <div className="relative hidden sm:block">
+  <div ref={searchRef} className="relative hidden sm:block">
     <Search
       size={13}
       className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -128,6 +181,24 @@ export default function MainLayout({
     <input
       type="text"
       placeholder="Search..."
+      value={searchValue}
+      onChange={(e) => {
+        setSearchValue(e.target.value);
+        setSearchOpen(true);
+      }}
+      onFocus={(e) => {
+        setSearchOpen(true);
+        e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && matches[0]) {
+          e.preventDefault();
+          openSearchResult(matches[0].href);
+        }
+        if (e.key === "Escape") {
+          setSearchOpen(false);
+        }
+      }}
       className="h-[36px] rounded-md text-sm transition-colors"
       style={{
         width: "200px",
@@ -137,9 +208,36 @@ export default function MainLayout({
         color: "var(--ink)",
         outline: "none",
       }}
-      onFocus={e => (e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)")}
       onBlur={e => (e.currentTarget.style.borderColor = "var(--hairline-strong)")}
     />
+    {searchOpen && matches.length > 0 && (
+      <div
+        className="absolute right-0 top-[calc(100%+8px)] z-50 w-[280px] overflow-hidden rounded-xl border"
+        style={{
+          borderColor: "var(--hairline-strong)",
+          backgroundColor: "var(--surface-card)",
+          boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
+        }}
+      >
+        <div className="border-b px-3 py-2 text-[10px] uppercase tracking-[0.16em]" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
+          Jump to
+        </div>
+        <div className="p-1.5">
+          {matches.map((entry) => (
+            <button
+              key={entry.href}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => openSearchResult(entry.href)}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/6"
+            >
+              <span className="text-sm" style={{ color: "var(--ink)" }}>{entry.title}</span>
+              <span className="text-[11px]" style={{ color: "var(--mute)" }}>{entry.href}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
 
   <div className="w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />

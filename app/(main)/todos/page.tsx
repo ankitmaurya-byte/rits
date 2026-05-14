@@ -286,7 +286,7 @@ function TaskCard({ task, isOverlay, deleteTodo, handleUpdateStatus }: any) {
                 handleUpdateStatus(task._id, e.target.value);
               }
             }}
-            className="appearance-none bg-transparent text-xs pl-2 pr-6 py-1 outline-none cursor-pointer"
+            className="appearance-none rounded-md bg-[var(--surface-elevated)] text-xs pl-2.5 pr-6 py-1.5 outline-none cursor-pointer border border-[var(--hairline)]"
             style={{ color: "var(--ink)" }}
             onPointerDown={(e) => e.stopPropagation()} // Prevent drag when clicking select
           >

@@ -186,7 +186,7 @@ export default function StartupsPage() {
             <select
               value={industryFilter}
               onChange={(e) => setIndustryFilter(e.target.value)}
-              className="appearance-none pl-10 pr-8 py-2 rounded-lg border focus:outline-none transition-colors cursor-pointer min-w-[140px]"
+              className="appearance-none pl-10 pr-8 py-2 rounded-md border focus:outline-none transition-colors cursor-pointer min-w-[140px] text-sm"
               style={{ 
                 backgroundColor: "var(--surface-elevated)", 
                 borderColor: "var(--hairline-strong)",
@@ -204,7 +204,7 @@ export default function StartupsPage() {
              <select
               value={batchFilter}
               onChange={(e) => setBatchFilter(e.target.value)}
-              className="appearance-none px-4 py-2 rounded-lg border focus:outline-none transition-colors cursor-pointer min-w-[100px]"
+              className="appearance-none px-4 py-2 rounded-md border focus:outline-none transition-colors cursor-pointer min-w-[100px] text-sm"
               style={{ 
                 backgroundColor: "var(--surface-elevated)", 
                 borderColor: "var(--hairline-strong)",

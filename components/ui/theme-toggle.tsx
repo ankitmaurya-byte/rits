@@ -25,7 +25,7 @@ export function ThemeToggle() {
       <select
         value={theme}
         onChange={(e) => setTheme(e.target.value)}
-        className="appearance-none bg-[var(--surface-card)] border border-[var(--hairline-strong)] text-[var(--ink)] text-xs rounded-md pl-8 pr-8 py-1.5 focus:outline-none focus:border-[var(--ink)] cursor-pointer transition-colors"
+        className="appearance-none bg-[var(--surface-card)] border border-[var(--hairline-strong)] text-[var(--body)] text-xs rounded-md pl-8 pr-8 py-1.5 focus:outline-none focus:border-[var(--ink)] cursor-pointer transition-colors"
         style={{ height: "32px" }}
       >
         <option value="light">Light</option>

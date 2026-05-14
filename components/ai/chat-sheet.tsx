@@ -384,11 +384,12 @@ function MinimalSelect<T extends string>({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as T)}
-        className="appearance-none rounded-full border pl-3 pr-7 py-1 text-[11px] font-medium uppercase tracking-[0.16em] cursor-pointer transition-colors focus:outline-none"
+        className="appearance-none rounded-md border pl-3 pr-8 py-2 text-[11px] font-medium uppercase tracking-[0.14em] cursor-pointer transition-colors focus:outline-none"
         style={{
           borderColor: "var(--hairline-strong)",
-          backgroundColor: "var(--surface-elevated)",
-          color: "var(--ink)",
+          backgroundColor: "var(--surface-card)",
+          color: "var(--body)",
+          height: "36px",
         }}
       >
         {options.map((opt) => (
@@ -398,8 +399,8 @@ function MinimalSelect<T extends string>({
         ))}
       </select>
       <ChevronDown
-        size={10}
-        className="pointer-events-none absolute right-2"
+        size={11}
+        className="pointer-events-none absolute right-2.5"
         style={{ color: "var(--mute)" }}
       />
     </div>

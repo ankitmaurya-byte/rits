@@ -194,7 +194,7 @@ export default function MainLayout({
 
       {/* Floating AI Button */}
 <div className="fixed bottom-5 right-5 z-40 group">
-  {/* Pulse rings — use accent-blue-glow from design */}
+  {/* Pulse rings  use accent-blue-glow from design */}
   <span
     className="absolute inset-0 rounded-full animate-ping"
     style={{

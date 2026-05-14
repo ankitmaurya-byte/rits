@@ -265,22 +265,22 @@ function WorkflowDiagram() {
       <line x1="280" y1="100" x2="360" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
       <line x1="440" y1="100" x2="520" y2="100" stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
 
-      {/* node 1 — Capture */}
+      {/* node 1  Capture */}
       <rect x="20" y="70" width="100" height="60" rx="8" fill="#0a0a0c" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
       <text x="70" y="96" textAnchor="middle" fontSize="10" fill="#ffc53d" fontFamily="monospace">●</text>
       <text x="70" y="112" textAnchor="middle" fontSize="11" fill="rgba(252,253,255,0.7)" fontFamily="monospace">Capture</text>
 
-      {/* node 2 — Organize */}
+      {/* node 2  Organize */}
       <rect x="200" y="70" width="100" height="60" rx="8" fill="#0a0a0c" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
       <text x="250" y="96" textAnchor="middle" fontSize="10" fill="#11ff99" fontFamily="monospace">◆</text>
       <text x="250" y="112" textAnchor="middle" fontSize="11" fill="rgba(252,253,255,0.7)" fontFamily="monospace">Organize</text>
 
-      {/* node 3 — Collaborate */}
+      {/* node 3  Collaborate */}
       <rect x="360" y="70" width="100" height="60" rx="8" fill="#0a0a0c" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
       <text x="410" y="96" textAnchor="middle" fontSize="10" fill="#3b9eff" fontFamily="monospace">▲</text>
       <text x="410" y="112" textAnchor="middle" fontSize="11" fill="rgba(252,253,255,0.7)" fontFamily="monospace">Collaborate</text>
 
-      {/* node 4 — Ship */}
+      {/* node 4  Ship */}
       <rect x="520" y="70" width="100" height="60" rx="8" fill="#101012" stroke="rgba(255,255,255,0.24)" strokeWidth="1" />
       <text x="570" y="96" textAnchor="middle" fontSize="10" fill="#ff801f" fontFamily="monospace">★</text>
       <text x="570" y="112" textAnchor="middle" fontSize="11" fill="#fcfdff" fontFamily="monospace">Ship</text>
@@ -526,26 +526,22 @@ export default function Home() {
       </nav>
 
       {/* ─────────── HERO ─────────── */}
-      <section className="relative z-10 flex flex-col items-center px-6 pt-24 pb-20 text-center sm:pt-28 sm:pb-24">
-
-        {/* Badge */}
-        <div style={{ animation: "fadeInUp 0.6s ease both", display: "inline-flex", alignItems: "center", gap: 8, background: "#101012", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 9999, padding: "4px 12px", fontSize: 12, color: "rgba(252,253,255,0.6)", fontFamily: "monospace", marginBottom: 40 }}>
-          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#11ff99", display: "inline-block", animation: "pulse 2s ease-in-out infinite alternate" }} />
-          Now in alpha — built for startup teams
-        </div>
+      <section className="relative z-10 flex flex-col items-center px-6 pt-20  text-center  ">
 
         {/* Constellation */}
-        <div style={{ width: "100%", maxWidth: 800, marginBottom: -32, opacity: 0.6, animation: "fadeInUp 0.8s ease 0.1s both" }}>
-          <ConstellationSVG />
-        </div>
+        <div className="relative flex w-full max-w-[900px] justify-center" style={{ marginBottom: 24, animation: "fadeInUp 0.8s ease 0.1s both" }}>
+          <div style={{ width: "100%", maxWidth: 800, opacity: 0.6 }}>
+            <ConstellationSVG />
+          </div>
 
-        {/* Hero headline */}
-        <h1 style={{ fontSize: "clamp(52px, 9vw, 96px)", fontWeight: 400, lineHeight: 1.0, letterSpacing: "-0.04em", color: "#fcfdff", maxWidth: 900, margin: "0 auto 32px", fontFamily: "monospace" }}>
-          <span className="hero-word">Research&nbsp;</span>
-          <span className="hero-word">in&nbsp;</span>
-          <span className="hero-word">tech&nbsp;</span>
-          <span className="hero-word" style={{ color: "rgba(252,253,255,0.35)" }}>startup</span>
-        </h1>
+          {/* Hero headline */}
+          <h1 className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 px-4" style={{ fontSize: "clamp(52px, 9vw, 96px)", fontWeight: 400, lineHeight: 1.0, letterSpacing: "-0.04em", color: "#fcfdff", maxWidth: 900, margin: "0 auto", fontFamily: "monospace", textShadow: "0 10px 40px rgba(0,0,0,0.45)" }}>
+            <span className="hero-word">Research&nbsp;</span>
+            <span className="hero-word">in&nbsp;</span>
+            <span className="hero-word">tech&nbsp;</span>
+            <span className="hero-word" style={{ color: "rgba(252,253,255,0.35)" }}>startup</span>
+          </h1>
+        </div>
 
         <p style={{ animation: "fadeInUp 0.8s ease 0.6s both", maxWidth: 560, fontSize: 18, lineHeight: 1.6, color: "rgba(252,253,255,0.55)", marginBottom: 48, fontFamily: "monospace" }}>
           Ideas, todos, and notes — all in one beautifully unified workspace.
@@ -656,7 +652,7 @@ export default function Home() {
               Your AI layer that reads the whole workspace
             </h2>
             <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(252,253,255,0.5)", fontFamily: "monospace", marginBottom: 32 }}>
-              Rits AI doesn't just generate text — it reads your ideas, todos, and notes to give contextual, workspace-aware answers. Ask it to reason across your entire startup context.
+              Rits AI doesn't just generate text  it reads your ideas, todos, and notes to give contextual, workspace-aware answers. Ask it to reason across your entire startup context.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {["Contextual writing assistant inside notes & ideas", "Full-conversation chat with workspace memory", "Private + shared workspace scope modes"].map((item, i) => (

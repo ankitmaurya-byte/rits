@@ -6,7 +6,6 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import {
   LogOut,
-  Mail,
   MessageSquare,
   Settings,
   Shield,
@@ -53,10 +52,9 @@ export function ProfileMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-3 rounded-full border px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+          className="flex items-center gap-3 rounded-full px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)] focus-visible:outline-none"
           style={{
-            borderColor: "var(--hairline-strong)",
-            backgroundColor: "var(--surface-card)",
+            backgroundColor: "transparent",
           }}
         >
           <div className="hidden md:block">
@@ -74,7 +72,16 @@ export function ProfileMenu() {
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent
+        align="end"
+        className="w-64 rounded-2xl p-1.5 shadow-2xl ring-0"
+        style={{
+          backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)",
+          backdropFilter: "blur(18px)",
+          border: "none",
+          boxShadow: "0 18px 50px rgba(0, 0, 0, 0.28)",
+        }}
+      >
         <DropdownMenuLabel className="px-3 py-2">
           <div className="flex items-center gap-3">
             <Avatar className="size-10" size="lg">
@@ -92,7 +99,7 @@ export function ProfileMenu() {
           </div>
         </DropdownMenuLabel>
 
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="bg-[var(--hairline)] opacity-50" />
 
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
@@ -121,7 +128,7 @@ export function ProfileMenu() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
 
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="bg-[var(--hairline)] opacity-50" />
 
         <DropdownMenuItem
           onSelect={async (event) => {

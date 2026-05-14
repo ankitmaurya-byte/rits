@@ -329,7 +329,7 @@ export function RichEditor({
   useEffect(() => {
     if (!editor) return;
     if (content !== editor.getHTML()) {
-      editor.commands.setContent(content || "", false);
+      editor.commands.setContent(content || "", { emitUpdate: false });
     }
   }, [content, editor]);
 
@@ -389,7 +389,7 @@ export function RichEditor({
           onChange(editor?.getHTML() ?? content);
         }}
         onReplace={(html) => {
-          editor?.commands.setContent(html, true);
+          editor?.commands.setContent(html, { emitUpdate: true });
           onChange(editor?.getHTML() ?? html);
         }}
       />

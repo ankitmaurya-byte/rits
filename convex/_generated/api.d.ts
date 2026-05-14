@@ -8,6 +8,10 @@
  * @module
  */
 
+import type * as authHelpers from "../authHelpers.js";
+import type * as chat from "../chat.js";
+import type * as chatActions from "../chatActions.js";
+import type * as chatContext from "../chatContext.js";
 import type * as ideas from "../ideas.js";
 import type * as notes from "../notes.js";
 import type * as resources from "../resources.js";
@@ -23,6 +27,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  authHelpers: typeof authHelpers;
+  chat: typeof chat;
+  chatActions: typeof chatActions;
+  chatContext: typeof chatContext;
   ideas: typeof ideas;
   notes: typeof notes;
   resources: typeof resources;

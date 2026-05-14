@@ -4,9 +4,11 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { UserButton } from "@clerk/nextjs";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { Bell, Search, Command } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, Search, Command, BrainCircuit } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { ChatSheet } from "@/components/ai/chat-sheet";
+import { Button } from "@/components/ui/button";
 
 const pageTitles: Record<string, string> = {
   "/dashboard":          "Dashboard",
@@ -34,6 +36,7 @@ export default function MainLayout({
   const { isLoaded, isSignedIn, user } = useUser();
   const router   = useRouter();
   const pathname = usePathname();
+  const [isAiOpen, setIsAiOpen] = useState(false);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/");
@@ -66,6 +69,16 @@ export default function MainLayout({
           </div>
 
           <div className="flex items-center gap-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="hidden rounded-full sm:inline-flex"
+              onClick={() => setIsAiOpen(true)}
+            >
+              <BrainCircuit size={14} />
+              Open Rits AI
+            </Button>
             <ThemeToggle />
             {/* Search */}
             <div className="relative group hidden sm:block">
@@ -134,6 +147,22 @@ export default function MainLayout({
           </div>
         </main>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setIsAiOpen(true)}
+        className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-medium shadow-xl transition-transform hover:scale-[1.02]"
+        style={{
+          background: "linear-gradient(135deg, rgba(59,158,255,0.96), rgba(255,128,31,0.92))",
+          color: "white",
+          borderColor: "rgba(255,255,255,0.15)",
+        }}
+      >
+        <BrainCircuit size={16} />
+        Rits AI
+      </button>
+
+      <ChatSheet open={isAiOpen} onOpenChange={setIsAiOpen} />
     </div>
   );
 }

@@ -4,10 +4,13 @@ import { v } from "convex/values";
 export default defineSchema({
   users: defineTable({
     clerkId: v.string(),
+    tokenIdentifier: v.optional(v.string()),
     name: v.string(),
     email: v.string(),
     image: v.optional(v.string()),
-  }).index("by_clerk_id", ["clerkId"]),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_token_identifier", ["tokenIdentifier"]),
 
   workspaces: defineTable({
     name: v.string(),
@@ -97,4 +100,46 @@ export default defineSchema({
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_user_private", ["createdBy", "scope"]),
+
+  chatConversations: defineTable({
+    ownerId: v.id("users"),
+    title: v.string(),
+    agentKey: v.optional(v.string()),
+    scopeMode: v.optional(
+      v.union(v.literal("private"), v.literal("current"), v.literal("all"))
+    ),
+    focusWorkspaceId: v.optional(v.id("workspaces")),
+    lastMessagePreview: v.optional(v.string()),
+    lastMessageAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_owner_and_updated_at", ["ownerId", "updatedAt"]),
+
+  chatMessages: defineTable({
+    conversationId: v.id("chatConversations"),
+    ownerId: v.id("users"),
+    role: v.union(v.literal("user"), v.literal("assistant"), v.literal("system")),
+    content: v.string(),
+    model: v.optional(v.string()),
+    citations: v.optional(
+      v.array(
+        v.object({
+          refId: v.string(),
+          itemType: v.union(
+            v.literal("idea"),
+            v.literal("todo"),
+            v.literal("note"),
+            v.literal("resource")
+          ),
+          itemId: v.string(),
+          title: v.string(),
+          scope: v.union(v.literal("private"), v.literal("workspace")),
+          href: v.string(),
+          workspaceId: v.optional(v.id("workspaces")),
+          workspaceName: v.optional(v.string()),
+        })
+      )
+    ),
+    createdAt: v.number(),
+  }).index("by_conversation_and_created_at", ["conversationId", "createdAt"]),
 });

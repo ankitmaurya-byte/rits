@@ -14,6 +14,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Link from "@tiptap/extension-link";
 import Typography from "@tiptap/extension-typography";
+import { RitsImage } from "./rits-image-extension";
 import {
   Bold,
   Italic,
@@ -43,6 +44,7 @@ import {
   MessageSquarePlus,
   Grip,
   X,
+  ImagePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -110,9 +112,11 @@ function Divider() {
 function Toolbar({
   editor,
   onAiAssist,
+  onAddImage,
 }: {
   editor: Editor;
   onAiAssist: () => void;
+  onAddImage: () => void;
 }) {
   const setLink = useCallback(() => {
     const prev = editor.getAttributes("link").href as string | undefined;
@@ -230,6 +234,10 @@ function Toolbar({
         <Link2Off size={14} />
       </ToolBtn>
 
+      <ToolBtn title="Upload image" onClick={onAddImage}>
+        <ImagePlus size={14} />
+      </ToolBtn>
+
       <Divider />
 
       {/* Clear */}
@@ -312,6 +320,27 @@ export function RichEditor({
   const [panelDismissed, setPanelDismissed] = useState(false);
   const editorWrapRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<{ startX: number; startY: number; originTop: number; originLeft: number } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function uploadImageToCloudinary(file: File): Promise<{ url: string; width: number | null }> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/cloudinary/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const data = (await response.json()) as { url?: string; width?: number | null; error?: string };
+    if (!response.ok || !data.url) {
+      throw new Error(data.error ?? "Image upload failed.");
+    }
+    return { url: data.url, width: data.width ?? null };
+  }
+
+  function isImageUrl(value: string) {
+    return /^(https?:\/\/.*\.(?:png|jpe?g|gif|webp|svg|avif))(\?.*)?$/i.test(value.trim());
+  }
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -329,6 +358,7 @@ export function RichEditor({
         openOnClick: false,
         HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" },
       }),
+      RitsImage,
       Typography, // smart quotes, em-dashes, ellipsis, etc.
       Placeholder.configure({ placeholder }),
     ],
@@ -348,8 +378,49 @@ export function RichEditor({
       transformPastedHTML(html) {
         return html;
       },
+      handlePaste(view, event) {
+        const clipboardData = event.clipboardData;
+        if (!clipboardData) return false;
+        if (clipboardData.files?.length) {
+          void handleImageFiles(clipboardData.files);
+          return true;
+        }
+        const text = clipboardData.getData("text/plain").trim();
+        if (isImageUrl(text)) {
+          insertImageFromUrl(text);
+          return true;
+        }
+        return false;
+      },
+      handleDrop(view, event) {
+        if (event.dataTransfer?.files?.length) {
+          void handleImageFiles(event.dataTransfer.files);
+          return true;
+        }
+        return false;
+      },
     },
   });
+
+  function insertImageFromUrl(url: string, width?: number | null) {
+    if (!editor) return;
+    editor.chain().focus().setRitsImage({ src: url, width: width ?? 420, displayMode: "image" }).run();
+  }
+
+  async function handleImageFiles(files: FileList | File[]) {
+    const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) return false;
+    try {
+      for (const file of imageFiles) {
+        const uploaded = await uploadImageToCloudinary(file);
+        insertImageFromUrl(uploaded.url, uploaded.width);
+      }
+      toast.success(imageFiles.length === 1 ? "Image added." : "Images added.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Image upload failed.");
+    }
+    return true;
+  }
 
   // Sync when switching notes / ideas
   useEffect(() => {
@@ -473,16 +544,17 @@ export function RichEditor({
         if (!response.ok || data.error || !data.result?.trim()) {
           throw new Error(data.error ?? "AI assist failed.");
         }
+        const result = data.result.trim();
 
         if (mode === "enhance" || mode === "prompt") {
           editor
             .chain()
             .focus()
-            .insertContentAt({ from: selectionPopover.from, to: selectionPopover.to }, data.result.trim())
+            .insertContentAt({ from: selectionPopover.from, to: selectionPopover.to }, result)
             .run();
         }
 
-        setSelectionChat((current) => [...current, { role: "assistant", content: data.result.trim() }]);
+        setSelectionChat((current) => [...current, { role: "assistant", content: result }]);
         if (mode === "prompt") setSelectionPrompt("");
         if (mode !== "prompt") setSelectionPromptOpen(false);
       } catch (error) {
@@ -548,8 +620,23 @@ export function RichEditor({
         <Toolbar
           editor={editor}
           onAiAssist={() => setAiOpen(true)}
+          onAddImage={() => imageInputRef.current?.click()}
         />
       )}
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(event) => {
+          if (event.target.files?.length) {
+            void handleImageFiles(event.target.files);
+          }
+          event.target.value = "";
+        }}
+      />
 
       {/* Editor body */}
       <div
@@ -798,6 +885,7 @@ export function RichEditor({
         /* Links */
         .rich-editor-content a { color: var(--accent-blue); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
         .rich-editor-content a:hover { opacity: 0.75; }
+        .rich-editor-content .rits-image-block { margin: 0; }
         /* Text align */
         .rich-editor-content [style*="text-align: center"] { text-align: center; }
         .rich-editor-content [style*="text-align: right"] { text-align: right; }

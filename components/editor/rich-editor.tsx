@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { AiAssistModal } from "./ai-assist-modal";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -277,6 +277,14 @@ interface RichEditorProps {
   contextType?: "note" | "idea";
 }
 
+type SelectionPopoverState = {
+  from: number;
+  to: number;
+  text: string;
+  top: number;
+  left: number;
+};
+
 export function RichEditor({
   content,
   onChange,
@@ -286,6 +294,11 @@ export function RichEditor({
   contextType = "note",
 }: RichEditorProps) {
   const [aiOpen, setAiOpen] = useState(false);
+  const [selectionPopover, setSelectionPopover] = useState<SelectionPopoverState | null>(null);
+  const [selectionPromptOpen, setSelectionPromptOpen] = useState(false);
+  const [selectionPrompt, setSelectionPrompt] = useState("");
+  const [selectionAiLoading, setSelectionAiLoading] = useState<"enhance" | "prompt" | null>(null);
+  const editorWrapRef = useRef<HTMLDivElement | null>(null);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -333,6 +346,111 @@ export function RichEditor({
     }
   }, [content, editor]);
 
+  useEffect(() => {
+    if (!editor || contextType !== "note") return;
+
+    const updateSelectionPopover = () => {
+      const { from, to, empty } = editor.state.selection;
+      if (empty || from === to || !editor.isFocused) {
+        setSelectionPopover(null);
+        setSelectionPromptOpen(false);
+        return;
+      }
+
+      const text = editor.state.doc.textBetween(from, to, "\n").trim();
+      if (!text) {
+        setSelectionPopover(null);
+        setSelectionPromptOpen(false);
+        return;
+      }
+
+      const start = editor.view.coordsAtPos(from);
+      const end = editor.view.coordsAtPos(to);
+      const width = end.left - start.left;
+      setSelectionPopover({
+        from,
+        to,
+        text,
+        top: Math.min(start.top, end.top) - 12,
+        left: start.left + Math.max(width / 2, 0),
+      });
+    };
+
+    const handleBlur = () => {
+      window.setTimeout(() => {
+        const activeEl = document.activeElement;
+        const insideEditor = editorWrapRef.current?.contains(activeEl) ?? false;
+        if (!insideEditor) {
+          setSelectionPopover(null);
+          setSelectionPromptOpen(false);
+        }
+      }, 0);
+    };
+
+    editor.on("selectionUpdate", updateSelectionPopover);
+    editor.on("focus", updateSelectionPopover);
+    editor.on("blur", handleBlur);
+
+    return () => {
+      editor.off("selectionUpdate", updateSelectionPopover);
+      editor.off("focus", updateSelectionPopover);
+      editor.off("blur", handleBlur);
+    };
+  }, [contextType, editor]);
+
+  const runSelectionAi = useCallback(
+    async (mode: "enhance" | "prompt") => {
+      if (!editor || !selectionPopover) return;
+      if (mode === "prompt" && !selectionPrompt.trim()) return;
+
+      setSelectionAiLoading(mode);
+      try {
+        const instruction =
+          mode === "enhance"
+            ? [
+                "Improve the selected excerpt for clarity, flow, and precision.",
+                "Preserve the original meaning and keep the length reasonably similar unless expansion clearly helps.",
+                "Return only the revised excerpt.",
+              ].join(" ")
+            : [
+                `Apply this instruction to the selected excerpt: ${selectionPrompt.trim()}.`,
+                "Use the full note as context.",
+                "Return only the revised excerpt.",
+              ].join(" ");
+
+        const prompt = `${instruction}\n\nSelected excerpt:\n"""\n${selectionPopover.text}\n"""`;
+        const response = await fetch("/api/ai/assist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            context: editor.getHTML(),
+            contextType: "note",
+          }),
+        });
+        const data = (await response.json()) as { result?: string; error?: string };
+        if (!response.ok || data.error || !data.result?.trim()) {
+          throw new Error(data.error ?? "AI assist failed.");
+        }
+
+        editor
+          .chain()
+          .focus()
+          .insertContentAt({ from: selectionPopover.from, to: selectionPopover.to }, data.result.trim())
+          .run();
+
+        setSelectionPopover(null);
+        setSelectionPromptOpen(false);
+        setSelectionPrompt("");
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setSelectionAiLoading(null);
+      }
+    },
+    [editor, selectionPopover, selectionPrompt]
+  );
+
   const words = editor
     ? editor.getText().trim().split(/\s+/).filter(Boolean).length
     : 0;
@@ -340,6 +458,7 @@ export function RichEditor({
 
   return (
     <div
+      ref={editorWrapRef}
       className="flex flex-col rounded-xl overflow-hidden"
       style={{
         backgroundColor: "var(--surface-card)",
@@ -362,6 +481,63 @@ export function RichEditor({
       >
         <EditorContent editor={editor} />
       </div>
+
+      {contextType === "note" && selectionPopover ? (
+        <div
+          className="fixed z-[120] -translate-x-1/2 -translate-y-full rounded-2xl border px-2 py-2 shadow-2xl"
+          style={{
+            top: selectionPopover.top,
+            left: selectionPopover.left,
+            borderColor: "var(--hairline-strong)",
+            backgroundColor: "var(--surface-card)",
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void runSelectionAi("enhance")}
+              disabled={selectionAiLoading !== null}
+              className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
+              style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
+            >
+              {selectionAiLoading === "enhance" ? "Enhancing..." : "Enhance"}
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setSelectionPromptOpen((current) => !current)}
+              disabled={selectionAiLoading !== null}
+              className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
+              style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
+            >
+              Prompt
+            </button>
+          </div>
+          {selectionPromptOpen ? (
+            <div className="mt-2 flex min-w-[280px] items-end gap-2 rounded-xl border p-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+              <textarea
+                value={selectionPrompt}
+                onChange={(e) => setSelectionPrompt(e.target.value)}
+                placeholder="Tell AI how to improve this selection..."
+                rows={2}
+                className="min-h-[56px] flex-1 resize-none border-0 bg-transparent text-[12px] leading-5 outline-none"
+                style={{ color: "var(--ink)" }}
+              />
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void runSelectionAi("prompt")}
+                disabled={selectionAiLoading !== null || !selectionPrompt.trim()}
+                className="rounded-full px-3 py-1.5 text-[11px] font-medium disabled:opacity-60"
+                style={{ backgroundColor: "var(--ink)", color: "var(--canvas)" }}
+              >
+                {selectionAiLoading === "prompt" ? "Working..." : "Apply"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Status bar */}
       {showCount && (

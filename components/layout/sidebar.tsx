@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import {
   Blocks,
   Bot,
+  ChevronDown,
+  ChevronRight,
   Lightbulb,
   CheckSquare,
   FileText,
@@ -83,12 +86,14 @@ function NavSection({
 
   return (
     <div className="mb-1">
-      <div className="flex items-center justify-between px-3 mb-1.5">
-        <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
-          {label}
-        </p>
-        {icon}
-      </div>
+      {label ? (
+        <div className="flex items-center justify-between px-3 mb-1.5">
+          <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
+            {label}
+          </p>
+          {icon}
+        </div>
+      ) : null}
       <nav className="space-y-0.5">
         {links.map(({ href, label: linkLabel, icon: Icon }) => {
           const isActive = pathname === href || pathname.startsWith(href + "/");
@@ -125,6 +130,61 @@ function NavSection({
           );
         })}
       </nav>
+    </div>
+  );
+}
+
+function CollapsibleNavSection({
+  label,
+  links,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  label: string;
+  links: { href: string; label: string; icon: React.ElementType }[];
+  icon?: React.ReactNode;
+  defaultOpen?: boolean;
+  children?: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const hasActiveLink = links.some(
+    ({ href }) => pathname === href || pathname.startsWith(href + "/")
+  );
+  const hasActiveChild = Boolean(children) && (
+    pathname.startsWith("/private/") || pathname.startsWith("/workspace/")
+  );
+  const [isOpen, setIsOpen] = useState(defaultOpen || hasActiveLink || hasActiveChild);
+
+  useEffect(() => {
+    if (hasActiveLink || hasActiveChild) setIsOpen(true);
+  }, [hasActiveLink, hasActiveChild]);
+
+  return (
+    <div className="mb-1">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+      >
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
+            {label}
+          </p>
+          {icon}
+        </div>
+        {isOpen ? (
+          <ChevronDown size={12} style={{ color: "var(--stone)" }} />
+        ) : (
+          <ChevronRight size={12} style={{ color: "var(--stone)" }} />
+        )}
+      </button>
+      {isOpen ? (
+        <div className="mt-1 space-y-2">
+          {links.length > 0 ? <NavSection label="" links={links} /> : null}
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -176,98 +236,45 @@ export function Sidebar() {
 
       {/* Scrollable nav area */}
       <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-3 min-h-0">
-        <NavSection label="Product" links={productLinks} />
+        <CollapsibleNavSection
+          label="Workspace"
+          links={[]}
+          icon={<Users size={10} style={{ color: "var(--mute)" }} />}
+          defaultOpen
+        >
+          <div className="space-y-2 pl-2">
+            <CollapsibleNavSection
+              label="Private Workspace"
+              links={privateLinks}
+              icon={<Lock size={9} style={{ color: "var(--mute)" }} />}
+              defaultOpen
+            />
+
+            <div>
+              <div className="mb-2 px-3">
+                <WorkspaceSwitcher />
+              </div>
+              <CollapsibleNavSection
+                label="Corporate Workspace"
+                links={workspaceLinks}
+                icon={<Users size={9} style={{ color: "var(--mute)" }} />}
+                defaultOpen
+              />
+            </div>
+          </div>
+        </CollapsibleNavSection>
 
         <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
 
-        <NavSection label="Explore" links={exploreLinks} />
-
-        <NavSection label="Research" links={researchLinks} />
-
-        <NavSection label="Vaults" links={vaultLinks} />
+        <CollapsibleNavSection label="Product" links={productLinks} defaultOpen />
 
         <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
 
-        {/* ── WORKSPACES ── */}
-        <div className="px-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--mute)" }}>
-            Workspace
-          </p>
-        </div>
+        <CollapsibleNavSection label="Explore" links={exploreLinks} />
 
-        {/* ── PRIVATE WORKSPACE ── */}
-        <div>
-          <div className="flex items-center gap-1.5 px-3 mb-1.5">
-            <Lock size={9} style={{ color: "var(--mute)" }} />
-            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
-              Private Workspace
-            </p>
-          </div>
-          <nav className="space-y-0.5">
-            {privateLinks.map(({ href, label, icon: Icon }) => {
-              const isActive = pathname === href || pathname.startsWith(href + "/");
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 relative"
-                  style={{
-                    color: isActive ? "var(--ink)" : "var(--charcoal)",
-                    backgroundColor: isActive ? "var(--surface-elevated)" : "transparent",
-                  }}
-                  onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated)"; }}
-                  onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                >
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
-                  )}
-                  <Icon size={14} strokeWidth={isActive ? 2 : 1.75} className="flex-shrink-0 ml-1" style={{ color: isActive ? "var(--ink)" : "var(--stone)" }} />
-                  <span className="flex-1">{label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+        <CollapsibleNavSection label="Research" links={researchLinks} />
 
-        {/* ── DIVIDER ── */}
-        <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
-
-        {/* ── CORPORATE WORKSPACE ── */}
-        <div>
-          <div className="mb-2">
-            <WorkspaceSwitcher />
-          </div>
-          <div className="flex items-center gap-1.5 px-3 mb-1.5">
-            <Users size={9} style={{ color: "var(--mute)" }} />
-            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
-              Corporate Workspace
-            </p>
-          </div>
-          <nav className="space-y-0.5">
-            {workspaceLinks.map(({ href, label, icon: Icon }) => {
-              const isActive = pathname === href || pathname.startsWith(href + "/");
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 relative"
-                  style={{
-                    color: isActive ? "var(--ink)" : "var(--charcoal)",
-                    backgroundColor: isActive ? "var(--surface-elevated)" : "transparent",
-                  }}
-                  onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated)"; }}
-                  onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-                >
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
-                  )}
-                  <Icon size={14} strokeWidth={isActive ? 2 : 1.75} className="flex-shrink-0 ml-1" style={{ color: isActive ? "var(--ink)" : "var(--stone)" }} />
-                  <span className="flex-1">{label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+        <CollapsibleNavSection label="Vaults" links={vaultLinks} />
       </div>
 
       {/* ── STARTUP DIRECTORY (sticky bottom) ── */}

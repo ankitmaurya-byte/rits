@@ -1,4 +1,4 @@
-import { CalendarRange, Github, PlugZap, Slack } from "lucide-react";
+import { FileText, FolderKanban, MessageSquareText, PlugZap } from "lucide-react";
 import { HardcodedHubPage } from "@/components/product/hardcoded-hub";
 
 export default function IntegrationsPage() {
@@ -10,9 +10,9 @@ export default function IntegrationsPage() {
       accent="var(--primary)"
       primaryActions={[
         { href: "/research/files", label: "Drive and docs", description: "Prepare for file ingestion and folder intelligence.", icon: PlugZap },
-        { href: "/explore/github-tools", label: "GitHub", description: "Route repo signals into research and startup monitoring.", icon: Github },
-        { href: "/notes", label: "Meeting notes", description: "Link future calendar or Meet insights to workspace notes.", icon: CalendarRange },
-        { href: "/vaults", label: "Save external context", description: "Vaults will become the home for integrated intelligence.", icon: Slack },
+        { href: "/explore/github-tools", label: "GitHub", description: "Route repo signals into research and startup monitoring.", icon: MessageSquareText },
+        { href: "/notes", label: "Meeting notes", description: "Link future calendar or Meet insights to workspace notes.", icon: FileText },
+        { href: "/vaults", label: "Save external context", description: "Vaults will become the home for integrated intelligence.", icon: FolderKanban },
       ]}
       panels={[
         { title: "Planned connectors", description: "Gmail, Calendar, Meet, Slack, GitHub, Notion, Drive, Linear, Jira, and other execution tools.", metric: "Connectors" },

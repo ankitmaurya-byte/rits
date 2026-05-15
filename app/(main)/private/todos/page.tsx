@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
@@ -184,6 +185,7 @@ export default function PrivateTodosPage() {
 
       <DndContext sensors={sensors} collisionDetection={closestCorners}
         onDragStart={(e) => { const task = todos?.find((t) => t._id === e.active.id); if (task) setActiveTask(task); }}
+        onDragCancel={() => setActiveTask(null)}
         onDragEnd={handleDragEnd}>
         <div className="flex flex-col gap-8 overflow-y-auto overflow-x-auto pb-12 flex-1 relative z-10">
           <div className="flex gap-6 pl-4 min-w-max">
@@ -253,7 +255,18 @@ export default function PrivateTodosPage() {
             })}
           </div>
         </div>
-        <DragOverlay>{activeTask ? <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} /> : null}</DragOverlay>
+        {typeof document !== "undefined"
+          ? createPortal(
+              <DragOverlay zIndex={9999} dropAnimation={null}>
+                {activeTask ? (
+                  <div className="pointer-events-none w-[320px]">
+                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} />
+                  </div>
+                ) : null}
+              </DragOverlay>,
+              document.body
+            )
+          : null}
       </DndContext>
 
       {showCreateGroup && (
@@ -339,9 +352,13 @@ function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInS
 
 function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, groupOptions }: any) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task._id, data: task });
-  const style = transform ? { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.4 : 1 } : undefined;
+  const style = isDragging
+    ? { opacity: 0 }
+    : transform
+      ? { transform: CSS.Translate.toString(transform) }
+      : undefined;
   return (
-    <div ref={setNodeRef} style={style} className="relative outline-none">
+    <div ref={setNodeRef} style={style} className={`relative outline-none ${isDragging ? "pointer-events-none" : ""}`}>
       <TodoCard
         task={task}
         statuses={STATUSES_MAP}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useWorkspace } from "@/lib/use-workspace";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -194,6 +195,7 @@ export default function TodosPage() {
         sensors={sensors} 
         collisionDetection={closestCorners} 
         onDragStart={handleDragStart}
+        onDragCancel={() => setActiveTask(null)}
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-6 overflow-x-auto pb-8 flex-1 items-start relative z-10 min-h-[500px]">
@@ -220,11 +222,18 @@ export default function TodosPage() {
           ))}
         </div>
 
-        <DragOverlay>
-          {activeTask ? (
-            <TodoCard task={activeTask} statuses={STATUSES} isOverlay />
-          ) : null}
-        </DragOverlay>
+        {typeof document !== "undefined"
+          ? createPortal(
+              <DragOverlay zIndex={9999} dropAnimation={null}>
+                {activeTask ? (
+                  <div className="pointer-events-none w-[320px]">
+                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay />
+                  </div>
+                ) : null}
+              </DragOverlay>,
+              document.body
+            )
+          : null}
       </DndContext>
     </div>
   );
@@ -349,13 +358,18 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo }: any) {
     data: task,
   });
 
-  const style = transform ? {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.4 : 1,
-  } : undefined;
+  const style = isDragging
+    ? {
+        opacity: 0,
+      }
+    : transform
+      ? {
+          transform: CSS.Translate.toString(transform),
+        }
+      : undefined;
 
   return (
-    <div ref={setNodeRef} style={style} className="relative outline-none">
+    <div ref={setNodeRef} style={style} className={`relative outline-none ${isDragging ? "pointer-events-none" : ""}`}>
       <TodoCard
         task={task}
         statuses={STATUSES}

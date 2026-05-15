@@ -239,23 +239,13 @@ export function Sidebar() {
           defaultOpen
         >
           <div className="space-y-2 pl-2">
-            <CollapsibleNavSection
-              label="Private Workspace"
-              links={privateLinks}
-              icon={<Lock size={9} style={{ color: "var(--mute)" }} />}
-              defaultOpen
-            />
+            <NavSection label="" links={privateLinks} />
 
             <div>
               <div className="mb-2 px-3">
                 <WorkspaceSwitcher />
               </div>
-              <CollapsibleNavSection
-                label="Corporate Workspace"
-                links={workspaceLinks}
-                icon={<Users size={9} style={{ color: "var(--mute)" }} />}
-                defaultOpen
-              />
+              <NavSection label="" links={workspaceLinks} />
             </div>
           </div>
         </CollapsibleNavSection>

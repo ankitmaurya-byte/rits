@@ -266,8 +266,16 @@ export const buildAssistantContext = internalQuery({
         body: [
           `Status: ${todo.status ?? (todo.completed ? "completed" : "todo")}`,
           `Priority: ${todo.priority}`,
+          todo.description
+            ? `Description: ${truncateText(todo.description, 1_000)}`
+            : null,
           todo.sourceDescription
             ? `Details: ${truncateText(todo.sourceDescription, 1_000)}`
+            : null,
+          todo.customFields?.length
+            ? `Fields: ${todo.customFields
+                .map((field) => `${field.key}: ${field.value}`)
+                .join(" | ")}`
             : null,
           sourceUrl,
         ]
@@ -292,8 +300,16 @@ export const buildAssistantContext = internalQuery({
             `Status: ${todo.status ?? (todo.completed ? "completed" : "todo")}`,
             `Priority: ${todo.priority}`,
             groupLabel ? `Group: ${groupLabel}` : null,
+            todo.description
+              ? `Description: ${truncateText(todo.description, 1_000)}`
+              : null,
             todo.sourceDescription
               ? `Details: ${truncateText(todo.sourceDescription, 1_000)}`
+              : null,
+            todo.customFields?.length
+              ? `Fields: ${todo.customFields
+                  .map((field) => `${field.key}: ${field.value}`)
+                  .join(" | ")}`
               : null,
             sourceUrl,
           ]

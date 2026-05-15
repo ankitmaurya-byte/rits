@@ -65,6 +65,15 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
     title: v.string(),
+    description: v.optional(v.string()),
+    customFields: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          value: v.string(),
+        })
+      )
+    ),
     sourceUrl: v.optional(v.string()),
     sourceDescription: v.optional(v.string()),
     completed: v.boolean(),
@@ -73,6 +82,7 @@ export default defineSchema({
     priority: v.string(),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
   })
     .index("by_workspace", ["workspaceId"])
     .index("by_user_private", ["createdBy", "scope"]),

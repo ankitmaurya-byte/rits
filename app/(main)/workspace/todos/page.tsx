@@ -5,9 +5,9 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useWorkspaceStore } from "@/store/workspace-store";
-import { Plus, Users, Circle, Clock, CheckCircle2, MoreHorizontal, ChevronDown, ChevronRight, Loader2, X } from "lucide-react";
+import { Plus, Users, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { TodoCard } from "@/components/todos/todo-card";
 import {
   DndContext, closestCorners, PointerSensor, useSensor, useSensors,
   DragEndEvent, DragOverlay, useDroppable,
@@ -38,6 +38,9 @@ export default function WorkspaceTodosPage() {
   const [creatingInStatus, setCreatingInStatus] = useState<string | null>(null); // formatted as "groupId::statusId"
   const [newTitle, setNewTitle] = useState("");
   const [activeTask, setActiveTask] = useState<any>(null);
+  const [creatingAiInStatus, setCreatingAiInStatus] = useState<string | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isAiCreating, setIsAiCreating] = useState(false);
   
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
@@ -84,6 +87,59 @@ export default function WorkspaceTodosPage() {
   const handleUpdateStatus = async (id: string, newStatus: string, newGroupId?: string | null) => {
     try { await updateTodo({ id: id as any, status: newStatus, groupId: newGroupId as any }); }
     catch { toast.error("Failed to move task."); }
+  };
+
+  const handleUpdateTodo = async (id: string, updates: Record<string, unknown>) => {
+    try {
+      await updateTodo({ id: id as any, ...updates });
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const handleCreateWithAi = async (groupId: string, status: string) => {
+    if (!selectedWorkspaceId || !aiPrompt.trim()) {
+      setCreatingAiInStatus(null);
+      return;
+    }
+    setIsAiCreating(true);
+    try {
+      const response = await fetch("/api/ai/todo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "build", prompt: aiPrompt }),
+      });
+      const data = (await response.json()) as {
+        todo?: {
+          title: string;
+          description: string;
+          priority: string;
+          customFields: Array<{ key: string; value: string }>;
+        };
+        error?: string;
+      };
+      if (!response.ok || data.error || !data.todo) {
+        throw new Error(data.error ?? "Failed to generate todo.");
+      }
+      await createTodo({
+        scope: "workspace",
+        workspaceId: selectedWorkspaceId,
+        title: data.todo.title,
+        description: data.todo.description,
+        customFields: data.todo.customFields,
+        priority: data.todo.priority,
+        status,
+        groupId: groupId === "no-team" ? null : (groupId as any),
+        createdBy: convexUser?._id,
+      });
+      setAiPrompt("");
+      setCreatingAiInStatus(null);
+      toast.success("AI todo created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create AI todo.");
+    } finally {
+      setIsAiCreating(false);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -210,8 +266,16 @@ export default function WorkspaceTodosPage() {
                             newTitle={newTitle} 
                             setNewTitle={setNewTitle} 
                             handleCreate={handleCreate}
+                            creatingAiInStatus={creatingAiInStatus}
+                            setCreatingAiInStatus={setCreatingAiInStatus}
+                            aiPrompt={aiPrompt}
+                            setAiPrompt={setAiPrompt}
+                            handleCreateWithAi={handleCreateWithAi}
+                            isAiCreating={isAiCreating}
                             deleteTodo={deleteTodo} 
                             handleUpdateStatus={handleUpdateStatus} 
+                            handleUpdateTodo={handleUpdateTodo}
+                            groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
                           />
                         );
                       })}
@@ -222,7 +286,7 @@ export default function WorkspaceTodosPage() {
             })}
           </div>
         </div>
-        <DragOverlay>{activeTask ? <TaskCard task={activeTask} isOverlay /> : null}</DragOverlay>
+        <DragOverlay>{activeTask ? <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} /> : null}</DragOverlay>
       </DndContext>
 
       {/* Create Group Dialog */}
@@ -246,19 +310,17 @@ export default function WorkspaceTodosPage() {
   );
 }
 
-function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, deleteTodo, handleUpdateStatus }: any) {
+function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, groupOptions }: any) {
   const droppableId = `${groupId}::${status.id}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const isCreatingHere = creatingInStatus === droppableId;
+  const isCreatingAiHere = creatingAiInStatus === droppableId;
 
   return (
     <div ref={setNodeRef}
       className={`flex-shrink-0 w-[320px] flex flex-col gap-3 rounded-xl p-2 transition-colors duration-200 border border-transparent ${isOver ? "bg-[var(--surface-elevated)] border-[var(--hairline-strong)]" : ""}`}
       style={{ minHeight: "150px" }}>
       <div className="flex flex-col gap-3">
-        {tasks.map((task: any) => (
-          <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateStatus={handleUpdateStatus} />
-        ))}
         {isCreatingHere ? (
           <div className="feature-card p-3 rounded-xl border shadow-sm" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--accent-blue)" }}>
             <input autoFocus value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
@@ -266,90 +328,52 @@ function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInS
               onBlur={() => handleCreate(groupId, status.id)} placeholder="Task title..."
               className="w-full bg-transparent text-sm outline-none font-medium" style={{ color: "var(--ink)" }} />
           </div>
+        ) : isCreatingAiHere ? (
+          <div className="feature-card rounded-xl border p-3 shadow-sm" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--accent-blue)" }}>
+            <textarea autoFocus value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void handleCreateWithAi(groupId, status.id); if (e.key === "Escape") setCreatingAiInStatus(null); }}
+              placeholder="Describe the task and let AI generate the full todo..." rows={4} className="input-field min-h-[100px] resize-y" />
+            <div className="mt-3 flex gap-2">
+              <button onClick={() => void handleCreateWithAi(groupId, status.id)} disabled={isAiCreating || !aiPrompt.trim()} className="btn-primary text-xs">{isAiCreating ? "Generating..." : "Create with AI"}</button>
+              <button onClick={() => setCreatingAiInStatus(null)} className="btn-outline text-xs">Cancel</button>
+            </div>
+          </div>
         ) : (
-          <button onClick={() => setCreatingInStatus(droppableId)}
-            className="flex items-center gap-2 p-2 w-full rounded-md text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-            style={{ color: "var(--mute)" }}>
-            <Plus size={16} /> New page
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => { setCreatingAiInStatus(null); setCreatingInStatus(droppableId); }}
+              className="flex items-center gap-2 p-2 w-full rounded-md text-sm transition-colors hover:bg-[var(--surface-elevated)]"
+              style={{ color: "var(--mute)" }}>
+              <Plus size={16} /> New task
+            </button>
+            <button onClick={() => { setCreatingInStatus(null); setCreatingAiInStatus(droppableId); }}
+              className="flex items-center gap-2 rounded-md px-3 text-sm transition-colors hover:bg-[var(--surface-elevated)]"
+              style={{ color: "var(--mute)" }}>
+              <Sparkles size={14} /> AI
+            </button>
+          </div>
         )}
+
+        {tasks.map((task: any) => (
+          <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateTodo={handleUpdateTodo} groupOptions={groupOptions} />
+        ))}
       </div>
     </div>
   );
 }
 
-function DraggableTaskCard({ task, deleteTodo, handleUpdateStatus }: any) {
+function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, groupOptions }: any) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task._id, data: task });
   const style = transform ? { transform: CSS.Translate.toString(transform), opacity: isDragging ? 0.4 : 1 } : undefined;
   return (
-    <div ref={setNodeRef} style={style} {...listeners} {...attributes} className="relative group cursor-grab active:cursor-grabbing outline-none">
-      <TaskCard task={task} deleteTodo={deleteTodo} handleUpdateStatus={handleUpdateStatus} />
+    <div ref={setNodeRef} style={style} className="relative outline-none">
+      <TodoCard
+        task={task}
+        statuses={STATUSES}
+        groupOptions={groupOptions?.map((option: { id: string; name: string }) => ({ id: option.id, label: option.name }))}
+        dragHandleProps={{ attributes, listeners }}
+        onDelete={(id) => deleteTodo({ id })}
+        onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
+      />
     </div>
-  );
-}
-
-function getSourceLabel(url: string) {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "Open source";
-  }
-}
-
-function TaskCard({ task, isOverlay, deleteTodo, handleUpdateStatus }: any) {
-  return (
-    <div className={`feature-card p-4 rounded-xl relative border transition-colors bg-[var(--surface-card)] ${isOverlay ? "shadow-2xl scale-105 border-[var(--hairline-strong)] z-50 cursor-grabbing" : "shadow-sm border-[var(--hairline)] hover:border-[var(--hairline-strong)]"}`}>
-      {!isOverlay && deleteTodo && (
-        <button 
-          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center bg-[var(--surface-card)] rounded-md shadow-sm border p-1 z-20 hover:bg-[var(--surface-elevated)]" 
-          style={{ borderColor: "var(--hairline-strong)", color: "var(--mute)" }}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => {
-            if (confirm("Are you sure you want to delete this task?")) {
-              deleteTodo({ id: task._id }).then(() => toast.success("Deleted"));
-            }
-          }}
-          title="Delete task"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-        </button>
-      )}
-      <div className="flex items-start gap-2 mb-3 pr-8">
-        <span className="text-[14px] font-medium leading-tight select-none" style={{ color: task.status === "completed" || task.completed ? "var(--mute)" : "var(--ink)", textDecoration: task.status === "completed" || task.completed ? "line-through" : "none" }}>{task.title}</span>
-      </div>
-      {task.sourceDescription ? (
-        <p className="text-xs leading-relaxed mb-3 line-clamp-3" style={{ color: "var(--charcoal)" }}>
-          {task.sourceDescription}
-        </p>
-      ) : null}
-      {task.sourceUrl ? (
-        <a
-          href={task.sourceUrl}
-          target="_blank"
-          rel="noreferrer"
-          onPointerDown={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1.5 text-xs font-medium mb-3"
-          style={{ color: "var(--accent-blue)" }}
-        >
-          <ExternalLinkIcon /> {getSourceLabel(task.sourceUrl)}
-        </a>
-      ) : null}
-      <div className="flex items-center gap-3 mt-4 text-xs font-medium select-none" style={{ color: "var(--mute)" }}>
-        <span className="flex items-center gap-1.5 bg-[var(--surface-elevated)] px-2 py-1 rounded-md">
-          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.priority === "high" ? "var(--accent-red)" : task.priority === "medium" ? "var(--accent-yellow)" : "var(--accent-blue)" }} />
-          {task.priority}
-        </span>
-        <span>{format(task.createdAt, "MMM d, yyyy")}</span>
-      </div>
-    </div>
-  );
-}
-
-function ExternalLinkIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 17 17 7" />
-      <path d="M7 7h10v10" />
-    </svg>
   );
 }

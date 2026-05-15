@@ -6,6 +6,15 @@ export const createTodo = mutation({
     scope: v.union(v.literal("private"), v.literal("workspace")),
     workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
+    description: v.optional(v.string()),
+    customFields: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          value: v.string(),
+        })
+      )
+    ),
     priority: v.string(),
     status: v.optional(v.string()),
     createdBy: v.optional(v.id("users")),
@@ -14,10 +23,13 @@ export const createTodo = mutation({
     sourceDescription: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const now = Date.now();
     return await ctx.db.insert("todos", {
       scope: args.scope,
       workspaceId: args.workspaceId,
       title: args.title,
+      description: args.description,
+      customFields: args.customFields,
       sourceUrl: args.sourceUrl,
       sourceDescription: args.sourceDescription,
       priority: args.priority,
@@ -25,7 +37,8 @@ export const createTodo = mutation({
       completed: args.status === "completed",
       createdBy: args.createdBy,
       groupId: args.groupId,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     });
   },
 });
@@ -79,6 +92,15 @@ export const updateTodo = mutation({
   args: {
     id: v.id("todos"),
     title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    customFields: v.optional(
+      v.array(
+        v.object({
+          key: v.string(),
+          value: v.string(),
+        })
+      )
+    ),
     priority: v.optional(v.string()),
     status: v.optional(v.string()),
     groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
@@ -86,9 +108,9 @@ export const updateTodo = mutation({
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
     if (fields.status) {
-      (fields as any).completed = fields.status === "completed";
+      Object.assign(fields, { completed: fields.status === "completed" });
     }
-    return await ctx.db.patch(id, fields);
+    return await ctx.db.patch(id, { ...fields, updatedAt: Date.now() });
   },
 });
 

@@ -107,6 +107,33 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_user", ["createdBy"]),
 
+  vaults: defineTable({
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
+    name: v.string(),
+    description: v.optional(v.string()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_created_by_and_scope", ["createdBy", "scope"]),
+
+  vaultEntries: defineTable({
+    vaultId: v.id("vaults"),
+    kind: v.union(v.literal("folder"), v.literal("file")),
+    parentEntryId: v.optional(v.id("vaultEntries")),
+    name: v.string(),
+    fileUrl: v.optional(v.string()),
+    mimeType: v.optional(v.string()),
+    sizeBytes: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_vault", ["vaultId"])
+    .index("by_vault_and_parent_entry_id", ["vaultId", "parentEntryId"]),
+
   githubTools: defineTable({
     sourceType: v.union(v.literal("github_fetch"), v.literal("manual")),
     repoFullName: v.string(),

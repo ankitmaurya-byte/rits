@@ -1,22 +1,22 @@
-import { FolderKanban, LibraryBig, Newspaper, Users } from "lucide-react";
+import { FolderKanban, Lock, Users } from "lucide-react";
 import { HardcodedHubPage } from "@/components/product/hardcoded-hub";
 
 export default function VaultsPage() {
   return (
     <HardcodedHubPage
       eyebrow="Vaults"
-      title="Curated knowledge spaces for startup intelligence"
-      description="Vaults are the long-term memory system of Rits: collections that combine links, files, notes, AI chat, saved research, startup profiles, events, and market monitoring."
+      title="Private and workspace vaults"
+      description="Vaults now live inside personal and workspace scope instead of a separate sticky section. Use them to group durable knowledge while also surfacing uploaded note images and saved file or link resources."
       accent="var(--accent-green)"
       primaryActions={[
-        { href: "/vaults/startups", label: "Startup vaults", description: "Track startups, founders, funding, competitors, and internal notes.", icon: FolderKanban },
-        { href: "/vaults/ai-tools", label: "AI tools vault", description: "Curate repos, docs, tutorials, and comparisons.", icon: LibraryBig },
-        { href: "/vaults/markets", label: "Market vaults", description: "Keep industry trends, research, and ecosystem snapshots together.", icon: Newspaper },
-        { href: "/chats", label: "Vault chats", description: "Future shared AI conversations attached to each vault.", icon: Users },
+        { href: "/private/vaults", label: "Private vaults", description: "Keep personal collections, uploads, and assets visible only to you.", icon: Lock },
+        { href: "/workspace/vaults", label: "Workspace vaults", description: "Shared vaults are available only to workspace members.", icon: Users },
+        { href: "/private/resources", label: "Private resources", description: "Saved files and links also surface inside private vaults.", icon: FolderKanban },
+        { href: "/workspace/resources", label: "Workspace resources", description: "Workspace vault pages show team-level assets and links.", icon: FolderKanban },
       ]}
       panels={[
-        { title: "Vault anatomy", description: "Every vault should eventually include notes, AI chat, files, links, resources, tags, members, and an activity feed.", metric: "Knowledge OS" },
-        { title: "Why vaults matter", description: "This is the strongest bridge between one-off research and reusable startup intelligence. It is how Rits becomes a system, not a scratchpad.", metric: "Strategic" },
+        { title: "Scope-aware access", description: "Private vaults stay personal. Workspace vaults only appear for selected workspace members, so teams share assets without opening them to everyone else.", metric: "Scoped" },
+        { title: "Uploads surface here", description: "Images uploaded through notes and saved file or link resources are surfaced directly on the vault pages so media remains visible in one place.", metric: "Assets" },
       ]}
     />
   );

@@ -9,7 +9,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Search, Command } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ChatSheet } from "@/components/ai/chat-sheet";
-import { Button } from "@/components/ui/button";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
 
 const pageTitles: Record<string, string> = {
@@ -40,10 +39,12 @@ const pageTitles: Record<string, string> = {
   "/private/todos": "Private · Todos",
   "/private/notes": "Private · Notes",
   "/private/resources": "Private · Resources",
+  "/private/vaults": "Private · Vaults",
   "/workspace/ideas": "Workspace · Ideas",
   "/workspace/todos": "Workspace · Todos",
   "/workspace/notes": "Workspace · Notes",
   "/workspace/resources": "Workspace · Resources",
+  "/workspace/vaults": "Workspace · Vaults",
   "/workspace/members": "Workspace · Members",
   "/workspace/join": "Join Workspace",
   "/profile": "Profile",
@@ -79,10 +80,12 @@ const searchEntries = [
   { href: "/private/todos", title: "Private Todos", keywords: ["personal tasks"] },
   { href: "/private/notes", title: "Private Notes", keywords: ["personal notes"] },
   { href: "/private/resources", title: "Private Resources", keywords: ["personal links"] },
+  { href: "/private/vaults", title: "Private Vaults", keywords: ["personal vaults", "assets", "images"] },
   { href: "/workspace/ideas", title: "Workspace Ideas", keywords: ["team ideas"] },
   { href: "/workspace/todos", title: "Workspace Todos", keywords: ["team tasks"] },
   { href: "/workspace/notes", title: "Workspace Notes", keywords: ["team notes"] },
   { href: "/workspace/resources", title: "Workspace Resources", keywords: ["team resources"] },
+  { href: "/workspace/vaults", title: "Workspace Vaults", keywords: ["team vaults", "shared assets"] },
   { href: "/workspace/members", title: "Workspace Members", keywords: ["team", "people"] },
   { href: "/workspace/join", title: "Join Workspace", keywords: ["invite", "join"] },
   { href: "/profile", title: "Profile", keywords: ["account", "me"] },
@@ -95,7 +98,7 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const pathname = usePathname();
   const [isAiOpen, setIsAiOpen] = useState(false);
@@ -143,7 +146,13 @@ export default function MainLayout({
     );
   }
 
-  const title = pageTitles[pathname] ?? "Rits";
+  const title =
+    pageTitles[pathname] ??
+    (pathname.startsWith("/private/vaults/")
+      ? "Private · Vault"
+      : pathname.startsWith("/workspace/vaults/")
+        ? "Workspace · Vault"
+        : "Rits");
 
   const openSearchResult = (href: string) => {
     setSearchValue("");

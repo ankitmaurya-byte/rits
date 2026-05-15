@@ -4,18 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { useUser } from "@clerk/nextjs";
 import {
   Blocks,
   Bot,
   ChevronDown,
   ChevronRight,
+  Folder,
   Lightbulb,
   CheckSquare,
   FileText,
   Link2,
   Rocket,
   Users,
-  Compass,
   FolderKanban,
   MessageSquareText,
   PlugZap,
@@ -24,6 +26,8 @@ import {
   Telescope,
 } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
+import { api } from "@/convex/_generated/api";
+import { useWorkspaceStore } from "@/store/workspace-store";
 
 const privateLinks = [
   { href: "/private/ideas", label: "Ideas", icon: Lightbulb },
@@ -60,12 +64,6 @@ const researchLinks = [
   { href: "/research/competitors", label: "Competitors", icon: Users },
   { href: "/research/reports", label: "AI Reports", icon: Bot },
   { href: "/research/mvp-lab", label: "MVP Lab", icon: Rocket },
-];
-
-const vaultLinks = [
-  { href: "/vaults/startups", label: "Startup Vaults", icon: Rocket },
-  { href: "/vaults/ai-tools", label: "AI Tools Vault", icon: Blocks },
-  { href: "/vaults/markets", label: "Market Vaults", icon: Compass },
 ];
 
 function NavSection({
@@ -129,6 +127,54 @@ function NavSection({
   );
 }
 
+function VaultListDropdown({
+  label,
+  scopeHref,
+  vaults,
+}: {
+  label: string;
+  scopeHref: string;
+  vaults: Array<{ _id: string; name: string }>;
+}) {
+  const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(true);
+  const isActive = pathname === scopeHref || pathname.startsWith(`${scopeHref}/`);
+  const isExpanded = isOpen || isActive;
+
+  return (
+    <div className="px-2">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+        style={{
+          color: isActive ? "var(--ink)" : "var(--charcoal)",
+          backgroundColor: isActive ? "var(--surface-elevated)" : "transparent",
+        }}
+      >
+        <div className="flex items-center gap-2.5">
+          <FolderKanban size={14} style={{ color: isActive ? "var(--ink)" : "var(--stone)" }} />
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+        {isExpanded ? <ChevronDown size={12} style={{ color: "var(--stone)" }} /> : <ChevronRight size={12} style={{ color: "var(--stone)" }} />}
+      </button>
+      {isExpanded ? (
+        <div className="mt-1 space-y-1">
+          <Link href={scopeHref} className="flex items-center gap-2 rounded-md px-4 py-1.5 text-sm transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: pathname === scopeHref ? "var(--ink)" : "var(--charcoal)", marginLeft: "12px" }}>
+            <span>All vaults</span>
+          </Link>
+          {vaults.map((vault) => (
+            <Link key={vault._id} href={`${scopeHref}/${vault._id}`} className="flex items-center gap-2 rounded-md px-4 py-1.5 text-sm transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: pathname === `${scopeHref}/${vault._id}` ? "var(--ink)" : "var(--charcoal)", marginLeft: "12px" }}>
+              <Folder size={12} style={{ color: "var(--stone)" }} />
+              <span className="truncate">{vault.name}</span>
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CollapsibleNavSection({
   label,
   links,
@@ -187,6 +233,13 @@ function CollapsibleNavSection({
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useUser();
+  const { selectedWorkspaceId } = useWorkspaceStore();
+  const privateVaults = useQuery(api.vaults.getPrivateVaults, user ? {} : "skip") ?? [];
+  const workspaceVaults = useQuery(
+    api.vaults.getWorkspaceVaults,
+    selectedWorkspaceId && user ? { workspaceId: selectedWorkspaceId } : "skip"
+  ) ?? [];
 
   return (
     <aside
@@ -239,12 +292,14 @@ export function Sidebar() {
         >
           <div className="space-y-2 pl-2">
             <NavSection label="" links={privateLinks} />
+            <VaultListDropdown label="Private Vaults" scopeHref="/private/vaults" vaults={privateVaults} />
 
             <div>
               <div className="mb-2 px-3">
                 <WorkspaceSwitcher />
               </div>
               <NavSection label="" links={workspaceLinks} />
+              <VaultListDropdown label="Workspace Vaults" scopeHref="/workspace/vaults" vaults={workspaceVaults} />
             </div>
           </div>
         </CollapsibleNavSection>
@@ -284,13 +339,6 @@ export function Sidebar() {
             );
           })}
         </nav>
-        <div className="mt-2">
-          <CollapsibleNavSection
-            label="Vaults"
-            links={vaultLinks}
-            icon={<FolderKanban size={10} style={{ color: "var(--mute)" }} />}
-          />
-        </div>
       </div>
     </aside>
   );

@@ -19,6 +19,7 @@ import type * as resources from "../resources.js";
 import type * as todoGroups from "../todoGroups.js";
 import type * as todos from "../todos.js";
 import type * as users from "../users.js";
+import type * as vaults from "../vaults.js";
 import type * as workspaces from "../workspaces.js";
 
 import type {
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   todoGroups: typeof todoGroups;
   todos: typeof todos;
   users: typeof users;
+  vaults: typeof vaults;
   workspaces: typeof workspaces;
 }>;
 

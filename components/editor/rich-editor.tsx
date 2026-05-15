@@ -40,7 +40,11 @@ import {
   Redo2,
   RemoveFormatting,
   Sparkles,
+  MessageSquarePlus,
+  Grip,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ---------------------------------------------------------------------------
 // Toolbar button
@@ -285,6 +289,11 @@ type SelectionPopoverState = {
   left: number;
 };
 
+type SelectionChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export function RichEditor({
   content,
   onChange,
@@ -297,8 +306,12 @@ export function RichEditor({
   const [selectionPopover, setSelectionPopover] = useState<SelectionPopoverState | null>(null);
   const [selectionPromptOpen, setSelectionPromptOpen] = useState(false);
   const [selectionPrompt, setSelectionPrompt] = useState("");
-  const [selectionAiLoading, setSelectionAiLoading] = useState<"enhance" | "prompt" | null>(null);
+  const [selectionAiLoading, setSelectionAiLoading] = useState<"enhance" | "prompt" | "explain" | "save" | null>(null);
+  const [selectionChat, setSelectionChat] = useState<SelectionChatMessage[]>([]);
+  const [selectionPanelPosition, setSelectionPanelPosition] = useState<{ top: number; left: number } | null>(null);
+  const [panelDismissed, setPanelDismissed] = useState(false);
   const editorWrapRef = useRef<HTMLDivElement | null>(null);
+  const dragStateRef = useRef<{ startX: number; startY: number; originTop: number; originLeft: number } | null>(null);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -367,39 +380,51 @@ export function RichEditor({
       const start = editor.view.coordsAtPos(from);
       const end = editor.view.coordsAtPos(to);
       const width = end.left - start.left;
-      setSelectionPopover({
+      const nextPopover = {
         from,
         to,
         text,
         top: Math.min(start.top, end.top) - 12,
         left: start.left + Math.max(width / 2, 0),
-      });
-    };
+      };
 
-    const handleBlur = () => {
-      window.setTimeout(() => {
-        const activeEl = document.activeElement;
-        const insideEditor = editorWrapRef.current?.contains(activeEl) ?? false;
-        if (!insideEditor) {
-          setSelectionPopover(null);
-          setSelectionPromptOpen(false);
-        }
-      }, 0);
+      setSelectionPopover(nextPopover);
+      if (panelDismissed) return;
+      setSelectionPanelPosition((current) => current ?? { top: nextPopover.top + 8, left: nextPopover.left });
     };
 
     editor.on("selectionUpdate", updateSelectionPopover);
     editor.on("focus", updateSelectionPopover);
-    editor.on("blur", handleBlur);
 
     return () => {
       editor.off("selectionUpdate", updateSelectionPopover);
       editor.off("focus", updateSelectionPopover);
-      editor.off("blur", handleBlur);
     };
-  }, [contextType, editor]);
+  }, [contextType, editor, panelDismissed]);
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!dragStateRef.current) return;
+      setSelectionPanelPosition({
+        top: Math.max(16, dragStateRef.current.originTop + (event.clientY - dragStateRef.current.startY)),
+        left: Math.max(16, dragStateRef.current.originLeft + (event.clientX - dragStateRef.current.startX)),
+      });
+    };
+
+    const handleMouseUp = () => {
+      dragStateRef.current = null;
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, []);
 
   const runSelectionAi = useCallback(
-    async (mode: "enhance" | "prompt") => {
+    async (mode: "enhance" | "prompt" | "explain") => {
       if (!editor || !selectionPopover) return;
       if (mode === "prompt" && !selectionPrompt.trim()) return;
 
@@ -412,6 +437,13 @@ export function RichEditor({
                 "Preserve the original meaning and keep the length reasonably similar unless expansion clearly helps.",
                 "Return only the revised excerpt.",
               ].join(" ")
+            : mode === "explain"
+              ? [
+                  "Explain the selected excerpt in a very short and clear way.",
+                  "Use the full note as context.",
+                  "Keep the explanation concise, ideally 2-4 sentences.",
+                  "Return only the explanation.",
+                ].join(" ")
             : [
                 `Apply this instruction to the selected excerpt: ${selectionPrompt.trim()}.`,
                 "Use the full note as context.",
@@ -419,6 +451,15 @@ export function RichEditor({
               ].join(" ");
 
         const prompt = `${instruction}\n\nSelected excerpt:\n"""\n${selectionPopover.text}\n"""`;
+        if (mode !== "enhance") {
+          setSelectionChat((current) => [
+            ...current,
+            {
+              role: "user",
+              content: mode === "explain" ? `Explain: ${selectionPopover.text}` : selectionPrompt.trim(),
+            },
+          ]);
+        }
         const response = await fetch("/api/ai/assist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -433,23 +474,60 @@ export function RichEditor({
           throw new Error(data.error ?? "AI assist failed.");
         }
 
-        editor
-          .chain()
-          .focus()
-          .insertContentAt({ from: selectionPopover.from, to: selectionPopover.to }, data.result.trim())
-          .run();
+        if (mode === "enhance" || mode === "prompt") {
+          editor
+            .chain()
+            .focus()
+            .insertContentAt({ from: selectionPopover.from, to: selectionPopover.to }, data.result.trim())
+            .run();
+        }
 
-        setSelectionPopover(null);
-        setSelectionPromptOpen(false);
-        setSelectionPrompt("");
+        setSelectionChat((current) => [...current, { role: "assistant", content: data.result.trim() }]);
+        if (mode === "prompt") setSelectionPrompt("");
+        if (mode !== "prompt") setSelectionPromptOpen(false);
       } catch (error) {
-        console.error(error);
+        toast.error(error instanceof Error ? error.message : "AI assist failed.");
       } finally {
         setSelectionAiLoading(null);
       }
     },
     [editor, selectionPopover, selectionPrompt]
   );
+
+  const saveSelectionChatToRitsAi = useCallback(async () => {
+    if (!selectionPopover || selectionChat.length === 0) return;
+    setSelectionAiLoading("save");
+    try {
+      const transcript = selectionChat
+        .map((message) => `${message.role === "user" ? "User" : "Assistant"}: ${message.content}`)
+        .join("\n\n");
+      const message = [
+        `Save this temporary note-selection AI thread as a reusable Rits AI conversation.`,
+        `Selected excerpt: "${selectionPopover.text}"`,
+        `Whole note context should be considered.`,
+        `Thread so far:\n${transcript}`,
+      ].join("\n\n");
+
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          agentKey: "writer",
+          scopeMode: "all",
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok || data.error) {
+        throw new Error(data.error ?? "Failed to save chat.");
+      }
+      toast.success("Saved to Rits AI.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save chat.");
+    } finally {
+      setSelectionAiLoading(null);
+    }
+  }, [selectionChat, selectionPopover]);
 
   const words = editor
     ? editor.getText().trim().split(/\s+/).filter(Boolean).length
@@ -482,60 +560,159 @@ export function RichEditor({
         <EditorContent editor={editor} />
       </div>
 
-      {contextType === "note" && selectionPopover ? (
+      {contextType === "note" && selectionPopover && selectionPanelPosition && !panelDismissed ? (
         <div
-          className="fixed z-[120] -translate-x-1/2 -translate-y-full rounded-2xl border px-2 py-2 shadow-2xl"
+          className="fixed z-[120] w-[380px] rounded-2xl border shadow-2xl"
           style={{
-            top: selectionPopover.top,
-            left: selectionPopover.left,
+            top: selectionPanelPosition.top,
+            left: selectionPanelPosition.left,
             borderColor: "var(--hairline-strong)",
             backgroundColor: "var(--surface-card)",
           }}
         >
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => void runSelectionAi("enhance")}
-              disabled={selectionAiLoading !== null}
-              className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
-              style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
-            >
-              {selectionAiLoading === "enhance" ? "Enhancing..." : "Enhance"}
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => setSelectionPromptOpen((current) => !current)}
-              disabled={selectionAiLoading !== null}
-              className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
-              style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
-            >
-              Prompt
-            </button>
-          </div>
-          {selectionPromptOpen ? (
-            <div className="mt-2 flex min-w-[280px] items-end gap-2 rounded-xl border p-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
-              <textarea
-                value={selectionPrompt}
-                onChange={(e) => setSelectionPrompt(e.target.value)}
-                placeholder="Tell AI how to improve this selection..."
-                rows={2}
-                className="min-h-[56px] flex-1 resize-none border-0 bg-transparent text-[12px] leading-5 outline-none"
-                style={{ color: "var(--ink)" }}
-              />
+          <div
+            className="flex cursor-move items-center justify-between rounded-t-2xl border-b px-3 py-2"
+            style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}
+            onMouseDown={(event) => {
+              dragStateRef.current = {
+                startX: event.clientX,
+                startY: event.clientY,
+                originTop: selectionPanelPosition.top,
+                originLeft: selectionPanelPosition.left,
+              };
+            }}
+          >
+            <div className="flex items-center gap-2">
+              <Grip size={13} style={{ color: "var(--mute)" }} />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>
+                Selection AI
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
               <button
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
-                onClick={() => void runSelectionAi("prompt")}
-                disabled={selectionAiLoading !== null || !selectionPrompt.trim()}
-                className="rounded-full px-3 py-1.5 text-[11px] font-medium disabled:opacity-60"
-                style={{ backgroundColor: "var(--ink)", color: "var(--canvas)" }}
+                onClick={() => {
+                  setSelectionChat([]);
+                  setSelectionPrompt("");
+                  setSelectionPromptOpen(false);
+                }}
+                className="rounded-md p-1.5 transition-colors hover:bg-[var(--surface-card)]"
+                style={{ color: "var(--mute)" }}
+                aria-label="New temporary chat"
               >
-                {selectionAiLoading === "prompt" ? "Working..." : "Apply"}
+                <MessageSquarePlus size={13} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setPanelDismissed(true)}
+                className="rounded-md p-1.5 transition-colors hover:bg-[var(--surface-card)]"
+                style={{ color: "var(--mute)" }}
+                aria-label="Close selection AI"
+              >
+                <X size={13} />
               </button>
             </div>
-          ) : null}
+          </div>
+
+          <div className="space-y-3 p-3">
+            <div className="rounded-xl border px-3 py-2 text-xs leading-5" style={{ borderColor: "var(--hairline)", color: "var(--charcoal)", backgroundColor: "var(--surface-elevated)" }}>
+              <span className="block text-[10px] uppercase tracking-[0.14em] mb-1" style={{ color: "var(--mute)" }}>Selected text</span>
+              {selectionPopover.text}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void runSelectionAi("enhance")}
+                disabled={selectionAiLoading !== null}
+                className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
+                style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
+              >
+                {selectionAiLoading === "enhance" ? "Enhancing..." : "Enhance"}
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void runSelectionAi("explain")}
+                disabled={selectionAiLoading !== null}
+                className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
+                style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
+              >
+                {selectionAiLoading === "explain" ? "Explaining..." : "Explain"}
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setSelectionPromptOpen((current) => !current)}
+                disabled={selectionAiLoading !== null}
+                className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
+                style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
+              >
+                Prompt
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => void saveSelectionChatToRitsAi()}
+                disabled={selectionAiLoading !== null || selectionChat.length === 0}
+                className="rounded-full border px-3 py-1.5 text-[11px] font-medium transition-colors disabled:opacity-60"
+                style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}
+              >
+                {selectionAiLoading === "save" ? "Saving..." : "Save to Rits AI"}
+              </button>
+            </div>
+
+            {selectionPromptOpen ? (
+              <div className="flex items-end gap-2 rounded-xl border p-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                <textarea
+                  value={selectionPrompt}
+                  onChange={(e) => setSelectionPrompt(e.target.value)}
+                  placeholder="Tell AI what to do with this selection..."
+                  rows={2}
+                  className="min-h-[56px] flex-1 resize-none border-0 bg-transparent text-[12px] leading-5 outline-none"
+                  style={{ color: "var(--ink)" }}
+                />
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void runSelectionAi("prompt")}
+                  disabled={selectionAiLoading !== null || !selectionPrompt.trim()}
+                  className="rounded-full px-3 py-1.5 text-[11px] font-medium disabled:opacity-60"
+                  style={{ backgroundColor: "var(--ink)", color: "var(--canvas)" }}
+                >
+                  {selectionAiLoading === "prompt" ? "Working..." : "Send"}
+                </button>
+              </div>
+            ) : null}
+
+            <div className="max-h-[240px] space-y-2 overflow-y-auto rounded-xl border p-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+              {selectionChat.length === 0 ? (
+                <p className="text-xs leading-5" style={{ color: "var(--charcoal)" }}>
+                  Temporary selection chat. Use Explain, Enhance, or Prompt. Save it to Rits AI when it becomes worth keeping.
+                </p>
+              ) : (
+                selectionChat.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className="rounded-xl px-3 py-2 text-xs leading-6"
+                    style={{
+                      backgroundColor: message.role === "assistant" ? "var(--surface-card)" : "transparent",
+                      border: message.role === "assistant" ? "1px solid var(--hairline)" : "1px dashed transparent",
+                      color: message.role === "assistant" ? "var(--body)" : "var(--ink)",
+                    }}
+                  >
+                    <span className="mb-1 block text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--mute)" }}>
+                      {message.role === "assistant" ? "AI" : "Prompt"}
+                    </span>
+                    {message.content}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       ) : null}
 

@@ -44,8 +44,6 @@ const workspaceLinks = [
 
 const productLinks = [
   { href: "/dashboard", label: "Dashboard", icon: Radar },
-  { href: "/research", label: "Research", icon: FlaskConical },
-  { href: "/vaults", label: "Vaults", icon: FolderKanban },
   { href: "/chats", label: "Chats", icon: MessageSquareText },
   { href: "/integrations", label: "Integrations", icon: PlugZap },
 ];
@@ -269,8 +267,6 @@ export function Sidebar() {
         <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
 
         <CollapsibleNavSection label="Research" links={researchLinks} />
-
-        <CollapsibleNavSection label="Vaults" links={vaultLinks} />
       </div>
 
       {/* ── PRODUCT (sticky bottom) ── */}
@@ -299,6 +295,13 @@ export function Sidebar() {
             );
           })}
         </nav>
+        <div className="mt-2">
+          <CollapsibleNavSection
+            label="Vaults"
+            links={vaultLinks}
+            icon={<FolderKanban size={10} style={{ color: "var(--mute)" }} />}
+          />
+        </div>
       </div>
     </aside>
   );

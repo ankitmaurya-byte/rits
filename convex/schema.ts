@@ -107,6 +107,38 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_user", ["createdBy"]),
 
+  githubTools: defineTable({
+    sourceType: v.union(v.literal("github_fetch"), v.literal("manual")),
+    repoFullName: v.string(),
+    owner: v.string(),
+    name: v.string(),
+    htmlUrl: v.string(),
+    description: v.string(),
+    homepageUrl: v.optional(v.string()),
+    language: v.optional(v.string()),
+    stars: v.number(),
+    forks: v.number(),
+    openIssues: v.number(),
+    topics: v.array(v.string()),
+    license: v.optional(v.string()),
+    defaultBranch: v.optional(v.string()),
+    isArchived: v.boolean(),
+    readme: v.optional(v.string()),
+    readmeFetchedAt: v.optional(v.number()),
+    aiSummary: v.optional(v.string()),
+    aiUseCases: v.optional(v.string()),
+    aiOpportunity: v.optional(v.string()),
+    aiAnalysis: v.optional(v.string()),
+    fetchMode: v.optional(v.union(v.literal("trending"), v.literal("stars"))),
+    searchQuery: v.optional(v.string()),
+    createdBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastSyncedAt: v.optional(v.number()),
+  })
+    .index("by_repo_full_name", ["repoFullName"])
+    .index("by_created_at", ["createdAt"]),
+
   resources: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),
     workspaceId: v.optional(v.id("workspaces")),

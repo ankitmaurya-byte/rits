@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
@@ -11,10 +11,14 @@ import {
   Lightbulb,
   Link2,
   Lock,
+  MoreVertical,
   Plus,
   CheckSquare,
+  Search,
+  LayoutGrid,
   Trash2,
   Users,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
@@ -86,8 +90,20 @@ function buildNoteContent(url: string, description: string) {
   return paragraphs.join("");
 }
 
-function actionButtonClasses(disabled = false) {
-  return `inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors ${disabled ? "cursor-not-allowed opacity-60" : "hover:bg-[var(--surface-elevated)]"}`;
+type GridPreset = "2x2" | "3x5" | "4x4" | "custom";
+
+function getGridClasses(preset: GridPreset, customColumns: number) {
+  if (preset === "2x2") return "grid-cols-1 md:grid-cols-2";
+  if (preset === "3x5") return "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
+  if (preset === "4x4") return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
+
+  const columnMap: Record<number, string> = {
+    1: "grid-cols-1",
+    2: "grid-cols-1 md:grid-cols-2",
+    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
+    4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
+  };
+  return columnMap[customColumns] ?? columnMap[3];
 }
 
 export function ResourcesPage({ scope }: { scope: ResourceScope }) {
@@ -126,11 +142,36 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
   const [descriptionInput, setDescriptionInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterMode, setFilterMode] = useState<"all" | "with-description" | "without-description">("all");
+  const [gridPreset, setGridPreset] = useState<GridPreset>("3x5");
+  const [customColumns, setCustomColumns] = useState(3);
+  const [openResourceMenuId, setOpenResourceMenuId] = useState<Id<"resources"> | null>(null);
+  const [showGridMenu, setShowGridMenu] = useState(false);
 
   const resources = scope === "workspace" ? workspaceResources : privateResources;
   const isWorkspace = scope === "workspace";
   const titlePrefix = isWorkspace ? workspace?.name ?? "Workspace" : "Private";
   const routeBase = isWorkspace ? "/workspace" : "/private";
+  const resourceList = resources ?? [];
+  const filteredResources = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return resourceList.filter((resource) => {
+      const matchesQuery =
+        !query ||
+        resource.url.toLowerCase().includes(query) ||
+        resource.description.toLowerCase().includes(query) ||
+        getHostLabel(resource.url).toLowerCase().includes(query);
+
+      const hasDescription = Boolean(resource.description.trim());
+      const matchesFilter =
+        filterMode === "all" ||
+        (filterMode === "with-description" && hasDescription) ||
+        (filterMode === "without-description" && !hasDescription);
+
+      return matchesQuery && matchesFilter;
+    });
+  }, [resourceList, searchQuery, filterMode]);
 
   if (isWorkspace && !selectedWorkspaceId) {
     return (
@@ -320,6 +361,78 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
         </button>
       </div>
 
+      <div className="feature-card mb-8 relative z-40 overflow-visible p-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center">
+            <div className="relative flex-1 max-w-2xl">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search links, hosts, or descriptions..."
+                className="input-field min-w-[340px] pl-9 lg:min-w-[520px]"
+              />
+            </div>
+
+            <select value={filterMode} onChange={(event) => setFilterMode(event.target.value as typeof filterMode)} className="input-field md:w-[220px]">
+              <option value="all">All resources</option>
+              <option value="with-description">With description</option>
+              <option value="without-description">Without description</option>
+            </select>
+          </div>
+
+          <div className="relative z-50">
+            <button
+              type="button"
+              onClick={() => setShowGridMenu((current) => !current)}
+              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--surface-elevated)]"
+              style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
+            >
+              <LayoutGrid size={15} />
+              Grid: {gridPreset === "custom" ? `Custom ${customColumns} col` : gridPreset}
+              <ChevronDown size={14} style={{ color: "var(--mute)" }} />
+            </button>
+            
+            {showGridMenu ? (
+              <div className="absolute right-0 top-[calc(100%+8px)] z-[999] w-64 rounded-xl border p-2 shadow-xl pointer-events-auto" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline-strong)" }}>
+                {(["2x2", "3x5", "4x4", "custom"] as GridPreset[]).map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setGridPreset(preset);
+                      if (preset !== "custom") setShowGridMenu(false);
+                    }}
+                    className="mb-1 w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)]"
+                    style={{ color: gridPreset === preset ? "var(--ink)" : "var(--charcoal)", backgroundColor: gridPreset === preset ? "var(--surface-elevated)" : "transparent" }}
+                  >
+                    {preset === "2x2" ? "2 x 2" : preset === "3x5" ? "3 x 5" : preset === "4x4" ? "4 x 4" : "Custom"}
+                  </button>
+                ))}
+                {gridPreset === "custom" ? (
+                  <div className="mt-2 rounded-lg border p-3" style={{ borderColor: "var(--hairline)" }}>
+                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--mute)" }}>Columns</label>
+                    <select
+                      value={customColumns}
+                      onChange={(event) => {
+                        setCustomColumns(Number(event.target.value));
+                        setShowGridMenu(false);
+                      }}
+                      className="input-field"
+                    >
+                      <option value={1}>1 column</option>
+                      <option value={2}>2 columns</option>
+                      <option value={3}>3 columns</option>
+                      <option value={4}>4 columns</option>
+                    </select>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
       {showForm && (
         <div className="feature-card mb-12 animate-fade-in-up relative z-10">
           <div className="max-w-3xl mx-auto space-y-6">
@@ -362,7 +475,7 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
         </div>
       )}
 
-      {resources.length === 0 && !showForm && (
+      {resourceList.length === 0 && !showForm && (
         <div
           className="flex flex-col items-center justify-center py-32 text-center border rounded-xl relative z-10"
           style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)" }}
@@ -380,8 +493,16 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 relative z-10">
-        {resources.map((resource, index) => {
+      {filteredResources.length === 0 && resourceList.length > 0 ? (
+        <div className="feature-card relative z-10 flex flex-col items-center justify-center py-20 text-center">
+          <Search size={28} className="mb-4" style={{ color: "var(--stone)" }} />
+          <h3 className="mb-2 text-lg font-medium" style={{ color: "var(--ink)" }}>No matching resources</h3>
+          <p style={{ color: "var(--charcoal)" }}>Adjust your search or filter to find what you are looking for.</p>
+        </div>
+      ) : null}
+
+      <div className={`grid gap-6 relative z-0 ${getGridClasses(gridPreset, customColumns)}`}>
+        {filteredResources.map((resource, index) => {
           const deleteBusy = busyKey === `${resource._id}:delete`;
           const todoBusy = busyKey === `${resource._id}:todo`;
           const noteBusy = busyKey === `${resource._id}:note`;
@@ -402,17 +523,37 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
                   <p className="text-sm font-medium break-all" style={{ color: "var(--ink)" }}>{resource.url}</p>
                 </div>
 
-                <button
-                  onClick={() => handleDeleteResource(resource._id)}
-                  disabled={deleteBusy}
-                  className="p-1 rounded-md transition-colors"
-                  style={{ color: "var(--stone)" }}
-                  onMouseEnter={(event) => ((event.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
-                  onMouseLeave={(event) => ((event.currentTarget as HTMLElement).style.color = "var(--stone)")}
-                  aria-label="Delete resource"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenResourceMenuId((current) => current === resource._id ? null : resource._id)}
+                    className="rounded-md p-1.5 transition-colors hover:bg-[var(--surface-elevated)]"
+                    style={{ color: "var(--stone)" }}
+                    aria-label="Open resource actions"
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+
+                  {openResourceMenuId === resource._id ? (
+                    <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[200px] rounded-xl border p-1 shadow-xl" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline-strong)" }}>
+                      <a href={resource.url} target="_blank" rel="noreferrer" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }}>
+                        <ExternalLink size={14} /> Open link
+                      </a>
+                      <button onClick={() => { void handleCreateTodo(resource); setOpenResourceMenuId(null); }} disabled={todoBusy || busyKey !== null} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--ink)" }}>
+                        <CheckSquare size={14} /> {todoBusy ? "Adding..." : "Add to todo"}
+                      </button>
+                      <button onClick={() => { void handleCreateNote(resource); setOpenResourceMenuId(null); }} disabled={noteBusy || busyKey !== null} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--ink)" }}>
+                        <FileText size={14} /> {noteBusy ? "Creating..." : "New note"}
+                      </button>
+                      <button onClick={() => { void handleCreateIdea(resource); setOpenResourceMenuId(null); }} disabled={ideaBusy || busyKey !== null} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--ink)" }}>
+                        <Lightbulb size={14} /> {ideaBusy ? "Creating..." : "New idea"}
+                      </button>
+                      <button onClick={() => { void handleDeleteResource(resource._id); setOpenResourceMenuId(null); }} disabled={deleteBusy} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--accent-red)" }}>
+                        <Trash2 size={14} /> {deleteBusy ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               {resource.description ? (
@@ -423,40 +564,19 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
                 <p className="text-sm italic mb-6" style={{ color: "var(--stone)" }}>No description added.</p>
               )}
 
-              <div className="mt-auto grid grid-cols-2 gap-3 pt-5 border-t" style={{ borderColor: "var(--divider-soft)" }}>
+              <div className="mt-auto flex items-center justify-between gap-3 pt-5 border-t" style={{ borderColor: "var(--divider-soft)" }}>
                 <a
                   href={resource.url}
                   target="_blank"
                   rel="noreferrer"
-                  className={actionButtonClasses()}
+                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors hover:bg-[var(--surface-elevated)]"
                   style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
                 >
                   <ExternalLink size={14} /> Open Link
                 </a>
-                <button
-                  onClick={() => handleCreateTodo(resource)}
-                  disabled={todoBusy || busyKey !== null}
-                  className={actionButtonClasses(todoBusy || busyKey !== null)}
-                  style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
-                >
-                  <CheckSquare size={14} /> {todoBusy ? "Adding..." : "Add To Todo"}
-                </button>
-                <button
-                  onClick={() => handleCreateNote(resource)}
-                  disabled={noteBusy || busyKey !== null}
-                  className={actionButtonClasses(noteBusy || busyKey !== null)}
-                  style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
-                >
-                  <FileText size={14} /> {noteBusy ? "Creating..." : "New Note"}
-                </button>
-                <button
-                  onClick={() => handleCreateIdea(resource)}
-                  disabled={ideaBusy || busyKey !== null}
-                  className={actionButtonClasses(ideaBusy || busyKey !== null)}
-                  style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
-                >
-                  <Lightbulb size={14} /> {ideaBusy ? "Creating..." : "New Idea"}
-                </button>
+                <span className="text-xs" style={{ color: "var(--mute)" }}>
+                  Quick actions in menu
+                </span>
               </div>
             </div>
           );

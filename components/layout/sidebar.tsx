@@ -24,6 +24,7 @@ import {
   Radar,
   SearchCode,
   Telescope,
+  MessageSquare,
 } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { api } from "@/convex/_generated/api";
@@ -37,6 +38,7 @@ const privateLinks = [
 ];
 
 const workspaceLinks = [
+  { href: "/workspace/chats", label: "Chats", icon: MessageSquare },
   { href: "/workspace/ideas", label: "Ideas", icon: Lightbulb },
   { href: "/workspace/todos", label: "Todos", icon: CheckSquare },
   { href: "/workspace/notes", label: "Notes", icon: FileText },
@@ -46,7 +48,6 @@ const workspaceLinks = [
 
 const productLinks = [
   { href: "/dashboard", label: "Dashboard", icon: Radar },
-  { href: "/chats", label: "Chats", icon: MessageSquareText },
   { href: "/integrations", label: "Integrations", icon: PlugZap },
 ];
 
@@ -292,7 +293,6 @@ export function Sidebar() {
         >
           <div className="space-y-2 pl-2">
             <NavSection label="" links={privateLinks} />
-            <VaultListDropdown label="Private Vaults" scopeHref="/private/vaults" vaults={privateVaults} />
 
             <div>
               <div className="mb-2 px-3">
@@ -316,6 +316,20 @@ export function Sidebar() {
       {/* ── PRODUCT (sticky bottom) ── */}
       <div className="shrink-0 px-3 py-3 border-t" style={{ borderColor: "var(--hairline)" }}>
         <nav className="space-y-0.5">
+          <Link
+            href="/private/chats"
+            className="mb-2 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 relative"
+            style={{
+              color: pathname === "/private/chats" ? "var(--ink)" : "var(--charcoal)",
+              backgroundColor: pathname === "/private/chats" ? "var(--surface-elevated)" : "transparent",
+            }}
+          >
+            {pathname === "/private/chats" ? (
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
+            ) : null}
+            <MessageSquareText size={14} className="flex-shrink-0 ml-1" style={{ color: pathname === "/private/chats" ? "var(--ink)" : "var(--stone)" }} />
+            <span className="flex-1">Private Chats</span>
+          </Link>
           {productLinks.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || pathname.startsWith(href + "/");
             return (
@@ -339,6 +353,9 @@ export function Sidebar() {
             );
           })}
         </nav>
+        <div className="mt-2 border-t pt-2" style={{ borderColor: "var(--hairline)" }}>
+          <VaultListDropdown label="Private Vaults" scopeHref="/private/vaults" vaults={privateVaults} />
+        </div>
       </div>
     </aside>
   );

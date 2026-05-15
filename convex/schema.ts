@@ -177,6 +177,68 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_user_private", ["createdBy", "scope"]),
 
+  friendRequests: defineTable({
+    fromUserId: v.id("users"),
+    toUserId: v.id("users"),
+    pairKey: v.string(),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("rejected")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_to_user_and_status", ["toUserId", "status"])
+    .index("by_from_user_and_status", ["fromUserId", "status"])
+    .index("by_pair_key", ["pairKey"]),
+
+  friendships: defineTable({
+    userAId: v.id("users"),
+    userBId: v.id("users"),
+    pairKey: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_user_a", ["userAId"])
+    .index("by_user_b", ["userBId"])
+    .index("by_pair_key", ["pairKey"]),
+
+  socialChatRooms: defineTable({
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    roomType: v.union(v.literal("direct"), v.literal("workspace"), v.literal("ai")),
+    workspaceId: v.optional(v.id("workspaces")),
+    title: v.string(),
+    objective: v.optional(v.string()),
+    pairKey: v.optional(v.string()),
+    createdBy: v.id("users"),
+    lastMessagePreview: v.optional(v.string()),
+    lastMessageAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace_and_updated_at", ["workspaceId", "updatedAt"])
+    .index("by_pair_key", ["pairKey"]),
+
+  socialChatParticipants: defineTable({
+    roomId: v.id("socialChatRooms"),
+    userId: v.id("users"),
+    role: v.union(v.literal("owner"), v.literal("member"), v.literal("ai")),
+    lastReadAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_room", ["roomId"])
+    .index("by_user", ["userId"])
+    .index("by_room_and_user", ["roomId", "userId"]),
+
+  socialChatMessages: defineTable({
+    roomId: v.id("socialChatRooms"),
+    senderId: v.optional(v.id("users")),
+    senderKind: v.union(v.literal("user"), v.literal("ai"), v.literal("system")),
+    body: v.string(),
+    messageType: v.union(v.literal("text"), v.literal("share"), v.literal("analysis")),
+    shareType: v.optional(v.union(v.literal("idea"), v.literal("note"), v.literal("resource"))),
+    shareTitle: v.optional(v.string()),
+    shareDescription: v.optional(v.string()),
+    shareMeta: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_room_and_created_at", ["roomId", "createdAt"]),
+
   chatConversations: defineTable({
     ownerId: v.id("users"),
     title: v.string(),

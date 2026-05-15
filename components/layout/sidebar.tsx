@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import {
+  Blocks,
+  Bot,
   Lightbulb,
   CheckSquare,
   FileText,
@@ -11,6 +13,14 @@ import {
   Rocket,
   Lock,
   Users,
+  Compass,
+  FlaskConical,
+  FolderKanban,
+  MessageSquareText,
+  PlugZap,
+  Radar,
+  SearchCode,
+  Telescope,
 } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 
@@ -27,6 +37,37 @@ const workspaceLinks = [
   { href: "/workspace/notes", label: "Notes", icon: FileText },
   { href: "/workspace/resources", label: "Resources", icon: Link2 },
   { href: "/workspace/members", label: "Members", icon: Users },
+];
+
+const productLinks = [
+  { href: "/dashboard", label: "Dashboard", icon: Radar },
+  { href: "/explore", label: "Explore", icon: Compass },
+  { href: "/research", label: "Research", icon: FlaskConical },
+  { href: "/vaults", label: "Vaults", icon: FolderKanban },
+  { href: "/chats", label: "Chats", icon: MessageSquareText },
+  { href: "/integrations", label: "Integrations", icon: PlugZap },
+];
+
+const exploreLinks = [
+  { href: "/explore/yc", label: "YC Explorer", icon: Rocket },
+  { href: "/explore/sharktank", label: "Shark Tank", icon: Telescope },
+  { href: "/explore/open-source", label: "Open Source", icon: Blocks },
+  { href: "/explore/github-tools", label: "GitHub Tools", icon: SearchCode },
+  { href: "/explore/ai-startups", label: "AI Startups", icon: Bot },
+];
+
+const researchLinks = [
+  { href: "/research/link-analysis", label: "Link Analysis", icon: Link2 },
+  { href: "/research/files", label: "Files", icon: FileText },
+  { href: "/research/competitors", label: "Competitors", icon: Users },
+  { href: "/research/reports", label: "AI Reports", icon: Bot },
+  { href: "/research/mvp-lab", label: "MVP Lab", icon: Rocket },
+];
+
+const vaultLinks = [
+  { href: "/vaults/startups", label: "Startup Vaults", icon: Rocket },
+  { href: "/vaults/ai-tools", label: "AI Tools Vault", icon: Blocks },
+  { href: "/vaults/markets", label: "Market Vaults", icon: Compass },
 ];
 
 function NavSection({
@@ -135,12 +176,31 @@ export function Sidebar() {
 
       {/* Scrollable nav area */}
       <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-3 min-h-0">
-        {/* ── PRIVATE ── */}
+        <NavSection label="Product" links={productLinks} />
+
+        <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
+
+        <NavSection label="Explore" links={exploreLinks} />
+
+        <NavSection label="Research" links={researchLinks} />
+
+        <NavSection label="Vaults" links={vaultLinks} />
+
+        <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
+
+        {/* ── WORKSPACES ── */}
+        <div className="px-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--mute)" }}>
+            Workspace
+          </p>
+        </div>
+
+        {/* ── PRIVATE WORKSPACE ── */}
         <div>
           <div className="flex items-center gap-1.5 px-3 mb-1.5">
             <Lock size={9} style={{ color: "var(--mute)" }} />
             <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
-              Private
+              Private Workspace
             </p>
           </div>
           <nav className="space-y-0.5">
@@ -172,10 +232,16 @@ export function Sidebar() {
         {/* ── DIVIDER ── */}
         <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
 
-        {/* ── WORKSPACE ── */}
+        {/* ── CORPORATE WORKSPACE ── */}
         <div>
           <div className="mb-2">
             <WorkspaceSwitcher />
+          </div>
+          <div className="flex items-center gap-1.5 px-3 mb-1.5">
+            <Users size={9} style={{ color: "var(--mute)" }} />
+            <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
+              Corporate Workspace
+            </p>
           </div>
           <nav className="space-y-0.5">
             {workspaceLinks.map(({ href, label, icon: Icon }) => {

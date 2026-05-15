@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { MoreVertical, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { DraggableAttributes } from "@dnd-kit/core";
+import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 
 type TodoDoc = Doc<"todos">;
 
@@ -24,8 +26,8 @@ type TodoGroupOption = {
 };
 
 type DragHandleProps = {
-  attributes?: Record<string, unknown>;
-  listeners?: Record<string, unknown>;
+  attributes?: DraggableAttributes;
+  listeners?: SyntheticListenerMap;
 };
 
 type ModalSection = "details" | "ai" | "move";

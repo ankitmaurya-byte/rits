@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Blocks,
   Bot,
@@ -14,10 +14,8 @@ import {
   FileText,
   Link2,
   Rocket,
-  Lock,
   Users,
   Compass,
-  FlaskConical,
   FolderKanban,
   MessageSquareText,
   PlugZap,
@@ -151,18 +149,19 @@ function CollapsibleNavSection({
   const hasActiveChild = Boolean(children) && (
     pathname.startsWith("/private/") || pathname.startsWith("/workspace/")
   );
-  const [isOpen, setIsOpen] = useState(defaultOpen || hasActiveLink || hasActiveChild);
-
-  useEffect(() => {
-    if (hasActiveLink || hasActiveChild) setIsOpen(true);
-  }, [hasActiveLink, hasActiveChild]);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const isExpanded = isOpen || hasActiveLink || hasActiveChild;
 
   return (
     <div className="mb-1">
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+        className="flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition-all duration-150 hover:bg-[var(--surface-elevated)]"
+        style={{
+          borderColor: hasActiveLink || hasActiveChild ? "var(--hairline-strong)" : "transparent",
+          backgroundColor: hasActiveLink || hasActiveChild ? "var(--surface-elevated)" : "transparent",
+        }}
       >
         <div className="flex items-center gap-2">
           <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
@@ -170,14 +169,14 @@ function CollapsibleNavSection({
           </p>
           {icon}
         </div>
-        {isOpen ? (
+        {isExpanded ? (
           <ChevronDown size={12} style={{ color: "var(--stone)" }} />
         ) : (
           <ChevronRight size={12} style={{ color: "var(--stone)" }} />
         )}
       </button>
-      {isOpen ? (
-        <div className="mt-1 space-y-2">
+      {isExpanded ? (
+        <div className="mt-2 space-y-2">
           {links.length > 0 ? <NavSection label="" links={links} /> : null}
           {children}
         </div>

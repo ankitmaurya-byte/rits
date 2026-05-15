@@ -25,6 +25,7 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useWorkspaceStore } from "@/store/workspace-store";
 import { useConfirm } from "@/components/ui/confirm-provider";
+import { ThemedSelect } from "@/components/ui/themed-select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -388,11 +389,11 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
               />
             </div>
 
-            <select value={filterMode} onChange={(event) => setFilterMode(event.target.value as typeof filterMode)} className="input-field md:w-[220px]">
+            <ThemedSelect value={filterMode} onChange={(event) => setFilterMode(event.target.value as typeof filterMode)} className="md:w-[220px]">
               <option value="all">All resources</option>
               <option value="with-description">With description</option>
               <option value="without-description">Without description</option>
-            </select>
+            </ThemedSelect>
           </div>
 
           <div className="relative z-50">
@@ -420,12 +421,12 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
                     <DropdownMenuSeparator />
                     <div className="px-2 py-1.5">
                       <label className="mb-2 block text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: "var(--mute)" }}>Columns</label>
-                      <select value={customColumns} onChange={(event) => setCustomColumns(Number(event.target.value))} className="input-field">
+                      <ThemedSelect value={customColumns} onChange={(event) => setCustomColumns(Number(event.target.value))}>
                         <option value={1}>1 column</option>
                         <option value={2}>2 columns</option>
                         <option value={3}>3 columns</option>
                         <option value={4}>4 columns</option>
-                      </select>
+                      </ThemedSelect>
                     </div>
                   </>
                 ) : null}

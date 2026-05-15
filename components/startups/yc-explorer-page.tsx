@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { mockYCStartups, type YCStartup } from "@/lib/yc-startups";
 import { FileText, Lightbulb, CheckSquare, Rocket, ExternalLink, Search, Filter, Sparkles, X } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
+import { ThemedSelect } from "@/components/ui/themed-select";
 
 const industries = ["All", ...Array.from(new Set(mockYCStartups.map((s) => s.industry))).sort()];
 const batches = ["All", ...Array.from(new Set(mockYCStartups.map((s) => s.batch))).sort()];
@@ -247,39 +248,35 @@ export function YcExplorerPage() {
           />
         </div>
         <div className="flex gap-4">
-          <div className="relative">
-            <select
+          <div>
+            <ThemedSelect
               value={industryFilter}
               onChange={(e) => {
                 setIndustryFilter(e.target.value);
                 setVisibleCount(10);
               }}
-              className="appearance-none pl-10 pr-8 py-2 rounded-md border focus:outline-none transition-colors cursor-pointer min-w-[140px] text-sm"
-              style={{ backgroundColor: "var(--surface-elevated)", borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
+              className="min-w-[160px]"
+              icon={<Filter size={16} />}
             >
               {industries.map((ind) => (
                 <option key={ind} value={ind}>{ind}</option>
               ))}
-            </select>
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Filter size={16} style={{ color: "var(--mute)" }} />
-            </div>
+            </ThemedSelect>
           </div>
 
-          <div className="relative">
-            <select
+          <div>
+            <ThemedSelect
               value={batchFilter}
               onChange={(e) => {
                 setBatchFilter(e.target.value);
                 setVisibleCount(10);
               }}
-              className="appearance-none px-4 py-2 rounded-md border focus:outline-none transition-colors cursor-pointer min-w-[100px] text-sm"
-              style={{ backgroundColor: "var(--surface-elevated)", borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
+              className="min-w-[120px]"
             >
               {batches.map((batch) => (
                 <option key={batch} value={batch}>{batch}</option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
         </div>
       </div>

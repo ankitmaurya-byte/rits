@@ -44,7 +44,6 @@ const workspaceLinks = [
 
 const productLinks = [
   { href: "/dashboard", label: "Dashboard", icon: Radar },
-  { href: "/explore", label: "Explore", icon: Compass },
   { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/vaults", label: "Vaults", icon: FolderKanban },
   { href: "/chats", label: "Chats", icon: MessageSquareText },
@@ -191,7 +190,6 @@ function CollapsibleNavSection({
 
 export function Sidebar() {
   const pathname = usePathname();
-  const isStartupsActive = pathname === "/startups" || pathname.startsWith("/startups/");
 
   return (
     <aside
@@ -266,38 +264,41 @@ export function Sidebar() {
 
         <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
 
-        <CollapsibleNavSection label="Product" links={productLinks} defaultOpen />
+        <CollapsibleNavSection label="Explore" links={exploreLinks} />
 
         <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
-
-        <CollapsibleNavSection label="Explore" links={exploreLinks} />
 
         <CollapsibleNavSection label="Research" links={researchLinks} />
 
         <CollapsibleNavSection label="Vaults" links={vaultLinks} />
       </div>
 
-      {/* ── STARTUP DIRECTORY (sticky bottom) ── */}
+      {/* ── PRODUCT (sticky bottom) ── */}
       <div className="shrink-0 px-3 py-3 border-t" style={{ borderColor: "var(--hairline)" }}>
-        <Link
-          href="/startups"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150 relative group"
-          style={{
-            color: isStartupsActive ? "var(--ink)" : "var(--charcoal)",
-            backgroundColor: isStartupsActive ? "var(--surface-elevated)" : "transparent",
-          }}
-          onMouseEnter={(e) => { if (!isStartupsActive) (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated)"; }}
-          onMouseLeave={(e) => { if (!isStartupsActive) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-        >
-          {isStartupsActive && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
-          )}
-          <Rocket size={14} strokeWidth={isStartupsActive ? 2 : 1.75} className="flex-shrink-0 ml-1" style={{ color: isStartupsActive ? "var(--ink)" : "var(--stone)" }} />
-          <span className="flex-1">Startup Directory</span>
-          <span className="text-[9px] font-medium px-1.5 py-0.5 rounded uppercase tracking-wider" style={{ backgroundColor: "var(--surface-deep)", color: "var(--mute)", border: "1px solid var(--hairline)" }}>
-            General
-          </span>
-        </Link>
+        <nav className="space-y-0.5">
+          {productLinks.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href || pathname.startsWith(href + "/");
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 relative"
+                style={{
+                  color: isActive ? "var(--ink)" : "var(--charcoal)",
+                  backgroundColor: isActive ? "var(--surface-elevated)" : "transparent",
+                }}
+                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated)"; }}
+                onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
+              >
+                {isActive && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
+                )}
+                <Icon size={14} strokeWidth={isActive ? 2 : 1.75} className="flex-shrink-0 ml-1" style={{ color: isActive ? "var(--ink)" : "var(--stone)" }} />
+                <span className="flex-1">{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </aside>
   );

@@ -7,6 +7,13 @@ import { toast } from "sonner";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
+import { useConfirm } from "@/components/ui/confirm-provider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type TodoDoc = Doc<"todos">;
 
@@ -65,7 +72,6 @@ export function TodoCard({
   onUpdateTodo,
 }: TodoCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [modalSection, setModalSection] = useState<ModalSection>("details");
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? task.sourceDescription ?? "");
@@ -79,6 +85,7 @@ export function TodoCard({
   const aiPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const moveStatusRef = useRef<HTMLSelectElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
+  const confirm = useConfirm();
 
   const createdAt = format(task.createdAt, "MMM d, yyyy p");
   const updatedAt = format(task.updatedAt ?? task.createdAt, "MMM d, yyyy p");
@@ -134,7 +141,13 @@ export function TodoCard({
 
   const handleDelete = async () => {
     if (!onDelete) return;
-    if (!confirm("Delete this task?")) return;
+    const confirmed = await confirm({
+      title: "Delete task?",
+      description: "This todo will be removed from the board.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
     try {
       await onDelete(task._id);
       toast.success("Deleted");
@@ -145,7 +158,6 @@ export function TodoCard({
 
   const openModal = (section: ModalSection) => {
     resetDraft();
-    setMenuOpen(false);
     setModalSection(section);
     setModalOpen(true);
   };
@@ -253,57 +265,28 @@ export function TodoCard({
                 ) : null}
               </div>
               <div className="relative flex items-center gap-1" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-                <button
-                  type="button"
-                  className="rounded-md bg-[var(--surface-elevated)] p-1.5 transition-colors hover:bg-[var(--surface-deep)]"
-                  onClick={() => setMenuOpen((current) => !current)}
-                  aria-label="Open task menu"
-                  style={{ color: "var(--mute)" }}
-                >
-                  <MoreVertical size={12} />
-                </button>
-                {menuOpen ? (
-                  <div
-                    className="absolute right-0 top-9 z-20 min-w-[160px] rounded-xl border p-1 shadow-xl"
-                    style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline-strong)" }}
-                    onPointerDown={(event) => event.stopPropagation()}
-                  >
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      onClick={() => openModal("details")}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-                      style={{ color: "var(--ink)" }}
+                      className="rounded-md bg-[var(--surface-elevated)] p-1.5 transition-colors hover:bg-[var(--surface-deep)]"
+                      aria-label="Open task menu"
+                      style={{ color: "var(--mute)" }}
                     >
-                      Edit
+                      <MoreVertical size={12} />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openModal("ai")}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-                      style={{ color: "var(--ink)" }}
-                    >
-                      AI prompt
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openModal("move")}
-                      className="w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-                      style={{ color: "var(--ink)" }}
-                    >
-                      Move
-                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onSelect={() => openModal("details")}>Edit</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => openModal("ai")}>AI prompt</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => openModal("move")}>Move</DropdownMenuItem>
                     {onDelete ? (
-                      <button
-                        type="button"
-                        onClick={handleDelete}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-                        style={{ color: "var(--accent-red)" }}
-                      >
+                      <DropdownMenuItem variant="destructive" onSelect={() => void handleDelete()}>
                         <Trash2 size={12} /> Delete
-                      </button>
+                      </DropdownMenuItem>
                     ) : null}
-                  </div>
-                ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -322,7 +305,6 @@ export function TodoCard({
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ backgroundColor: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
           onClick={() => {
-            setMenuOpen(false);
             setModalOpen(false);
           }}
         >

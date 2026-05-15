@@ -6,7 +6,7 @@ import { Toaster } from "sonner";
 export const metadata: Metadata = {
   title: "Rits  Research in tech startup",
   description:
-    "The all-in-one workspace for your startup. Manage ideas, todos, and notes.",
+    "Research briefs, analysis systems, consultant-grade notes, and AI-assisted evaluation in one operating layer",
   icons: {
     icon: "/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png",
   },

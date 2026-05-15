@@ -9,6 +9,7 @@ import { Plus, FileText, Trash2, Save, Clock, Menu } from "lucide-react";
 import { toast } from "sonner";
 import { NoteEditor } from "@/components/notes/editor";
 import { formatDistanceToNow } from "date-fns";
+import { useConfirm } from "@/components/ui/confirm-provider";
 
 export default function NotesPage() {
   const { workspaceId, isLoading } = useWorkspace();
@@ -25,6 +26,7 @@ export default function NotesPage() {
   const [showCreate, setShowCreate]   = useState(false);
   const [saving, setSaving]           = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const confirm = useConfirm();
 
   const selectedNote = notes?.find((n) => n._id === selectedId);
 
@@ -162,12 +164,14 @@ export default function NotesPage() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if(confirm("Delete this note?")) {
-                         deleteNote({ id: note._id }).then(() => {
-                           if (selectedId === note._id) setSelectedId(null);
-                           toast.success("Deleted");
-                         });
-                      }
+                      void (async () => {
+                        const confirmed = await confirm({ title: "Delete note?", description: "This note will be removed permanently.", confirmLabel: "Delete", variant: "destructive" });
+                        if (!confirmed) return;
+                        deleteNote({ id: note._id }).then(() => {
+                          if (selectedId === note._id) setSelectedId(null);
+                          toast.success("Deleted");
+                        });
+                      })();
                     }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
                     style={{ color: "var(--stone)" }}

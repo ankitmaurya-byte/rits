@@ -10,6 +10,7 @@ import { Bell, Search, Command } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ChatSheet } from "@/components/ai/chat-sheet";
 import { Button } from "@/components/ui/button";
+import { ConfirmProvider } from "@/components/ui/confirm-provider";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -151,11 +152,12 @@ export default function MainLayout({
   };
 
   return (
-    <div
-      className="flex h-screen overflow-hidden"
-      style={{ backgroundColor: "var(--canvas)" }}
-    >
-      <Sidebar />
+    <ConfirmProvider>
+      <div
+        className="flex h-screen overflow-hidden"
+        style={{ backgroundColor: "var(--canvas)" }}
+      >
+        <Sidebar />
 
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Top header */}
@@ -373,7 +375,8 @@ export default function MainLayout({
     Chat with Rits AI
   </div>
 </div>
-      <ChatSheet open={isAiOpen} onOpenChange={setIsAiOpen} />
-    </div>
+        <ChatSheet open={isAiOpen} onOpenChange={setIsAiOpen} />
+      </div>
+    </ConfirmProvider>
   );
 }

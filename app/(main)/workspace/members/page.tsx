@@ -6,6 +6,7 @@ import { api } from "@/convex/_generated/api";
 import { useWorkspaceStore } from "@/store/workspace-store";
 import { Users, Crown, UserX, UserPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-provider";
 import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog";
 import { useUser } from "@clerk/nextjs";
 
@@ -19,6 +20,7 @@ export default function WorkspaceMembersPage() {
   const members = useQuery(api.workspaces.getWorkspaceMembers, selectedWorkspaceId && user ? { workspaceId: selectedWorkspaceId, clerkId: user.id } : "skip");
   const pendingInvites = useQuery(api.workspaces.getPendingInvites, selectedWorkspaceId && user ? { workspaceId: selectedWorkspaceId, clerkId: user.id } : "skip");
   const removeMember = useMutation(api.workspaces.removeMember);
+  const confirm = useConfirm();
 
   const isOwner = workspace?.ownerId === convexUser?._id;
 
@@ -88,7 +90,8 @@ export default function WorkspaceMembersPage() {
                       <button
                         onClick={async () => {
                           const action = isSelf ? "leave this workspace?" : `remove ${member.name}?`;
-                          if (!confirm(`Are you sure you want to ${action}`)) return;
+                          const confirmed = await confirm({ title: "Confirm workspace action", description: `Are you sure you want to ${action}`, confirmLabel: isSelf ? "Leave" : "Remove", variant: "destructive" });
+                          if (!confirmed) return;
                           try {
                             await removeMember({ workspaceId: selectedWorkspaceId, userId: member._id, clerkId: user!.id });
                             toast.success(isSelf ? "Left workspace" : "Member removed");

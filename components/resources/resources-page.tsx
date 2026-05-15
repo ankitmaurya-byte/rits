@@ -24,6 +24,15 @@ import { toast } from "sonner";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useWorkspaceStore } from "@/store/workspace-store";
+import { useConfirm } from "@/components/ui/confirm-provider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type ResourceScope = "private" | "workspace";
 type ResourceCard = {
@@ -146,14 +155,13 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
   const [filterMode, setFilterMode] = useState<"all" | "with-description" | "without-description">("all");
   const [gridPreset, setGridPreset] = useState<GridPreset>("3x5");
   const [customColumns, setCustomColumns] = useState(3);
-  const [openResourceMenuId, setOpenResourceMenuId] = useState<Id<"resources"> | null>(null);
-  const [showGridMenu, setShowGridMenu] = useState(false);
+  const confirm = useConfirm();
 
   const resources = scope === "workspace" ? workspaceResources : privateResources;
   const isWorkspace = scope === "workspace";
   const titlePrefix = isWorkspace ? workspace?.name ?? "Workspace" : "Private";
   const routeBase = isWorkspace ? "/workspace" : "/private";
-  const resourceList = resources ?? [];
+  const resourceList = useMemo(() => resources ?? [], [resources]);
   const filteredResources = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return resourceList.filter((resource) => {
@@ -225,7 +233,13 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
   };
 
   const handleDeleteResource = async (resourceId: Id<"resources">) => {
-    if (!confirm("Delete this resource?")) return;
+    const confirmed = await confirm({
+      title: "Delete resource?",
+      description: "This saved link and its context will be removed.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
 
     setBusyKey(`${resourceId}:delete`);
     try {
@@ -382,53 +396,41 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
           </div>
 
           <div className="relative z-50">
-            <button
-              type="button"
-              onClick={() => setShowGridMenu((current) => !current)}
-              className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--surface-elevated)]"
-              style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
-            >
-              <LayoutGrid size={15} />
-              Grid: {gridPreset === "custom" ? `Custom ${customColumns} col` : gridPreset}
-              <ChevronDown size={14} style={{ color: "var(--mute)" }} />
-            </button>
-            
-            {showGridMenu ? (
-              <div className="absolute right-0 top-[calc(100%+8px)] z-[999] w-64 rounded-xl border p-2 shadow-xl pointer-events-auto" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline-strong)" }}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--surface-elevated)]"
+                  style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
+                >
+                  <LayoutGrid size={15} />
+                  Grid: {gridPreset === "custom" ? `Custom ${customColumns} col` : gridPreset}
+                  <ChevronDown size={14} style={{ color: "var(--mute)" }} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Grid presets</DropdownMenuLabel>
                 {(["2x2", "3x5", "4x4", "custom"] as GridPreset[]).map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => {
-                      setGridPreset(preset);
-                      if (preset !== "custom") setShowGridMenu(false);
-                    }}
-                    className="mb-1 w-full rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-                    style={{ color: gridPreset === preset ? "var(--ink)" : "var(--charcoal)", backgroundColor: gridPreset === preset ? "var(--surface-elevated)" : "transparent" }}
-                  >
+                  <DropdownMenuItem key={preset} onSelect={() => setGridPreset(preset)}>
                     {preset === "2x2" ? "2 x 2" : preset === "3x5" ? "3 x 5" : preset === "4x4" ? "4 x 4" : "Custom"}
-                  </button>
+                  </DropdownMenuItem>
                 ))}
                 {gridPreset === "custom" ? (
-                  <div className="mt-2 rounded-lg border p-3" style={{ borderColor: "var(--hairline)" }}>
-                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--mute)" }}>Columns</label>
-                    <select
-                      value={customColumns}
-                      onChange={(event) => {
-                        setCustomColumns(Number(event.target.value));
-                        setShowGridMenu(false);
-                      }}
-                      className="input-field"
-                    >
-                      <option value={1}>1 column</option>
-                      <option value={2}>2 columns</option>
-                      <option value={3}>3 columns</option>
-                      <option value={4}>4 columns</option>
-                    </select>
-                  </div>
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-1.5">
+                      <label className="mb-2 block text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: "var(--mute)" }}>Columns</label>
+                      <select value={customColumns} onChange={(event) => setCustomColumns(Number(event.target.value))} className="input-field">
+                        <option value={1}>1 column</option>
+                        <option value={2}>2 columns</option>
+                        <option value={3}>3 columns</option>
+                        <option value={4}>4 columns</option>
+                      </select>
+                    </div>
+                  </>
                 ) : null}
-              </div>
-            ) : null}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>
@@ -523,37 +525,38 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
                   <p className="text-sm font-medium break-all" style={{ color: "var(--ink)" }}>{resource.url}</p>
                 </div>
 
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setOpenResourceMenuId((current) => current === resource._id ? null : resource._id)}
-                    className="rounded-md p-1.5 transition-colors hover:bg-[var(--surface-elevated)]"
-                    style={{ color: "var(--stone)" }}
-                    aria-label="Open resource actions"
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-
-                  {openResourceMenuId === resource._id ? (
-                    <div className="absolute right-0 top-[calc(100%+8px)] z-20 min-w-[200px] rounded-xl border p-1 shadow-xl" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline-strong)" }}>
-                      <a href={resource.url} target="_blank" rel="noreferrer" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 transition-colors hover:bg-[var(--surface-elevated)]"
+                      style={{ color: "var(--stone)" }}
+                      aria-label="Open resource actions"
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem asChild>
+                      <a href={resource.url} target="_blank" rel="noreferrer">
                         <ExternalLink size={14} /> Open link
                       </a>
-                      <button onClick={() => { void handleCreateTodo(resource); setOpenResourceMenuId(null); }} disabled={todoBusy || busyKey !== null} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--ink)" }}>
-                        <CheckSquare size={14} /> {todoBusy ? "Adding..." : "Add to todo"}
-                      </button>
-                      <button onClick={() => { void handleCreateNote(resource); setOpenResourceMenuId(null); }} disabled={noteBusy || busyKey !== null} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--ink)" }}>
-                        <FileText size={14} /> {noteBusy ? "Creating..." : "New note"}
-                      </button>
-                      <button onClick={() => { void handleCreateIdea(resource); setOpenResourceMenuId(null); }} disabled={ideaBusy || busyKey !== null} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--ink)" }}>
-                        <Lightbulb size={14} /> {ideaBusy ? "Creating..." : "New idea"}
-                      </button>
-                      <button onClick={() => { void handleDeleteResource(resource._id); setOpenResourceMenuId(null); }} disabled={deleteBusy} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-elevated)] disabled:opacity-60" style={{ color: "var(--accent-red)" }}>
-                        <Trash2 size={14} /> {deleteBusy ? "Deleting..." : "Delete"}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={todoBusy || busyKey !== null} onSelect={() => void handleCreateTodo(resource)}>
+                      <CheckSquare size={14} /> {todoBusy ? "Adding..." : "Add to todo"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={noteBusy || busyKey !== null} onSelect={() => void handleCreateNote(resource)}>
+                      <FileText size={14} /> {noteBusy ? "Creating..." : "New note"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={ideaBusy || busyKey !== null} onSelect={() => void handleCreateIdea(resource)}>
+                      <Lightbulb size={14} /> {ideaBusy ? "Creating..." : "New idea"}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" disabled={deleteBusy} onSelect={() => void handleDeleteResource(resource._id)}>
+                      <Trash2 size={14} /> {deleteBusy ? "Deleting..." : "Delete"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               {resource.description ? (

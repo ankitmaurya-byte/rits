@@ -10,6 +10,7 @@ import { Plus, FileText, Trash2, Save, Clock, Menu, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { NoteEditor } from "@/components/notes/editor";
 import { formatDistanceToNow } from "date-fns";
+import { useConfirm } from "@/components/ui/confirm-provider";
 
 export default function PrivateNotesPage() {
   const { user } = useUser();
@@ -28,6 +29,7 @@ export default function PrivateNotesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const confirm = useConfirm();
 
   const selectedNote = notes?.find((n) => n._id === selectedId);
   const requestedNoteId = searchParams.get("note");
@@ -113,7 +115,7 @@ export default function PrivateNotesPage() {
                 {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: "var(--ink)" }} />}
                 <div className="flex items-start justify-between mb-1">
                   <h4 className="text-sm font-medium truncate pr-2" style={{ color: "var(--ink)" }}>{note.title}</h4>
-                  <button onClick={(e) => { e.stopPropagation(); if (confirm("Delete this note?")) deleteNote({ id: note._id }).then(() => { if (selectedId === note._id) setSelectedId(null); toast.success("Deleted"); }); }}
+                  <button onClick={(e) => { e.stopPropagation(); void (async () => { const confirmed = await confirm({ title: "Delete note?", description: "This note will be removed permanently.", confirmLabel: "Delete", variant: "destructive" }); if (!confirmed) return; deleteNote({ id: note._id }).then(() => { if (selectedId === note._id) setSelectedId(null); toast.success("Deleted"); }); })(); }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded" style={{ color: "var(--stone)" }}
                     onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
                     onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")}>

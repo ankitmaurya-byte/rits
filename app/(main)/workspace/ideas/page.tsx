@@ -9,6 +9,7 @@ import { getIdeaTitle } from "@/components/ideas/idea-text";
 import { RichEditor } from "@/components/editor/rich-editor";
 import { Plus, Lightbulb, Trash2, Tag, Pencil, Users } from "lucide-react";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-provider";
 
 export default function WorkspaceIdeasPage() {
   const { user } = useUser();
@@ -34,6 +35,7 @@ export default function WorkspaceIdeasPage() {
   const [description, setDescription] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const confirm = useConfirm();
 
   const handleEditClick = (idea: any) => {
     setEditingIdeaId(idea._id); setTitle(idea.title);
@@ -142,7 +144,7 @@ export default function WorkspaceIdeasPage() {
                   <button onClick={() => handleEditClick(idea)} className="p-1 rounded-md transition-colors" style={{ color: "var(--stone)" }}
                     onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--ink)")}
                     onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")} aria-label="Edit idea"><Pencil size={16} /></button>
-                  <button onClick={() => { if (confirm("Delete this idea?")) deleteIdea({ id: idea._id }).then(() => toast.success("Deleted")); }}
+                  <button onClick={async () => { const confirmed = await confirm({ title: "Delete idea?", description: "This idea will be removed permanently.", confirmLabel: "Delete", variant: "destructive" }); if (!confirmed) return; deleteIdea({ id: idea._id }).then(() => toast.success("Deleted")); }}
                     className="p-1 rounded-md transition-colors" style={{ color: "var(--stone)" }}
                     onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--accent-red)")}
                     onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--stone)")} aria-label="Delete idea"><Trash2 size={16} /></button>

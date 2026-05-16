@@ -31,10 +31,10 @@ export default function ResearchPage() {
           description: "Every analysis should eventually connect to ideas, notes, tasks, vaults, and workspace chats so research becomes executable work.",
           metric: "Connected",
           actions: [
-            { href: "/vaults", label: "Open Vaults", description: "Save reports and curated sources into vault collections.", icon: FolderSearch },
-            { href: "/ideas", label: "Turn into idea", description: "Convert research into startup ideas or opportunity docs.", icon: Rocket },
-          ],
-        },
+             { href: "/vaults", label: "Open Vaults", description: "Save reports and curated sources into vault collections.", icon: FolderSearch },
+             { href: "/roadmap", label: "Turn into roadmap", description: "Convert analysis into a structured learning or execution path.", icon: Rocket },
+           ],
+         },
       ]}
     />
   );

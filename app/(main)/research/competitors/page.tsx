@@ -11,7 +11,7 @@ export default function ResearchCompetitorsPage() {
       primaryActions={[
         { href: "/explore/yc", label: "Compare YC companies", description: "Use explorer signals to build market maps.", icon: Rows3 },
         { href: "/explore/open-source", label: "Compare OSS tools", description: "Contrast repos, ecosystems, and product layers.", icon: Swords },
-        { href: "/ideas", label: "Find wedges", description: "Turn whitespace into product ideas.", icon: Crosshair },
+        { href: "/roadmap", label: "Build roadmap", description: "Turn whitespace into a structured product or learning roadmap.", icon: Crosshair },
         { href: "/vaults/markets", label: "Save market map", description: "Preserve competitor research in a market vault.", icon: Radar },
       ]}
       panels={[

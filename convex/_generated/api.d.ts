@@ -17,6 +17,7 @@ import type * as ideas from "../ideas.js";
 import type * as notes from "../notes.js";
 import type * as researchOutputs from "../researchOutputs.js";
 import type * as resources from "../resources.js";
+import type * as roadmaps from "../roadmaps.js";
 import type * as social from "../social.js";
 import type * as socialChats from "../socialChats.js";
 import type * as todoGroups from "../todoGroups.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   notes: typeof notes;
   researchOutputs: typeof researchOutputs;
   resources: typeof resources;
+  roadmaps: typeof roadmaps;
   social: typeof social;
   socialChats: typeof socialChats;
   todoGroups: typeof todoGroups;

@@ -12,7 +12,7 @@ export default function MarketVaultsPage() {
         { href: "/explore/ai-startups", label: "AI sector feed", description: "Track one fast-moving market deeply.", icon: Globe2 },
         { href: "/research/competitors", label: "Competitive maps", description: "Keep category comparisons and whitespace analysis.", icon: ScanLine },
         { href: "/research/reports", label: "Saved reports", description: "Store strategic industry analysis outputs.", icon: Newspaper },
-        { href: "/ideas", label: "Opportunity backlog", description: "Turn vault insights into startup concepts.", icon: BarChart3 },
+        { href: "/roadmap", label: "Opportunity roadmap", description: "Turn vault insights into structured execution paths.", icon: BarChart3 },
       ]}
       panels={[
         { title: "What belongs here", description: "Industry trends, regulatory shifts, category winners, recurring risks, and long-term market theses.", metric: "Signals" },

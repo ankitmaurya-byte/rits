@@ -12,12 +12,12 @@ import {
   ChevronDown,
   ChevronRight,
   Folder,
-  Lightbulb,
   CheckSquare,
   FileText,
   Layers3,
   Link2,
   Rocket,
+  Route,
   Users,
   FolderKanban,
   MessageSquareText,
@@ -32,7 +32,7 @@ import { api } from "@/convex/_generated/api";
 import { useWorkspaceStore } from "@/store/workspace-store";
 
 const privateLinks = [
-  { href: "/private/ideas", label: "Ideas", icon: Lightbulb },
+  { href: "/roadmap", label: "Roadmap", icon: Route },
   { href: "/private/todos", label: "Kanban", icon: CheckSquare },
   { href: "/private/notes", label: "Confluence", icon: FileText },
   { href: "/private/resources", label: "Resources", icon: Link2 },

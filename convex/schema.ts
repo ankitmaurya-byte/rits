@@ -206,6 +206,40 @@ export default defineSchema({
     .index("by_user_private", ["createdBy", "scope"])
     .index("by_share_token", ["shareToken"]),
 
+  roadmaps: defineTable({
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
+    title: v.string(),
+    topic: v.string(),
+    topics: v.array(v.string()),
+    nodes: v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        description: v.string(),
+        topic: v.string(),
+        x: v.number(),
+        y: v.number(),
+        width: v.number(),
+        height: v.number(),
+        tone: v.union(v.literal("core"), v.literal("skill"), v.literal("optional")),
+      })
+    ),
+    edges: v.array(
+      v.object({
+        id: v.string(),
+        from: v.string(),
+        to: v.string(),
+        dashed: v.optional(v.boolean()),
+      })
+    ),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_private", ["createdBy", "scope"]),
+
   friendRequests: defineTable({
     fromUserId: v.id("users"),
     toUserId: v.id("users"),

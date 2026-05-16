@@ -11,7 +11,7 @@ export default function OpenSourceExplorePage() {
       primaryActions={[
         { href: "/explore/github-tools", label: "GitHub tools", description: "Jump into practical tool and framework discovery.", icon: FolderGit2 },
         { href: "/research/link-analysis", label: "Analyze repo URL", description: "Turn a GitHub link into a research report shell.", icon: Sparkles },
-        { href: "/ideas", label: "Generate startup ideas", description: "Save startup concepts inspired by repos like TanStack or Ollama.", icon: GitFork },
+        { href: "/roadmap", label: "Generate roadmap", description: "Turn strong repos into a structured build or learning roadmap.", icon: GitFork },
         { href: "/vaults/ai-tools", label: "Save to AI tools vault", description: "Curate repos and docs into a reusable vault.", icon: BookOpen },
       ]}
       panels={[

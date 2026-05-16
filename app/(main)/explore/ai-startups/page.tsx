@@ -10,7 +10,7 @@ export default function AiStartupsExplorePage() {
       accent="var(--accent-blue)"
       primaryActions={[
         { href: "/research/reports", label: "AI startup reports", description: "Save summaries, opportunities, and risk scans.", icon: Bot },
-        { href: "/ideas", label: "Opportunity ideas", description: "Turn patterns into new product concepts.", icon: TrendingUp },
+        { href: "/roadmap", label: "Opportunity roadmap", description: "Turn patterns into structured product and execution paths.", icon: TrendingUp },
         { href: "/vaults/markets", label: "Market vault", description: "Keep AI sector notes, links, and competitor maps together.", icon: Compass },
         { href: "/research/competitors", label: "Compare categories", description: "Inspect crowded vs. open AI segments.", icon: Radar },
       ]}

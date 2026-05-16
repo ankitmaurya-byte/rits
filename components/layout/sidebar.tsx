@@ -43,7 +43,6 @@ const workspaceLinks = [
   { href: "/workspace/todos", label: "Kanban", icon: CheckSquare },
   { href: "/workspace/notes", label: "Confluence", icon: FileText },
   { href: "/workspace/resources", label: "Resources", icon: Link2 },
-  { href: "/workspace/members", label: "Members", icon: Users },
 ];
 
 const productLinks = [

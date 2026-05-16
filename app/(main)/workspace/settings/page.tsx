@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function WorkspaceMembersPage() {
+export default function WorkspaceSettingsPage() {
   redirect("/workspace/settings/members");
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useWorkspaceStore } from "@/store/workspace-store";
@@ -13,6 +14,7 @@ import {
   UserPlus,
   Check,
   Building2,
+  Settings,
 } from "lucide-react";
 
 export function WorkspaceSwitcher() {
@@ -21,7 +23,8 @@ export function WorkspaceSwitcher() {
   const [showJoin, setShowJoin] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const { user } = useUser();
-  const workspaces = useQuery(api.workspaces.getMyWorkspaces, user ? { clerkId: user.id } : "skip") ?? [];
+  const workspacesQuery = useQuery(api.workspaces.getMyWorkspaces, user ? { clerkId: user.id } : "skip");
+  const workspaces = useMemo(() => workspacesQuery ?? [], [workspacesQuery]);
   const { selectedWorkspaceId, setSelectedWorkspace } = useWorkspaceStore();
 
   const selected = workspaces.find((w) => w?._id === selectedWorkspaceId) ?? workspaces[0] ?? null;
@@ -138,6 +141,19 @@ export function WorkspaceSwitcher() {
                 <UserPlus size={14} style={{ color: "var(--mute)" }} />
                 Join workspace
               </button>
+              {selected ? (
+                <Link
+                  href="/workspace/settings"
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors"
+                  style={{ color: "var(--charcoal)" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--surface-deep)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                >
+                  <Settings size={14} style={{ color: "var(--mute)" }} />
+                  Workspace settings
+                </Link>
+              ) : null}
             </div>
           </div>
         )}

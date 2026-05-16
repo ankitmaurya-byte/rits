@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { useWorkspaceStore } from "@/store/workspace-store";
 import { Id } from "@/convex/_generated/dataModel";
-import { Plus, FileText, Trash2, Save, Clock, Menu, Users } from "lucide-react";
+import { Plus, FileText, Trash2, Clock, Menu, Users } from "lucide-react";
 import { toast } from "sonner";
 import { NoteEditor } from "@/components/notes/editor";
 import { formatDistanceToNow } from "date-fns";
@@ -47,21 +47,22 @@ export default function WorkspaceNotesPage() {
     setSelectedId(id); setEditTitle(title); setEditContent(content);
   };
 
-  const handleSave = async () => {
+  useEffect(() => {
     const noteId = selectedId ?? autoSelectedNote?._id;
-    if (!noteId) return;
+    if (!noteId || !activeNote) return;
+    if (editTitle === activeNote.title && editContent === activeNote.content) return;
 
-    setSaving(true);
-    try {
-      await updateNote({
-        id: noteId,
-        title: selectedNote ? editTitle : autoSelectedNote?.title ?? "",
-        content: selectedNote ? editContent : autoSelectedNote?.content ?? "",
-      });
-      toast.success("Note saved");
-    }
-    finally { setSaving(false); }
-  };
+    const timeoutId = window.setTimeout(() => {
+      setSaving(true);
+      void updateNote({ id: noteId, title: editTitle, content: editContent })
+        .catch((error) => {
+          toast.error(error instanceof Error ? error.message : "Failed to save note.");
+        })
+        .finally(() => setSaving(false));
+    }, 700);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeNote, autoSelectedNote, editContent, editTitle, selectedId, updateNote]);
 
   const handleCreate = async () => {
     if (!selectedWorkspaceId || !newTitle.trim()) { toast.error("Title is required"); return; }
@@ -159,7 +160,7 @@ export default function WorkspaceNotesPage() {
                 }
                 setEditTitle(e.target.value);
                }} className="flex-1 text-xl font-medium outline-none bg-transparent" style={{ color: "var(--ink)" }} placeholder="Confluence page title..." />
-              <button onClick={handleSave} disabled={saving} className="btn-outline"><Save size={16} />{saving ? "Saving..." : "Save"}</button>
+              <span className="text-sm" style={{ color: saving ? "var(--body)" : "var(--mute)" }}>{saving ? "Saving..." : "Autosaved"}</span>
             </div>
             <div className="flex-1 overflow-auto p-8 lg:p-12 relative z-10">
               <div className="max-w-3xl mx-auto stripe-card" style={{ padding: "0" }}>

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWorkspace } from "@/lib/use-workspace";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-import { Plus, FileText, Trash2, Save, Clock, Menu } from "lucide-react";
+import { Plus, FileText, Trash2, Clock, Menu } from "lucide-react";
 import { toast } from "sonner";
 import { NoteEditor } from "@/components/notes/editor";
 import { formatDistanceToNow } from "date-fns";
@@ -34,14 +34,21 @@ export default function NotesPage() {
     setSelectedId(id); setEditTitle(title); setEditContent(content);
   };
 
-  const handleSave = async () => {
-    if (!selectedId) return;
-    setSaving(true);
-    try {
-      await updateNote({ id: selectedId, title: editTitle, content: editContent });
-      toast.success("Note saved");
-    } finally { setSaving(false); }
-  };
+  useEffect(() => {
+    if (!selectedId || !selectedNote) return;
+    if (editTitle === selectedNote.title && editContent === selectedNote.content) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setSaving(true);
+      void updateNote({ id: selectedId, title: editTitle, content: editContent })
+        .catch((error) => {
+          toast.error(error instanceof Error ? error.message : "Failed to save note.");
+        })
+        .finally(() => setSaving(false));
+    }, 700);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [editContent, editTitle, selectedId, selectedNote, updateNote]);
 
   const handleCreate = async () => {
     if (!workspaceId || !newTitle.trim()) { toast.error("Title is required"); return; }
@@ -50,7 +57,7 @@ export default function NotesPage() {
       setNewTitle(""); setShowCreate(false);
       handleSelect(id as Id<"notes">, newTitle.trim(), "");
       toast.success("Note created!");
-    } catch (e) {
+    } catch {
       toast.error("Failed to create note.");
     }
   };
@@ -224,14 +231,9 @@ export default function NotesPage() {
                 placeholder="Note title..."
               />
               
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="btn-outline"
-              >
-                <Save size={16} />
-                {saving ? "Saving..." : "Save"}
-              </button>
+              <span className="text-sm" style={{ color: saving ? "var(--body)" : "var(--mute)" }}>
+                {saving ? "Saving..." : "Autosaved"}
+              </span>
             </div>
             
             {/* Editor Content */}

@@ -195,6 +195,8 @@ function CreateWorkspaceChatModal({
 function PeopleDrawer({
   open,
   onClose,
+  searchValue,
+  onSearchChange,
   directory,
   requests,
   recommended,
@@ -204,6 +206,8 @@ function PeopleDrawer({
 }: {
   open: boolean;
   onClose: () => void;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
   directory: Array<{ _id: Id<"users">; name: string; email: string; isFriend: boolean; hasPendingRequest: boolean }>;
   requests: Array<{ _id: Id<"friendRequests">; fromUser: { _id: Id<"users">; name: string } | null }>;
   recommended: Array<{ _id: Id<"users">; name: string; mutualCount: number; hasPendingRequest: boolean }>;
@@ -222,6 +226,17 @@ function PeopleDrawer({
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="mb-6 relative">
+          <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
+          <input
+            value={searchValue}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search people in this app"
+            className="h-11 w-full rounded-full border pl-11 pr-4 text-sm outline-none"
+            style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline)", color: "var(--ink)" }}
+          />
+        </div>
+
         <section className="mb-6">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Friend requests</p>
           <div className="space-y-2">
@@ -341,6 +356,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
   const { selectedWorkspaceId } = useWorkspaceStore();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [searchValue, setSearchValue] = useState("");
+  const [peopleSearchValue, setPeopleSearchValue] = useState("");
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [composer, setComposer] = useState("");
@@ -356,7 +372,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
   const workspaceRooms = (useQuery(api.socialChats.listWorkspaceRooms, mode === "workspace" && selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : "skip") ?? []) as RoomSummary[];
   const friendRequests = (useQuery(api.social.listFriendRequests, user ? {} : "skip") ?? []) as FriendRequestItem[];
   const recommended = (useQuery(api.social.recommendedFriends, user ? {} : "skip") ?? []) as RecommendedPerson[];
-  const directory = (useQuery(api.social.searchPeople, user ? { search: searchValue } : "skip") ?? []) as DirectoryPerson[];
+  const directory = (useQuery(api.social.searchPeople, user ? { search: peopleSearchValue } : "skip") ?? []) as DirectoryPerson[];
 
   const activeRooms = mode === "private" ? privateRooms : workspaceRooms;
   const activeSelectedId = mode === "private" ? selectedPrivateRoomId ?? privateRooms[0]?._id ?? null : selectedWorkspaceRoomId ?? workspaceRooms[0]?._id ?? null;
@@ -367,14 +383,12 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
   const privateIdeasQuery = useQuery(api.ideas.getPrivateIdeas, mode === "private" && convexUser ? { createdBy: convexUser._id } : "skip");
   const privateResourcesQuery = useQuery(api.resources.getPrivateResources, mode === "private" && convexUser ? { createdBy: convexUser._id } : "skip");
   const workspaceNotesQuery = useQuery(api.notes.getNotes, mode === "workspace" && selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : "skip");
-  const workspaceIdeasQuery = useQuery(api.ideas.getIdeas, mode === "workspace" && selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : "skip");
   const workspaceResourcesQuery = useQuery(api.resources.getResources, mode === "workspace" && selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : "skip");
 
   const privateNotes = privateNotesQuery ?? [];
   const privateIdeas = privateIdeasQuery ?? [];
   const privateResources = privateResourcesQuery ?? [];
   const workspaceNotes = workspaceNotesQuery ?? [];
-  const workspaceIdeas = workspaceIdeasQuery ?? [];
   const workspaceResources = workspaceResourcesQuery ?? [];
 
   const startDirectRoom = useMutation(api.socialChats.createDirectRoom);
@@ -389,7 +403,15 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
   const createIdea = useMutation(api.ideas.createIdea);
   const createResource = useMutation(api.resources.createResource);
 
-  const shareKind = composer.startsWith("/link") ? "resource" : composer.startsWith("/ideas") ? "idea" : composer.startsWith("/notes") ? "note" : null;
+  const shareKind = composer.startsWith("/link")
+    ? "resource"
+    : mode === "private" && composer.startsWith("/ideas")
+      ? "idea"
+      : mode === "workspace" && composer.startsWith("/confluence")
+        ? "note"
+        : mode === "private" && composer.startsWith("/notes")
+          ? "note"
+          : null;
 
   const shareItems = (() => {
     if (shareKind === "resource") {
@@ -397,7 +419,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
       return source.slice(0, 8).map((item) => ({ title: item.url, description: item.description, meta: item.url }));
     }
     if (shareKind === "idea") {
-      const source = mode === "private" ? privateIdeas : workspaceIdeas;
+      const source = privateIdeas;
       return source.slice(0, 8).map((item) => ({ title: item.title, description: item.description, meta: item.tags.join(", ") || "Idea" }));
     }
     if (shareKind === "note") {
@@ -485,8 +507,8 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
         });
       } else if (message.shareType === "idea") {
         await createIdea({
-          scope: mode,
-          workspaceId: mode === "workspace" ? selectedWorkspaceId ?? undefined : undefined,
+          scope: "private",
+          workspaceId: undefined,
           title: message.shareTitle,
           description: message.shareDescription ?? "",
           tags: [],
@@ -666,7 +688,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
                 <div className="flex items-end gap-3 rounded-[20px] border px-3 py-2" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
                   <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><Plus size={18} /></button>
                   <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><UserRound size={18} /></button>
-                  <textarea value={composer} onChange={(event) => setComposer(event.target.value)} rows={1} placeholder="Type a message or use /link, /ideas, /notes" className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent py-2 text-sm outline-none" style={{ color: "var(--ink)" }} />
+                  <textarea value={composer} onChange={(event) => setComposer(event.target.value)} rows={1} placeholder={mode === "private" ? "Type a message or use /link, /ideas, /notes" : "Type a message or use /link, /confluence"} className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent py-2 text-sm outline-none" style={{ color: "var(--ink)" }} />
                   <button type="button" onClick={() => setAiMenuOpen((current) => !current)} className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--accent-green)" }}><WandSparkles size={18} /></button>
                   <button type="button" onClick={() => void handleSend()} className="rounded-full px-4 py-2 text-sm font-medium" style={{ backgroundColor: "var(--accent-green)", color: "#02160e" }}>Send</button>
                 </div>
@@ -691,6 +713,8 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
           <PeopleDrawer
             open={peopleOpen}
             onClose={() => setPeopleOpen(false)}
+            searchValue={peopleSearchValue}
+            onSearchChange={setPeopleSearchValue}
             directory={directory}
             requests={friendRequests}
             recommended={recommended}

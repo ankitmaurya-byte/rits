@@ -78,7 +78,7 @@ export default function PrivateNotesPage() {
         <div className="flex items-center justify-between px-5 py-4 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
           <div className="flex items-center gap-2">
             <Lock size={11} style={{ color: "var(--mute)" }} />
-            <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>Private Notes ({notes?.length ?? 0})</span>
+            <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>Private Confluence ({notes?.length ?? 0})</span>
           </div>
           <button onClick={() => setShowCreate(true)} className="p-1.5 rounded-md transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--body)" }}>
             <Plus size={18} />
@@ -87,7 +87,7 @@ export default function PrivateNotesPage() {
 
         {showCreate && (
           <div className="p-4 border-b z-10 relative" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
-            <input autoFocus placeholder="Note title..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+            <input autoFocus placeholder="Confluence page title..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(false); }}
               className="input-field mb-3" />
             <div className="flex gap-2">
@@ -101,7 +101,7 @@ export default function PrivateNotesPage() {
           {notes?.length === 0 && !showCreate && (
             <div className="flex flex-col items-center justify-center h-full text-center p-6">
               <FileText size={24} className="mb-4" style={{ color: "var(--stone)" }} />
-              <p className="text-sm font-medium mb-1" style={{ color: "var(--charcoal)" }}>No private notes yet</p>
+              <p className="text-sm font-medium mb-1" style={{ color: "var(--charcoal)" }}>No private Confluence pages yet</p>
             </div>
           )}
           {notes?.map((note) => {
@@ -147,7 +147,7 @@ export default function PrivateNotesPage() {
                   handleSelect(autoSelectedNote._id, autoSelectedNote.title, autoSelectedNote.content);
                 }
                 setEditTitle(e.target.value);
-              }} className="flex-1 text-xl font-medium outline-none bg-transparent" style={{ color: "var(--ink)" }} placeholder="Note title..." />
+               }} className="flex-1 text-xl font-medium outline-none bg-transparent" style={{ color: "var(--ink)" }} placeholder="Confluence page title..." />
               <button onClick={handleSave} disabled={saving} className="btn-outline"><Save size={16} />{saving ? "Saving..." : "Save"}</button>
             </div>
             <div className="flex-1 overflow-auto p-8 lg:p-12 relative z-10">
@@ -164,10 +164,10 @@ export default function PrivateNotesPage() {
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center relative z-10">
             <FileText size={48} className="mb-8" style={{ color: "var(--stone)" }} />
-            <h3 className="text-xl font-medium mb-3" style={{ color: "var(--ink)" }}>Select a note to view</h3>
-            <p className="mb-10 max-w-sm" style={{ color: "var(--charcoal)" }}>Your private notes  only visible to you.</p>
+            <h3 className="text-xl font-medium mb-3" style={{ color: "var(--ink)" }}>Select a Confluence page to view</h3>
+            <p className="mb-10 max-w-sm" style={{ color: "var(--charcoal)" }}>Your private long-form docs, notes, and personal knowledge pages.</p>
             <button onClick={() => { setSidebarOpen(true); setShowCreate(true); }} className="btn-primary">
-              <Plus size={16} /> Create Private Note
+              <Plus size={16} /> Create Private Confluence Page
             </button>
           </div>
         )}

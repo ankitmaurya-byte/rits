@@ -15,6 +15,7 @@ import type * as chatContext from "../chatContext.js";
 import type * as githubTools from "../githubTools.js";
 import type * as ideas from "../ideas.js";
 import type * as notes from "../notes.js";
+import type * as researchOutputs from "../researchOutputs.js";
 import type * as resources from "../resources.js";
 import type * as social from "../social.js";
 import type * as socialChats from "../socialChats.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   githubTools: typeof githubTools;
   ideas: typeof ideas;
   notes: typeof notes;
+  researchOutputs: typeof researchOutputs;
   resources: typeof resources;
   social: typeof social;
   socialChats: typeof socialChats;

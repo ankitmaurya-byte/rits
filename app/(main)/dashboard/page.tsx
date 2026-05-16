@@ -4,12 +4,11 @@ import { useWorkspace } from "@/lib/use-workspace";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
-import { IdeaDescription } from "@/components/ideas/idea-text";
 import {
   Compass,
-  Lightbulb,
   CheckSquare,
   FileText,
+  MessageSquare,
   TrendingUp,
   ArrowRight,
   FolderKanban,
@@ -22,7 +21,7 @@ export default function DashboardPage() {
   const { workspaceId, isLoading } = useWorkspace();
   const { user } = useUser();
 
-  const ideas = useQuery(api.ideas.getIdeas, workspaceId ? { workspaceId } : "skip");
+  const chats = useQuery(api.socialChats.listWorkspaceRooms, workspaceId ? { workspaceId } : "skip");
   const todos = useQuery(api.todos.getTodos, workspaceId ? { workspaceId } : "skip");
   const notes = useQuery(api.notes.getNotes, workspaceId ? { workspaceId } : "skip");
 
@@ -49,12 +48,12 @@ export default function DashboardPage() {
 
   const stats = [
     {
-      label: "Active Ideas",
-      value: ideas?.length ?? 0,
-      icon: Lightbulb,
+      label: "Workspace Chats",
+      value: chats?.length ?? 0,
+      icon: MessageSquare,
       color: "var(--accent-yellow)",
-      href: "/ideas",
-      meta: "Needs action",
+      href: "/workspace/chats",
+      meta: "Objective threads",
     },
     {
       label: "Pending Tasks",
@@ -73,12 +72,12 @@ export default function DashboardPage() {
       meta: completionRate > 50 ? "On track" : "Needs attention",
     },
     {
-      label: "Document Notes",
+      label: "Confluence Pages",
       value: notes?.length ?? 0,
       icon: FileText,
       color: "var(--primary)",
-      href: "/notes",
-      meta: "Drafts and final",
+      href: "/workspace/notes",
+      meta: "Shared workspace docs",
     },
   ];
 
@@ -200,36 +199,36 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
         
-        {/* Recent Ideas */}
+        {/* Recent Confluence */}
         <div className="feature-card flex flex-col p-0">
           <div className="px-8 py-6 border-b flex items-center justify-between" style={{ borderColor: "var(--divider-soft)" }}>
             <div className="flex items-center gap-3">
-              <Lightbulb size={16} style={{ color: "var(--accent-yellow)" }} />
-              <h3 className="text-base font-medium" style={{ color: "var(--ink)" }}>Recent Ideas</h3>
+              <FileText size={16} style={{ color: "var(--primary)" }} />
+              <h3 className="text-base font-medium" style={{ color: "var(--ink)" }}>Recent Confluence</h3>
             </div>
-            <Link href="/ideas" className="text-sm font-medium hover:underline" style={{ color: "var(--body)" }}>
+            <Link href="/workspace/notes" className="text-sm font-medium hover:underline" style={{ color: "var(--body)" }}>
               View all
             </Link>
           </div>
 
           <div className="p-2 flex-1">
-            {ideas?.length === 0 ? (
+            {notes?.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-                <Lightbulb size={24} style={{ color: "var(--stone)", marginBottom: "12px" }} />
-                <p className="text-sm" style={{ color: "var(--charcoal)" }}>No ideas captured yet.</p>
+                <FileText size={24} style={{ color: "var(--stone)", marginBottom: "12px" }} />
+                <p className="text-sm" style={{ color: "var(--charcoal)" }}>No Confluence pages yet.</p>
               </div>
             ) : (
               <ul className="space-y-1">
-                {ideas?.slice(0, 5).map((idea) => (
-                  <li key={idea._id}>
-                    <Link href={`/ideas`} className="flex items-start gap-4 p-4 rounded-md transition-colors group hover:bg-[var(--surface-elevated)]">
-                      <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: "var(--accent-yellow)" }} />
+                {notes?.slice(0, 5).map((note) => (
+                  <li key={note._id}>
+                    <Link href={`/workspace/notes?note=${note._id}`} className="flex items-start gap-4 p-4 rounded-md transition-colors group hover:bg-[var(--surface-elevated)]">
+                      <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: "var(--primary)" }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate mb-1" style={{ color: "var(--ink)" }}>{idea.title}</p>
-                        {idea.description ? (
-                          <IdeaDescription className="text-xs line-clamp-2" style={{ color: "var(--charcoal)" }} description={idea.description} />
+                        <p className="text-sm font-medium truncate mb-1" style={{ color: "var(--ink)" }}>{note.title}</p>
+                        {note.content ? (
+                          <p className="text-xs line-clamp-2" style={{ color: "var(--charcoal)" }}>{note.content.replace(/<[^>]+>/g, " ").trim()}</p>
                         ) : (
-                          <p className="text-xs truncate" style={{ color: "var(--charcoal)" }}>No description provided.</p>
+                          <p className="text-xs truncate" style={{ color: "var(--charcoal)" }}>No content yet.</p>
                         )}
                       </div>
                     </Link>

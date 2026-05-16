@@ -15,6 +15,7 @@ import {
   Lightbulb,
   CheckSquare,
   FileText,
+  Layers3,
   Link2,
   Rocket,
   Users,
@@ -32,16 +33,15 @@ import { useWorkspaceStore } from "@/store/workspace-store";
 
 const privateLinks = [
   { href: "/private/ideas", label: "Ideas", icon: Lightbulb },
-  { href: "/private/todos", label: "Todos", icon: CheckSquare },
-  { href: "/private/notes", label: "Notes", icon: FileText },
+  { href: "/private/todos", label: "Kanban", icon: CheckSquare },
+  { href: "/private/notes", label: "Confluence", icon: FileText },
   { href: "/private/resources", label: "Resources", icon: Link2 },
 ];
 
 const workspaceLinks = [
   { href: "/workspace/chats", label: "Chats", icon: MessageSquare },
-  { href: "/workspace/ideas", label: "Ideas", icon: Lightbulb },
-  { href: "/workspace/todos", label: "Todos", icon: CheckSquare },
-  { href: "/workspace/notes", label: "Notes", icon: FileText },
+  { href: "/workspace/todos", label: "Kanban", icon: CheckSquare },
+  { href: "/workspace/notes", label: "Confluence", icon: FileText },
   { href: "/workspace/resources", label: "Resources", icon: Link2 },
   { href: "/workspace/members", label: "Members", icon: Users },
 ];
@@ -60,8 +60,7 @@ const exploreLinks = [
 ];
 
 const researchLinks = [
-  { href: "/research/link-analysis", label: "Link Analysis", icon: Link2 },
-  { href: "/research/files", label: "Files", icon: FileText },
+  { href: "/research/reports", label: "Analysis", icon: Layers3 },
   { href: "/research/competitors", label: "Competitors", icon: Users },
   { href: "/research/reports", label: "AI Reports", icon: Bot },
   { href: "/research/mvp-lab", label: "MVP Lab", icon: Rocket },

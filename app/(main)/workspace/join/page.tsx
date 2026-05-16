@@ -41,9 +41,9 @@ function JoinContent() {
       setSelectedWorkspace(workspaceId);
       setJoined(true);
       toast.success(`Joined "${workspace?.name}"!`);
-      setTimeout(() => router.push("/workspace/ideas"), 1500);
-    } catch (e: any) {
-      toast.error(e.message || "Failed to join workspace");
+      setTimeout(() => router.push("/workspace/chats"), 1500);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to join workspace");
     } finally {
       setJoining(false);
     }
@@ -77,7 +77,7 @@ function JoinContent() {
     return (
       <div className="flex flex-col items-center text-center">
         <CheckCircle2 size={48} className="mb-4" style={{ color: "var(--accent-green)" }} />
-        <h2 className="text-2xl font-medium mb-2" style={{ color: "var(--ink)" }}>You're in!</h2>
+        <h2 className="text-2xl font-medium mb-2" style={{ color: "var(--ink)" }}>You&apos;re in!</h2>
         <p style={{ color: "var(--charcoal)" }}>Redirecting to {workspace.name}...</p>
       </div>
     );
@@ -89,7 +89,7 @@ function JoinContent() {
         style={{ backgroundColor: "var(--surface-elevated)", color: "var(--ink)", border: "1px solid var(--hairline-strong)" }}>
         {workspace.name[0]}
       </div>
-      <p className="text-xs uppercase tracking-widest font-medium mb-2" style={{ color: "var(--mute)" }}>You've been invited to join</p>
+      <p className="text-xs uppercase tracking-widest font-medium mb-2" style={{ color: "var(--mute)" }}>You&apos;ve been invited to join</p>
       <h2 className="text-3xl font-semibold tracking-tight mb-2" style={{ color: "var(--ink)" }}>{workspace.name}</h2>
       {workspace.description && (
         <p className="mb-8 max-w-sm" style={{ color: "var(--charcoal)" }}>{workspace.description}</p>

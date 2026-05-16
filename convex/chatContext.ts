@@ -245,7 +245,7 @@ export const buildAssistantContext = internalQuery({
           ]
             .filter(Boolean)
             .join("\n"),
-          href: "/workspace/ideas",
+          href: "/private/ideas",
           workspaceId: idea.workspaceId,
           workspaceName: idea.workspaceId
             ? workspaceNameById.get(idea.workspaceId)

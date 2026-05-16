@@ -20,10 +20,10 @@ const pageTitles: Record<string, string> = {
   "/explore/github-tools": "Explore · GitHub Tools",
   "/explore/ai-startups": "Explore · AI Startups",
   "/research": "Research",
-  "/research/link-analysis": "Research · Link Analysis",
-  "/research/files": "Research · Files",
+  "/research/link-analysis": "Research · Analysis",
+  "/research/files": "Research · Analysis",
   "/research/competitors": "Research · Competitors",
-  "/research/reports": "Research · AI Reports",
+  "/research/reports": "Research · Analysis",
   "/research/mvp-lab": "Research · MVP Lab",
   "/vaults": "Vaults",
   "/vaults/startups": "Vaults · Startups",
@@ -37,14 +37,13 @@ const pageTitles: Record<string, string> = {
   "/startups": "Startup Directory",
   "/private/ideas": "Private · Ideas",
   "/private/chats": "Private · Chats",
-  "/private/todos": "Private · Todos",
-  "/private/notes": "Private · Notes",
+  "/private/todos": "Private · Kanban",
+  "/private/notes": "Private · Confluence",
   "/private/resources": "Private · Resources",
   "/private/vaults": "Private · Vaults",
   "/workspace/chats": "Workspace · Chats",
-  "/workspace/ideas": "Workspace · Ideas",
-  "/workspace/todos": "Workspace · Todos",
-  "/workspace/notes": "Workspace · Notes",
+  "/workspace/todos": "Workspace · Kanban",
+  "/workspace/notes": "Workspace · Confluence",
   "/workspace/resources": "Workspace · Resources",
   "/workspace/vaults": "Workspace · Vaults",
   "/workspace/members": "Workspace · Members",
@@ -63,10 +62,10 @@ const searchEntries = [
   { href: "/explore/github-tools", title: "GitHub Tools", keywords: ["github", "frameworks", "tools"] },
   { href: "/explore/ai-startups", title: "AI Startups", keywords: ["ai companies", "models", "copilots"] },
   { href: "/research", title: "Research", keywords: ["analysis", "reports", "intelligence"] },
-  { href: "/research/link-analysis", title: "Link Analysis", keywords: ["url", "website", "summary"] },
-  { href: "/research/files", title: "Research Files", keywords: ["drive", "docs", "folders"] },
+  { href: "/research/link-analysis", title: "Analysis", keywords: ["url", "website", "summary", "analysis"] },
+  { href: "/research/files", title: "Analysis", keywords: ["drive", "docs", "folders", "analysis"] },
   { href: "/research/competitors", title: "Competitors", keywords: ["market map", "rivals", "alternatives"] },
-  { href: "/research/reports", title: "AI Reports", keywords: ["briefs", "reports", "structured docs"] },
+  { href: "/research/reports", title: "Analysis", keywords: ["briefs", "reports", "structured docs", "analysis"] },
   { href: "/research/mvp-lab", title: "MVP Lab", keywords: ["builder", "landing page", "spec"] },
   { href: "/vaults", title: "Vaults", keywords: ["collections", "knowledge", "curation"] },
   { href: "/vaults/startups", title: "Startup Vaults", keywords: ["companies", "founders", "watchlist"] },
@@ -80,14 +79,13 @@ const searchEntries = [
   { href: "/startups", title: "Startup Directory", keywords: ["companies", "directory"] },
   { href: "/private/ideas", title: "Private Ideas", keywords: ["personal ideas"] },
   { href: "/private/chats", title: "Private Chats", keywords: ["friends", "direct messages"] },
-  { href: "/private/todos", title: "Private Todos", keywords: ["personal tasks"] },
-  { href: "/private/notes", title: "Private Notes", keywords: ["personal notes"] },
+  { href: "/private/todos", title: "Private Kanban", keywords: ["personal tasks", "kanban"] },
+  { href: "/private/notes", title: "Private Confluence", keywords: ["personal docs", "confluence"] },
   { href: "/private/resources", title: "Private Resources", keywords: ["personal links"] },
   { href: "/private/vaults", title: "Private Vaults", keywords: ["personal vaults", "assets", "images"] },
   { href: "/workspace/chats", title: "Workspace Chats", keywords: ["team chat", "workspace rooms"] },
-  { href: "/workspace/ideas", title: "Workspace Ideas", keywords: ["team ideas"] },
-  { href: "/workspace/todos", title: "Workspace Todos", keywords: ["team tasks"] },
-  { href: "/workspace/notes", title: "Workspace Notes", keywords: ["team notes"] },
+  { href: "/workspace/todos", title: "Workspace Kanban", keywords: ["team tasks", "kanban"] },
+  { href: "/workspace/notes", title: "Workspace Confluence", keywords: ["team docs", "confluence", "knowledge base"] },
   { href: "/workspace/resources", title: "Workspace Resources", keywords: ["team resources"] },
   { href: "/workspace/vaults", title: "Workspace Vaults", keywords: ["team vaults", "shared assets"] },
   { href: "/workspace/members", title: "Workspace Members", keywords: ["team", "people"] },
@@ -157,6 +155,10 @@ export default function MainLayout({
       : pathname.startsWith("/workspace/vaults/")
         ? "Workspace · Vault"
         : "Rits");
+  const hideFloatingAiButton =
+    pathname === "/chats" ||
+    pathname === "/private/chats" ||
+    pathname === "/workspace/chats";
 
   const openSearchResult = (href: string) => {
     setSearchValue("");
@@ -342,7 +344,7 @@ export default function MainLayout({
       </div>
 
       {/* Floating AI Button */}
-<div className="fixed bottom-5 right-5 z-40 group">
+{!hideFloatingAiButton ? <div className="fixed bottom-5 right-5 z-40 group">
   {/* Pulse rings  use accent-blue-glow from design */}
   <span
     className="absolute inset-0 rounded-full animate-ping"
@@ -387,7 +389,7 @@ export default function MainLayout({
   >
     Chat with Rits AI
   </div>
-</div>
+ </div> : null}
         <ChatSheet open={isAiOpen} onOpenChange={setIsAiOpen} />
       </div>
     </ConfirmProvider>

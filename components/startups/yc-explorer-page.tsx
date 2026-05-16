@@ -452,7 +452,7 @@ export function YcExplorerPage() {
                       <Sparkles size={15} /> {analysisLoading ? "Analyzing..." : "Analyze with AI"}
                     </button>
                     <button onClick={() => void handleSaveAnalysisToPrivateNotes()} disabled={!analysisResult || loadingActionId === `${selectedStartup.id}-private-note`} className="btn-outline">
-                      <FileText size={15} /> {loadingActionId === `${selectedStartup.id}-private-note` ? "Saving..." : "Add in Private Notes"}
+                      <FileText size={15} /> {loadingActionId === `${selectedStartup.id}-private-note` ? "Saving..." : "Add in Private Confluence"}
                     </button>
                   </div>
                   <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>

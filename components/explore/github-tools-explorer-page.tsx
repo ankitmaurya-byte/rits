@@ -401,11 +401,7 @@ export function GithubToolsExplorerPage() {
         createdBy: convexUser._id,
       });
       toast.success("Added to ideas.");
-      if (defaultScope === "workspace") {
-        router.push("/workspace/ideas");
-      } else {
-        router.push("/private/ideas");
-      }
+      router.push("/private/ideas");
     } catch {
       toast.error("Failed to create idea.");
     } finally {

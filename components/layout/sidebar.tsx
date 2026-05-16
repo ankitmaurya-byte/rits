@@ -24,6 +24,7 @@ import {
   SearchCode,
   Telescope,
   MessageSquare,
+  Mail,
 } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 
@@ -58,6 +59,7 @@ const exploreLinks = [
 const researchLinks = [
   { href: "/research/reports", label: "Analysis", icon: Layers3 },
   { href: "/research/competitors", label: "Competitors", icon: Users },
+  { href: "/research/newsletters", label: "Newsletters", icon: Mail },
   { href: "/research/reports", label: "AI Reports", icon: Bot },
   { href: "/research/mvp-lab", label: "MVP Lab", icon: Rocket },
 ];

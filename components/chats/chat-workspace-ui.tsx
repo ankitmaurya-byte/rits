@@ -453,6 +453,15 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
     }
   };
 
+  const handleComposerKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+
+    event.preventDefault();
+    void handleSend();
+  };
+
   const handleShare = async (item: { title: string; description: string; meta: string }) => {
     if (!activeRoom || !shareKind) return;
     try {
@@ -688,7 +697,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
                 <div className="flex items-end gap-3 rounded-[20px] border px-3 py-2" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
                   <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><Plus size={18} /></button>
                   <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><UserRound size={18} /></button>
-                  <textarea value={composer} onChange={(event) => setComposer(event.target.value)} rows={1} placeholder={mode === "private" ? "Type a message or use /link, /ideas, /notes" : "Type a message or use /link, /confluence"} className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent py-2 text-sm outline-none" style={{ color: "var(--ink)" }} />
+                  <textarea value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={handleComposerKeyDown} rows={1} placeholder={mode === "private" ? "Type a message or use /link, /ideas, /notes" : "Type a message or use /link, /confluence"} className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent py-2 text-sm outline-none" style={{ color: "var(--ink)" }} />
                   <button type="button" onClick={() => setAiMenuOpen((current) => !current)} className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--accent-green)" }}><WandSparkles size={18} /></button>
                   <button type="button" onClick={() => void handleSend()} className="rounded-full px-4 py-2 text-sm font-medium" style={{ backgroundColor: "var(--accent-green)", color: "#02160e" }}>Send</button>
                 </div>

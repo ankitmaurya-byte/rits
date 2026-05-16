@@ -1,12 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
 import {
   ChevronRight,
   Copy,
@@ -96,6 +95,7 @@ function FolderTree({
 
 export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: string }) {
   const { user } = useUser();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { selectedWorkspaceId } = useWorkspaceStore();
   const convexUser = useQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
@@ -138,8 +138,12 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
   const createFile = useMutation(api.vaults.createFile);
   const deleteEntry = useMutation(api.vaults.deleteEntry);
 
-  const vaults = (scope === "workspace" ? workspaceVaults : privateVaults) ?? [];
+  const vaults = useMemo(
+    () => (scope === "workspace" ? workspaceVaults : privateVaults) ?? [],
+    [privateVaults, scope, workspaceVaults]
+  );
   const scopeLabel = scope === "workspace" ? workspace?.name ?? "Workspace" : "Private";
+  const defaultVault = vaults[0] ?? null;
 
   const uploadedImages = useMemo(
     () => (explorerData?.entries ?? []).filter((entry) => isImageFile(entry)),
@@ -275,6 +279,22 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
     }
   };
 
+  useEffect(() => {
+    if (vaultId || !defaultVault) {
+      return;
+    }
+
+    router.replace(buildVaultHref(scope, defaultVault._id));
+  }, [defaultVault, router, scope, vaultId]);
+
+  useEffect(() => {
+    if (!vaultId || activeVault !== null || vaults.length === 0) {
+      return;
+    }
+
+    router.replace(buildVaultHref(scope, vaults[0]!._id));
+  }, [activeVault, router, scope, vaultId, vaults]);
+
   if (scope === "workspace" && !selectedWorkspaceId) {
     return (
       <div className="page-container animate-fade-in-up flex flex-col items-center justify-center py-40 text-center">
@@ -309,7 +329,7 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
     );
   }
 
-  if (!vaultId) {
+  if (!vaultId && vaults.length === 0) {
     return (
       <div className="page-container animate-fade-in-up relative">
         <div
@@ -336,9 +356,9 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
               <h2 className="text-3xl font-medium tracking-tight mb-3" style={{ color: "var(--ink)" }}>
                 {scope === "workspace" ? "Workspace Vaults" : "Private Vaults"}
               </h2>
-              <p className="max-w-2xl text-sm font-medium" style={{ color: "var(--charcoal)" }}>
-                Open a vault from the sidebar dropdown or create a new one here. Each vault now supports nested folders and file uploads up to 1MB.
-              </p>
+               <p className="max-w-2xl text-sm font-medium" style={{ color: "var(--charcoal)" }}>
+                 Create your first vault here. After that, the vault nav opens straight into the explorer and lets you switch vaults from the top bar.
+               </p>
             </div>
             <button onClick={() => setShowCreateVault((current) => !current)} className="btn-primary">
               <Plus size={16} /> {showCreateVault ? "Close" : "Add New Vault"}
@@ -365,7 +385,7 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 relative z-10">
           {vaults.length === 0 ? (
             <div className="feature-card col-span-full flex flex-col items-center justify-center py-20 text-center">
               <FolderKanban size={36} className="mb-6" style={{ color: "var(--accent-green)" }} />
@@ -374,23 +394,21 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
                 Create your first vault, then use the explorer UI inside it to build nested folders and upload files.
               </p>
             </div>
-          ) : (
-            vaults.map((vault) => (
-              <Link key={vault._id} href={buildVaultHref(scope, vault._id)} className="feature-card flex cursor-pointer flex-col group relative overflow-hidden" style={{ padding: "24px" }}>
-                <div className="mb-4 flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-medium" style={{ color: "var(--ink)" }}>{vault.name}</h3>
-                    <p className="mt-2 text-sm leading-7" style={{ color: "var(--charcoal)" }}>{vault.description || "No description yet."}</p>
-                  </div>
-                  <FolderKanban size={18} style={{ color: "var(--accent-green)" }} />
-                </div>
-                <div className="mt-auto border-t pt-4 text-xs" style={{ borderColor: "var(--divider-soft)", color: "var(--mute)" }}>
-                  Updated {formatDistanceToNow(new Date(vault.updatedAt), { addSuffix: true })}
-                </div>
-                <div className="absolute top-0 left-0 right-0 h-1 opacity-0 transition-opacity group-hover:opacity-100" style={{ backgroundColor: "var(--accent-green)" }} />
-              </Link>
-            ))
-          )}
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (!vaultId) {
+    return (
+      <div className="page-container animate-fade-in-up">
+        <div className="skeleton h-10 w-52 mb-8" />
+        <div className="skeleton h-40 rounded-xl mb-8" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="skeleton h-56 rounded-xl" />
+          ))}
         </div>
       </div>
     );
@@ -439,9 +457,9 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
 
         <div className="border-b px-6 py-4 relative z-10" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
           <div className="mb-4 flex flex-wrap items-center gap-2 text-sm" style={{ color: "var(--charcoal)" }}>
-            <Link href={scope === "workspace" ? "/workspace/vaults" : "/private/vaults"} style={{ color: "var(--accent-blue)" }}>
-              Vaults
-            </Link>
+            <span style={{ color: "var(--accent-blue)" }}>
+              Vault
+            </span>
             <ChevronRight size={14} />
             <button type="button" onClick={() => setCurrentFolderId(null)} style={{ color: currentFolderId === null ? "var(--ink)" : "var(--accent-blue)" }}>
               {activeVault.name}
@@ -456,12 +474,27 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <select
+              value={activeVault._id}
+              onChange={(event) => router.push(buildVaultHref(scope, event.target.value))}
+              className="input-field min-w-[220px]"
+              aria-label="Select vault"
+            >
+              {vaults.map((vault) => (
+                <option key={vault._id} value={vault._id}>
+                  {vault.name}
+                </option>
+              ))}
+            </select>
             <button onClick={() => setShowCreateFolder((current) => !current)} className="btn-outline">
               <Plus size={15} /> New folder
             </button>
             <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFiles} className="btn-primary">
               <Upload size={15} /> {uploadingFiles ? "Uploading..." : "Upload files"}
+            </button>
+            <button onClick={() => setShowCreateVault((current) => !current)} className="btn-outline">
+              <Plus size={15} /> New vault
             </button>
             <input
               ref={fileInputRef}
@@ -477,6 +510,16 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
             />
             <p className="flex items-center text-xs" style={{ color: "var(--mute)" }}>1MB max per file</p>
           </div>
+
+          {showCreateVault ? (
+            <div className="mb-4 grid max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+              <input value={vaultName} onChange={(event) => setVaultName(event.target.value)} className="input-field" placeholder="Vault name" />
+              <input value={vaultDescription} onChange={(event) => setVaultDescription(event.target.value)} className="input-field" placeholder="Description (optional)" />
+              <button onClick={() => void handleCreateVault()} disabled={savingVault} className="btn-primary">
+                {savingVault ? "Creating..." : "Create vault"}
+              </button>
+            </div>
+          ) : null}
 
           {showCreateFolder ? (
             <div className="mt-4 flex max-w-xl gap-3">

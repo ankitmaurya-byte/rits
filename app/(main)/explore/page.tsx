@@ -6,12 +6,12 @@ export default function ExplorePage() {
     <HardcodedHubPage
       eyebrow="Explorer"
       title="Discover startups, tools, and ecosystems before everyone else."
-      description="This hard-coded Explore surface frames Rits as the discovery layer of your startup OS: YC companies, Shark Tank outcomes, open-source ecosystems, GitHub tools, AI startups, and trend-driven research collections."
+      description="This hard-coded Explore surface frames Rits as the discovery layer of your startup OS: YC companies, Shark Tank outcomes, tech network conversations, GitHub tools, AI startups, and trend-driven research collections."
       accent="var(--accent-orange)"
       primaryActions={[
         { href: "/explore/yc", label: "YC explorer", description: "Browse batches, sectors, founder patterns, and startup profiles.", icon: Rocket },
         { href: "/explore/sharktank", label: "Shark Tank", description: "Review pitch histories, investor signals, and outcome analysis.", icon: Telescope },
-        { href: "/explore/open-source", label: "Open source", description: "Map repositories, architecture, alternatives, and startup ideas.", icon: FolderGit2 },
+        { href: "/explore/open-source", label: "Tech feed", description: "Post tech takes, follow builders, and discuss product and engineering signals.", icon: FolderGit2 },
         { href: "/explore/github-tools", label: "GitHub tools", description: "Track agent frameworks, indie repos, and tool ecosystems.", icon: SearchCode },
       ]}
       panels={[

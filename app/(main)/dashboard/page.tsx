@@ -86,7 +86,7 @@ export default function DashboardPage() {
   const productLaunchers = [
     {
       title: "Explore",
-      description: "Discover YC companies, Shark Tank startups, open-source ecosystems, and GitHub tools.",
+      description: "Discover YC companies, Shark Tank startups, tech network signals, and GitHub tools.",
       href: "/explore",
       icon: Compass,
       color: "var(--accent-orange)",

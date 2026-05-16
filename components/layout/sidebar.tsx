@@ -25,6 +25,7 @@ import {
   Telescope,
   MessageSquare,
   Mail,
+  Flame,
 } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 
@@ -44,6 +45,7 @@ const workspaceLinks = [
 ];
 
 const productLinks = [
+  { href: "/feed", label: "Tech Feed", icon: Flame },
   { href: "/dashboard", label: "Dashboard", icon: Radar },
   { href: "/integrations", label: "Integrations", icon: PlugZap },
 ];
@@ -51,7 +53,7 @@ const productLinks = [
 const exploreLinks = [
   { href: "/explore/yc", label: "YC Explorer", icon: Rocket },
   { href: "/explore/sharktank", label: "Shark Tank", icon: Telescope },
-  { href: "/explore/open-source", label: "Open Source", icon: Blocks },
+  { href: "/explore/open-source", label: "Tech Feed", icon: Blocks },
   { href: "/explore/github-tools", label: "GitHub Tools", icon: SearchCode },
   { href: "/explore/ai-startups", label: "AI Startups", icon: Bot },
 ];

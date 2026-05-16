@@ -9,7 +9,7 @@ export default function AiToolsVaultsPage() {
       description="A curated home for models, repos, frameworks, tutorials, comparisons, and your own internal notes on the AI tooling landscape."
       accent="var(--accent-blue)"
       primaryActions={[
-        { href: "/explore/open-source", label: "Save open-source repos", description: "Collect repos, alternatives, and ecosystem notes.", icon: FolderGit2 },
+        { href: "/explore/open-source", label: "Open tech feed", description: "Track builder conversations, product signals, and technical discussion.", icon: FolderGit2 },
         { href: "/explore/github-tools", label: "Track frameworks", description: "Maintain a watchlist of agent and developer tooling.", icon: Blocks },
         { href: "/research/reports", label: "Store AI analyses", description: "Save deep comparisons and summary reports.", icon: Bot },
         { href: "/private/resources", label: "Keep references", description: "Preserve docs, videos, and learning material.", icon: GraduationCap },

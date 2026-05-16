@@ -7,21 +7,17 @@ import { Crown, UserPlus, Users, UserX } from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/convex/_generated/api";
+import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { InviteMemberDialog } from "@/components/workspace/invite-member-dialog";
 import { useConfirm } from "@/components/ui/confirm-provider";
 import { useWorkspaceStore } from "@/store/workspace-store";
 
-type WorkspaceMember = {
-  _id: string;
-  name?: string;
-  email?: string;
+type WorkspaceMember = Doc<"users"> & {
   role: string;
+  memberId: Id<"workspaceMembers">;
 };
 
-type PendingInvite = {
-  _id: string;
-  email: string;
-};
+type PendingInvite = Doc<"workspaceInvites">;
 
 export function WorkspaceMembersPanel() {
   const { user } = useUser();

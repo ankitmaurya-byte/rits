@@ -6,7 +6,7 @@ import { ProfileMenu } from "@/components/profile/profile-menu";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Search, Command, Menu, X, Home, Flame, Layers3, User } from "lucide-react";
+import { Bell, Search, Command, Menu, X, Home, Flame, Layers3 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ChatSheet } from "@/components/ai/chat-sheet";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
@@ -121,9 +121,9 @@ export default function MainLayout({
   const mobileNavItems = [
     { href: "/dashboard", label: "Home", icon: Home },
     { href: "/research", label: "Research", icon: Layers3 },
+    { href: "__ai__", label: "Rits AI", icon: null },
     { href: "/feed", label: "Feed", icon: Flame },
     { href: "/chats", label: "Chats", icon: Bell },
-    { href: "/profile", label: "Profile", icon: User },
   ];
 
   const matches = useMemo(() => {
@@ -327,7 +327,9 @@ export default function MainLayout({
 
   <div className="hidden sm:block w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
 
-  <ThemeToggle />
+  <div className="hidden sm:block">
+    <ThemeToggle />
+  </div>
 
   {/* Notifications */}
   <button
@@ -376,7 +378,7 @@ export default function MainLayout({
       </div>
 
       {/* Floating AI Button */}
-{!hideFloatingAiButton ? <div className="fixed bottom-5 right-5 z-40 group">
+ {!hideFloatingAiButton ? <div className="fixed bottom-5 right-5 z-40 group hidden md:block">
   {/* Pulse rings  use accent-blue-glow from design */}
   <span
     className="absolute inset-0 rounded-full animate-ping"
@@ -427,10 +429,11 @@ export default function MainLayout({
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t md:hidden" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "rgba(0,0,0,0.92)", backdropFilter: "blur(14px)" }}>
         <div className="grid grid-cols-5 gap-1 px-2 py-2">
           {mobileNavItems.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href || pathname.startsWith(href + "/");
+            const isAi = href === "__ai__";
+            const isActive = !isAi && (pathname === href || pathname.startsWith(href + "/"));
             return (
-              <button key={href} type="button" onClick={() => router.push(href)} className="flex flex-col items-center justify-center rounded-xl px-2 py-2 text-[11px] font-medium" style={{ color: isActive ? "var(--ink)" : "var(--mute)", backgroundColor: isActive ? "var(--surface-elevated)" : "transparent" }}>
-                <Icon size={16} />
+              <button key={href} type="button" onClick={() => { if (isAi) setIsAiOpen(true); else router.push(href); }} className="flex flex-col items-center justify-center rounded-xl px-2 py-2 text-[11px] font-medium" style={{ color: isAi ? "var(--ink)" : isActive ? "var(--ink)" : "var(--mute)", backgroundColor: isAi ? "var(--surface-elevated)" : isActive ? "var(--surface-elevated)" : "transparent" }}>
+                {isAi ? <RitsAiLogo size={16} /> : Icon ? <Icon size={16} /> : null}
                 <span className="mt-1">{label}</span>
               </button>
             );

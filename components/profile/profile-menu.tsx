@@ -14,6 +14,7 @@ import {
 
 import { api } from "@/convex/_generated/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -107,6 +108,13 @@ export function ProfileMenu() {
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
+
+        <DropdownMenuSeparator className="bg-[var(--hairline)] opacity-50" />
+
+        <div className="flex items-center justify-between px-3 py-2 text-sm" style={{ color: "var(--ink)" }}>
+          <span>Theme</span>
+          <ThemeToggle />
+        </div>
 
         <DropdownMenuSeparator className="bg-[var(--hairline)] opacity-50" />
 

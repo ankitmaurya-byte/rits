@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
-import { Plus, Lock, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles } from "lucide-react";
+import { Plus, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
 import {
@@ -168,14 +168,10 @@ export default function PrivateTodosPage() {
   };
 
   return (
-    <div className="page-container animate-fade-in-up relative h-full flex flex-col max-w-none overflow-hidden">
+    <div className="page-container animate-fade-in-up relative h-full flex flex-col max-w-none overflow-hidden" style={{ paddingTop: 12, paddingBottom: 12 }}>
       {/* Header */}
-      <div className="page-header border-b pb-8 mb-8 relative z-10 shrink-0 flex items-center justify-between" style={{ borderColor: "var(--hairline-strong)" }}>
+      <div className="page-header border-b pb-4 mb-4 relative z-10 shrink-0 flex items-center justify-between" style={{ borderColor: "var(--hairline-strong)" }}>
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Lock size={13} style={{ color: "var(--mute)" }} />
-            <span className="text-xs uppercase tracking-widest font-medium" style={{ color: "var(--mute)" }}>Private</span>
-          </div>
           <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>Kanban board</h2>
         </div>
         <button onClick={() => setShowCreateGroup(true)} className="btn-primary text-sm flex items-center gap-2 px-3">
@@ -187,7 +183,7 @@ export default function PrivateTodosPage() {
         onDragStart={(e) => { const task = todos?.find((t) => t._id === e.active.id); if (task) setActiveTask(task); }}
         onDragCancel={() => setActiveTask(null)}
         onDragEnd={handleDragEnd}>
-        <div className="flex flex-col gap-8 overflow-y-auto overflow-x-auto pb-12 flex-1 relative z-10">
+        <div className="flex flex-col gap-4 overflow-y-auto overflow-x-auto pb-6 flex-1 relative z-10">
           <div className="flex gap-6 pl-4 min-w-max">
             {STATUSES.map((status) => {
               const StatusIcon = status.icon;

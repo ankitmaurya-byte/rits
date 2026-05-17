@@ -203,13 +203,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .page-container {
-  padding: clamp(16px, 2.8vw, 48px);
+  padding: clamp(12px, 2vw, 32px);
   max-width: 1280px;
   margin: 0 auto;
 }
 
 .page-header {
-  margin-bottom: 48px;
+  margin-bottom: 20px;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;

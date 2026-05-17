@@ -6,7 +6,7 @@ import { ProfileMenu } from "@/components/profile/profile-menu";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Search, Command, Menu, X, Home, Flame, Layers3 } from "lucide-react";
+import { Bell, Search, Command, Menu, X, Home, Flame, Layers3, Filter } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ChatSheet } from "@/components/ai/chat-sheet";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
@@ -109,6 +109,10 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
+  type PageSearchFilter = "all" | "headings" | "actions" | "content";
+  type PageSearchKind = Exclude<PageSearchFilter, "all">;
+  type PageSearchItem = { id: string; label: string; kind: PageSearchKind; element: HTMLElement };
+
   const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const pathname = usePathname();
@@ -117,6 +121,13 @@ export default function MainLayout({
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const pageSearchRef = useRef<HTMLDivElement>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  const pageItemCounterRef = useRef(0);
+  const [pageQuery, setPageQuery] = useState("");
+  const [pageFilter, setPageFilter] = useState<PageSearchFilter>("all");
+  const [pageResults, setPageResults] = useState<PageSearchItem[]>([]);
+  const [pageSearchOpen, setPageSearchOpen] = useState(false);
 
   const mobileNavItems = [
     { href: "/dashboard", label: "Home", icon: Home },
@@ -146,6 +157,9 @@ export default function MainLayout({
     function handleClickOutside(event: MouseEvent) {
       if (!searchRef.current?.contains(event.target as Node)) {
         setSearchOpen(false);
+      }
+      if (!pageSearchRef.current?.contains(event.target as Node)) {
+        setPageSearchOpen(false);
       }
     }
 
@@ -182,6 +196,64 @@ export default function MainLayout({
     setSearchValue("");
     setSearchOpen(false);
     router.push(href);
+  };
+
+  const collectPageItems = (query: string, filter: PageSearchFilter) => {
+    const root = mainContentRef.current;
+    if (!root) return [] as PageSearchItem[];
+
+    const selectors = [
+      "[data-page-search]",
+      "h1",
+      "h2",
+      "h3",
+      "button",
+      "a",
+      "article",
+      "section",
+      "[role='button']",
+    ].join(",");
+
+    const normalized = query.trim().toLowerCase();
+
+    return Array.from(root.querySelectorAll<HTMLElement>(selectors))
+      .map((element) => {
+        const text = (element.dataset.pageSearch || element.textContent || "").replace(/\s+/g, " ").trim();
+        if (!text || text.length < 3) return null;
+        const tag = element.tagName.toLowerCase();
+        const kind: PageSearchKind = tag.startsWith("h") ? "headings" : tag === "button" || tag === "a" || element.getAttribute("role") === "button" ? "actions" : "content";
+        if (filter !== "all" && kind !== filter) return null;
+        if (normalized && !text.toLowerCase().includes(normalized)) return null;
+        if (!element.dataset.pageSearchId) {
+          pageItemCounterRef.current += 1;
+          element.dataset.pageSearchId = `page-item-${pageItemCounterRef.current}`;
+        }
+        return {
+          id: element.dataset.pageSearchId,
+          label: text.slice(0, 110),
+          kind,
+          element,
+        } satisfies PageSearchItem;
+      })
+      .filter((item): item is PageSearchItem => Boolean(item))
+      .slice(0, 8);
+  };
+
+  const updatePageResults = (nextQuery: string, nextFilter: PageSearchFilter) => {
+    const results = collectPageItems(nextQuery, nextFilter);
+    setPageResults(results);
+    setPageSearchOpen(true);
+  };
+
+  const jumpToPageItem = (item: PageSearchItem) => {
+    item.element.scrollIntoView({ behavior: "smooth", block: "center" });
+    item.element.style.outline = "1px solid rgba(59,158,255,0.85)";
+    item.element.style.outlineOffset = "4px";
+    window.setTimeout(() => {
+      item.element.style.outline = "";
+      item.element.style.outlineOffset = "";
+    }, 1400);
+    setPageSearchOpen(false);
   };
 
   return (
@@ -357,6 +429,63 @@ export default function MainLayout({
 </div>
         </header>
 
+        <div className="shrink-0 border-b px-3 py-2 sm:px-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--canvas)" }}>
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div ref={pageSearchRef} className="relative w-full lg:max-w-[420px]">
+              <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
+              <input
+                type="text"
+                value={pageQuery}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setPageQuery(next);
+                  updatePageResults(next, pageFilter);
+                }}
+                onFocus={() => updatePageResults(pageQuery, pageFilter)}
+                placeholder="Search this page"
+                className="h-[36px] w-full rounded-md pl-9 pr-3 text-sm outline-none"
+                style={{ backgroundColor: "var(--surface-card)", border: "1px solid var(--hairline-strong)", color: "var(--ink)" }}
+              />
+              {pageSearchOpen && pageResults.length > 0 ? (
+                <div className="absolute left-0 top-[calc(100%+8px)] z-50 w-full overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)", boxShadow: "0 18px 40px rgba(0,0,0,0.28)" }}>
+                  <div className="border-b px-3 py-2 text-[10px] uppercase tracking-[0.16em]" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>Jump in page</div>
+                  <div className="p-1.5">
+                    {pageResults.map((item) => (
+                      <button key={item.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => jumpToPageItem(item)} className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/6">
+                        <span className="text-sm" style={{ color: "var(--ink)" }}>{item.label}</span>
+                        <span className="text-[10px] uppercase" style={{ color: "var(--mute)" }}>{item.kind}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { key: "all", label: "All" },
+                { key: "headings", label: "Headings" },
+                { key: "actions", label: "Actions" },
+                { key: "content", label: "Content" },
+              ] as Array<{ key: PageSearchFilter; label: string }>).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setPageFilter(item.key);
+                    updatePageResults(pageQuery, item.key);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium"
+                  style={{ borderColor: pageFilter === item.key ? "var(--hairline-strong)" : "var(--hairline)", backgroundColor: pageFilter === item.key ? "var(--surface-elevated)" : "var(--surface-card)", color: pageFilter === item.key ? "var(--ink)" : "var(--mute)" }}
+                >
+                  {item.key === "all" ? <Filter size={12} /> : null}
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
         {/* Main scrollable content area */}
         <main
           className="flex-1 overflow-auto"
@@ -372,7 +501,7 @@ export default function MainLayout({
                 opacity: 0.5,
               }}
             />
-            <div className="relative z-10 h-full">{children}</div>
+            <div ref={mainContentRef} className="relative z-10 h-full">{children}</div>
           </div>
         </main>
       </div>

@@ -1,22 +1,28 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import {
-  Blocks,
-  Check,
-  FileUp,
-  Grip,
-  LayoutTemplate,
-  Minus,
-  Plus,
-  Route,
-  Save,
-  Trash2,
-  X,
-} from "lucide-react";
+  Background,
+  Controls,
+  Handle,
+  MarkerType,
+  MiniMap,
+  Position,
+  ReactFlow,
+  applyEdgeChanges,
+  applyNodeChanges,
+  type Edge,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
+  type NodeProps,
+} from "@xyflow/react";
+import { Check, ChevronLeft, ChevronRight, FileUp, LayoutTemplate, Plus, Route, Save, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+
+import "@xyflow/react/dist/style.css";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -24,7 +30,8 @@ import { useWorkspaceStore } from "@/store/workspace-store";
 
 type NodeTone = "core" | "skill" | "optional";
 type Scope = "private" | "workspace";
-type SourceKind = "template" | "roadmap";
+type SourceKind = "template" | "roadmap" | "draft";
+type AddDirection = "top" | "right" | "bottom" | "left";
 
 type BuilderNode = {
   id: string;
@@ -43,6 +50,8 @@ type BuilderEdge = {
   from: string;
   to: string;
   dashed?: boolean;
+  sourceHandle?: string;
+  targetHandle?: string;
 };
 
 type DraftRoadmap = {
@@ -62,8 +71,13 @@ type RoadmapTemplate = {
   edges: BuilderEdge[];
 };
 
-const CANVAS_WIDTH = 1400;
-const CANVAS_HEIGHT = 1100;
+type RoadmapFlowData = {
+  label: string;
+  description: string;
+  topic: string;
+  tone: NodeTone;
+  onAddFrom: (nodeId: string, direction: AddDirection) => void;
+};
 
 const templates: RoadmapTemplate[] = [
   {
@@ -155,6 +169,28 @@ function cloneTemplate(template: RoadmapTemplate): DraftRoadmap {
   };
 }
 
+function createEmptyDraft(): DraftRoadmap {
+  return {
+    title: "Untitled roadmap",
+    topic: "General",
+    topics: ["General"],
+    nodes: [
+      {
+        id: "node-root",
+        label: "Start here",
+        description: "Define the first milestone or learning step.",
+        topic: "General",
+        x: 400,
+        y: 120,
+        width: 250,
+        height: 96,
+        tone: "core",
+      },
+    ],
+    edges: [],
+  };
+}
+
 function nodeStyle(tone: NodeTone) {
   if (tone === "core") {
     return {
@@ -179,6 +215,136 @@ function nodeStyle(tone: NodeTone) {
   };
 }
 
+function toFlowNodes(draft: DraftRoadmap, onAddFrom: (nodeId: string, direction: AddDirection) => void): Array<Node<RoadmapFlowData>> {
+  return draft.nodes.map((node) => ({
+    id: node.id,
+    type: "roadmap",
+    position: { x: node.x, y: node.y },
+    width: node.width,
+    height: node.height,
+    draggable: true,
+      data: {
+        label: node.label,
+        description: node.description,
+        topic: node.topic,
+        tone: node.tone,
+        onAddFrom,
+      },
+  }));
+}
+
+function toFlowEdges(draft: DraftRoadmap): Edge[] {
+  const nodesById = new Map(draft.nodes.map((node) => [node.id, node]));
+
+  return draft.edges.map((edge) => ({
+    ...(inferEdgeHandles(nodesById.get(edge.from), nodesById.get(edge.to)) ?? {}),
+    id: edge.id,
+    source: edge.from,
+    target: edge.to,
+    type: "smoothstep",
+    animated: false,
+    markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: "rgba(59,158,255,0.92)" },
+    style: {
+      stroke: "rgba(59,158,255,0.92)",
+      strokeWidth: 3,
+      strokeDasharray: edge.dashed ? "6 8" : undefined,
+    },
+  }));
+}
+
+function inferEdgeHandles(fromNode?: BuilderNode, toNode?: BuilderNode) {
+  if (!fromNode || !toNode) {
+    return null;
+  }
+
+  const dx = toNode.x - fromNode.x;
+  const dy = toNode.y - fromNode.y;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx >= 0
+      ? { sourceHandle: "right", targetHandle: "left" }
+      : { sourceHandle: "left", targetHandle: "right" };
+  }
+
+  return dy >= 0
+    ? { sourceHandle: "bottom", targetHandle: "top" }
+    : { sourceHandle: "top", targetHandle: "bottom" };
+}
+
+function fromFlowNodes(nodes: Node<RoadmapFlowData>[], previous: BuilderNode[]): BuilderNode[] {
+  return nodes.map((node) => {
+    const match = previous.find((item) => item.id === node.id);
+    return {
+      id: node.id,
+      label: node.data.label,
+      description: node.data.description,
+      topic: node.data.topic,
+      x: node.position.x,
+      y: node.position.y,
+      width: match?.width ?? 220,
+      height: match?.height ?? 84,
+      tone: node.data.tone,
+    };
+  });
+}
+
+const RoadmapNode = memo(function RoadmapNode({ id, data, selected }: NodeProps<Node<RoadmapFlowData>>) {
+  const toneStyle = nodeStyle(data.tone);
+  const buttons: Array<{ direction: AddDirection; className: string }> = [
+    { direction: "top", className: "left-1/2 top-0 -translate-x-1/2 -translate-y-1/2" },
+    { direction: "right", className: "right-0 top-1/2 translate-x-1/2 -translate-y-1/2" },
+    { direction: "bottom", className: "bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2" },
+    { direction: "left", className: "left-0 top-1/2 -translate-x-1/2 -translate-y-1/2" },
+  ];
+
+  return (
+    <div
+      className="relative rounded-[16px] border px-4 py-3 text-left shadow-sm"
+      style={{
+        minWidth: 220,
+        maxWidth: 260,
+        boxShadow: selected ? "0 0 0 1px rgba(59,158,255,0.85)" : "none",
+        ...toneStyle,
+      }}
+    >
+      <Handle id="top" type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle id="right" type="target" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle id="bottom" type="target" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle id="left" type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle id="top" type="source" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle id="right" type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle id="bottom" type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle id="left" type="source" position={Position.Left} style={{ opacity: 0 }} />
+
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">{data.label}</p>
+          <p className="mt-1 text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{data.topic}</p>
+        </div>
+      </div>
+      <p className="text-xs leading-6" style={{ color: data.tone === "optional" ? "var(--charcoal)" : "var(--body)" }}>{data.description}</p>
+
+      {buttons.map((item) => (
+        <button
+          key={item.direction}
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            data.onAddFrom(id, item.direction);
+          }}
+          className={`absolute flex h-5 w-5 items-center justify-center rounded-full border ${item.className}`}
+          style={{ borderColor: "rgba(59,158,255,0.9)", backgroundColor: "var(--surface-card)", color: "var(--accent-blue)", cursor: "pointer" }}
+        >
+          <Plus size={11} />
+        </button>
+      ))}
+    </div>
+  );
+});
+
+const nodeTypes = { roadmap: RoadmapNode };
+const noopAddFrom = () => {};
+
 function RoadmapEditor({
   roadmapId,
   initialDraft,
@@ -194,33 +360,143 @@ function RoadmapEditor({
   onSaved: (roadmapId: Id<"roadmaps">) => void;
   onDeleted: () => void;
 }) {
-  const [draft, setDraft] = useState(initialDraft);
+  const [title, setTitle] = useState(initialDraft.title);
+  const [topic, setTopic] = useState(initialDraft.topic);
+  const [topics, setTopics] = useState(initialDraft.topics);
+  const [newTopic, setNewTopic] = useState("");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(initialDraft.nodes[0]?.id ?? null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [newTopic, setNewTopic] = useState("");
-  const [zoom, setZoom] = useState(0.9);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [isPanning, setIsPanning] = useState(false);
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
 
-  const dragState = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
-  const panState = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
-  const edgeIdRef = useRef(1);
+  const nodeCounterRef = useRef(initialDraft.nodes.length + 1);
+  const edgeCounterRef = useRef(initialDraft.edges.length + 1);
+  const nodesRef = useRef<Array<Node<RoadmapFlowData>>>([]);
+  const [nodes, setNodes] = useState<Array<Node<RoadmapFlowData>>>(() =>
+    toFlowNodes(initialDraft, noopAddFrom)
+  );
+  const [edges, setEdges] = useState<Edge[]>(() => toFlowEdges(initialDraft));
 
-  const createRoadmap = useMutation(api.roadmaps.createRoadmap);
+  function addNodeFrom(sourceId: string, direction: AddDirection) {
+    const sourceNode = nodesRef.current.find((node) => node.id === sourceId);
+    if (!sourceNode) return;
+    nodeCounterRef.current += 1;
+    edgeCounterRef.current += 1;
+    const nextId = `node-${nodeCounterRef.current}`;
+    const offsets = {
+      top: { x: 0, y: -180 },
+      right: { x: 320, y: 0 },
+      bottom: { x: 0, y: 180 },
+      left: { x: -320, y: 0 },
+    } as const;
+
+    const oppositeHandle = {
+      top: "bottom",
+      right: "left",
+      bottom: "top",
+      left: "right",
+    } as const;
+
+    const nextNode: Node<RoadmapFlowData> = {
+      id: nextId,
+      type: "roadmap",
+      position: {
+        x: sourceNode.position.x + offsets[direction].x,
+        y: sourceNode.position.y + offsets[direction].y,
+      },
+      data: {
+        label: "New Step",
+        description: "Describe what should be learned or built here.",
+        topic: sourceNode.data.topic,
+        tone: "skill",
+        onAddFrom: addNodeFrom,
+      },
+      width: 220,
+      height: 84,
+    };
+
+    setNodes((current) => current.concat(nextNode));
+    setEdges((current) => current.concat({
+      id: `edge-${edgeCounterRef.current}`,
+      source: sourceId,
+      target: nextId,
+      sourceHandle: direction,
+      targetHandle: oppositeHandle[direction],
+      type: "smoothstep",
+      markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: "rgba(59,158,255,0.92)" },
+      style: { stroke: "rgba(59,158,255,0.92)", strokeWidth: 3 },
+    }));
+    setSelectedNodeId(nextId);
+    setSelectedEdgeId(null);
+  }
+
+  const createDraftFromFlow = () => {
+    const builderNodes = fromFlowNodes(nodes, initialDraft.nodes);
+    return {
+      title: title.trim() || "Untitled roadmap",
+      topic: topic.trim() || topics[0] || "General",
+      topics: Array.from(new Set(topics.map((item) => item.trim()).filter(Boolean))).slice(0, 20),
+      nodes: builderNodes,
+      edges: edges.map((edge) => ({
+        id: edge.id,
+        from: edge.source,
+        to: edge.target,
+        dashed: typeof edge.style?.strokeDasharray === "string",
+      })),
+    } satisfies DraftRoadmap;
+  };
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  const onNodesChange = (changes: NodeChange[]) => {
+    setNodes((current) =>
+      applyNodeChanges(changes, current).map((node) => ({
+        ...node,
+        data: {
+          label: node.data.label as string,
+          description: node.data.description as string,
+          topic: node.data.topic as string,
+          tone: node.data.tone as NodeTone,
+          onAddFrom: addNodeFrom,
+        },
+      })) as Array<Node<RoadmapFlowData>>
+    );
+  };
+
+  const onEdgesChange = (changes: EdgeChange[]) => {
+    setEdges((current) => applyEdgeChanges(changes, current));
+  };
+
+  const selectNode = (nodeId: string | null) => {
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+  };
+
+  const selectEdge = (edgeId: string | null) => {
+    setSelectedEdgeId(edgeId);
+    if (edgeId) setSelectedNodeId(null);
+  };
+
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
+
+  const updateSelectedNode = (patch: Partial<RoadmapFlowData>) => {
+    if (!selectedNodeId) return;
+    setNodes((current) => current.map((node) => node.id === selectedNodeId ? { ...node, data: { ...node.data, ...patch, onAddFrom: addNodeFrom } } : node));
+  };
+
   const updateRoadmap = useMutation(api.roadmaps.updateRoadmap);
-  const addTopic = useMutation(api.roadmaps.addTopic);
-  const removeTopic = useMutation(api.roadmaps.removeTopic);
+  const createRoadmap = useMutation(api.roadmaps.createRoadmap);
   const deleteRoadmap = useMutation(api.roadmaps.deleteRoadmap);
 
-  const selectedNode = draft.nodes.find((node) => node.id === selectedNodeId) ?? null;
-  const selectedEdge = draft.edges.find((edge) => edge.id === selectedEdgeId) ?? null;
-
-  const saveRoadmap = async () => {
+  const handleSave = async () => {
     if (scope === "workspace" && !workspaceId) {
       toast.error("Select a workspace first.");
       return;
     }
-
+    const draft = createDraftFromFlow();
     try {
       if (roadmapId) {
         await updateRoadmap({ roadmapId, ...draft });
@@ -239,106 +515,6 @@ function RoadmapEditor({
     }
   };
 
-  const addNode = () => {
-    const nodeId = `node-${draft.nodes.length + 1}-${Date.now()}`;
-    const nextNode: BuilderNode = {
-      id: nodeId,
-      label: "New Step",
-      description: "Describe what should be learned or built here.",
-      topic: selectedNode?.topic ?? draft.topics[0] ?? "General",
-      x: selectedNode ? selectedNode.x + 40 : 520,
-      y: selectedNode ? selectedNode.y + 140 : 120,
-      width: 220,
-      height: 84,
-      tone: "skill",
-    };
-    setDraft((current) => ({ ...current, nodes: [...current.nodes, nextNode] }));
-    setSelectedNodeId(nodeId);
-    setSelectedEdgeId(null);
-  };
-
-  const deleteSelectedNode = () => {
-    if (!selectedNodeId) return;
-    setDraft((current) => ({
-      ...current,
-      nodes: current.nodes.filter((node) => node.id !== selectedNodeId),
-      edges: current.edges.filter((edge) => edge.from !== selectedNodeId && edge.to !== selectedNodeId),
-    }));
-    setSelectedNodeId(null);
-  };
-
-  const updateNode = <K extends keyof BuilderNode>(key: K, value: BuilderNode[K]) => {
-    if (!selectedNodeId) return;
-    setDraft((current) => ({
-      ...current,
-      nodes: current.nodes.map((node) => (node.id === selectedNodeId ? { ...node, [key]: value } : node)),
-    }));
-  };
-
-  const addConnection = (targetId: string, dashed = false) => {
-    if (!selectedNodeId || selectedNodeId === targetId) return;
-    edgeIdRef.current += 1;
-    const edgeId = `${selectedNodeId}-${targetId}-${edgeIdRef.current}`;
-    setDraft((current) => ({
-      ...current,
-      edges: [...current.edges, { id: edgeId, from: selectedNodeId, to: targetId, dashed }],
-    }));
-    setSelectedEdgeId(edgeId);
-  };
-
-  const updateEdge = (patch: Partial<BuilderEdge>) => {
-    if (!selectedEdgeId) return;
-    setDraft((current) => ({
-      ...current,
-      edges: current.edges.map((edge) => (edge.id === selectedEdgeId ? { ...edge, ...patch } : edge)),
-    }));
-  };
-
-  const deleteSelectedEdge = () => {
-    if (!selectedEdgeId) return;
-    setDraft((current) => ({
-      ...current,
-      edges: current.edges.filter((edge) => edge.id !== selectedEdgeId),
-    }));
-    setSelectedEdgeId(null);
-  };
-
-  const handleAddTopic = async () => {
-    const topic = newTopic.trim();
-    if (!topic) return;
-    if (roadmapId) {
-      try {
-        await addTopic({ roadmapId, topic });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to add topic.");
-        return;
-      }
-    }
-    setDraft((current) => ({ ...current, topics: Array.from(new Set([...current.topics, topic])) }));
-    setNewTopic("");
-  };
-
-  const handleRemoveTopic = async (topic: string) => {
-    if (draft.topics.length <= 1) {
-      toast.error("At least one topic must remain.");
-      return;
-    }
-    if (roadmapId) {
-      try {
-        await removeTopic({ roadmapId, topic });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to remove topic.");
-        return;
-      }
-    }
-    const fallbackTopic = draft.topics.find((item) => item !== topic) ?? "General";
-    setDraft((current) => ({
-      ...current,
-      topics: current.topics.filter((item) => item !== topic),
-      nodes: current.nodes.map((node) => (node.topic === topic ? { ...node, topic: fallbackTopic } : node)),
-    }));
-  };
-
   const handleDeleteRoadmap = async () => {
     if (!roadmapId) return;
     try {
@@ -350,264 +526,161 @@ function RoadmapEditor({
     }
   };
 
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (!event.ctrlKey && !event.metaKey) return;
-    event.preventDefault();
-    setZoom((current) => Math.max(0.45, Math.min(1.8, current - event.deltaY * 0.001)));
+  const addTopic = () => {
+    const value = newTopic.trim();
+    if (!value) return;
+    setTopics((current) => Array.from(new Set([...current, value])));
+    setNewTopic("");
   };
 
-  const beginPan = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
-    setIsPanning(true);
-    panState.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      originX: pan.x,
-      originY: pan.y,
-    };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
-
-  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (dragState.current) {
-      const canvasRect = event.currentTarget.getBoundingClientRect();
-      const nextX = (event.clientX - canvasRect.left - dragState.current.offsetX - pan.x) / zoom;
-      const nextY = (event.clientY - canvasRect.top - dragState.current.offsetY - pan.y) / zoom;
-      setDraft((current) => ({
-        ...current,
-        nodes: current.nodes.map((node) =>
-          node.id === dragState.current!.id
-            ? {
-                ...node,
-                x: Math.max(20, Math.min(CANVAS_WIDTH - node.width - 20, nextX)),
-                y: Math.max(20, Math.min(CANVAS_HEIGHT - node.height - 20, nextY)),
-              }
-            : node
-        ),
-      }));
+  const removeTopic = (value: string) => {
+    if (topics.length <= 1) {
+      toast.error("At least one topic must remain.");
       return;
     }
-
-    if (!panState.current) return;
-    setPan({
-      x: panState.current.originX + (event.clientX - panState.current.startX),
-      y: panState.current.originY + (event.clientY - panState.current.startY),
-    });
+    const nextTopics = topics.filter((topicItem) => topicItem !== value);
+    const fallback = nextTopics[0] ?? "General";
+    setTopics(nextTopics);
+    setNodes((current) => current.map((node) => node.data.topic === value ? { ...node, data: { ...node.data, topic: fallback, onAddFrom: addNodeFrom } } : node));
   };
 
-  const endPointerInteraction = () => {
-    dragState.current = null;
-    panState.current = null;
-    setIsPanning(false);
+  const addFreeNode = () => {
+    nodeCounterRef.current += 1;
+    const nextId = `node-${nodeCounterRef.current}`;
+    const nextNode: Node<RoadmapFlowData> = {
+      id: nextId,
+      type: "roadmap",
+      position: { x: 420, y: 220 },
+      data: {
+        label: "New Step",
+        description: "Describe what should be learned or built here.",
+        topic: topics[0] ?? "General",
+        tone: "skill",
+        onAddFrom: addNodeFrom,
+      },
+      width: 220,
+      height: 84,
+    };
+    setNodes((current) => current.concat(nextNode));
+    setSelectedNodeId(nextId);
+    setSelectedEdgeId(null);
   };
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[220px_minmax(0,1fr)] 2xl:grid-cols-[220px_minmax(0,1fr)_280px]">
-      <aside className="feature-card order-2 self-start xl:order-1" style={{ padding: "18px" }}>
-        <div className="mb-4 flex items-center gap-2">
-          <Blocks size={15} style={{ color: "var(--accent-orange)" }} />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Topics</p>
-        </div>
-        <div className="mb-3 space-y-2">
-          {draft.topics.map((topic) => (
-            <div key={topic} className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
-              <span className="flex-1 text-sm font-medium" style={{ color: "var(--ink)" }}>{topic}</span>
-              <button type="button" onClick={() => void handleRemoveTopic(topic)} className="rounded-md p-1 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}>
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="mb-3 flex gap-2">
-          <input value={newTopic} onChange={(event) => setNewTopic(event.target.value)} className="input-field" placeholder="Add topic" />
-          <button type="button" onClick={() => void handleAddTopic()} className="btn-outline"><Plus size={15} /></button>
-        </div>
-        <button type="button" onClick={addNode} className="btn-outline w-full"><Plus size={15} /> Add node</button>
-      </aside>
+    <div className="relative h-[calc(100vh-132px)] w-full overflow-hidden" style={{ backgroundColor: "var(--surface-deep)" }}>
+      <div className="absolute left-4 top-4 z-20 flex flex-wrap gap-2">
+        <button type="button" onClick={handleSave} className="btn-primary"><Save size={15} /> Save</button>
+        <button type="button" onClick={() => setLeftOpen((current) => !current)} className="btn-outline">{leftOpen ? <ChevronLeft size={15} /> : <ChevronRight size={15} />} Canvas tools</button>
+        <button type="button" onClick={() => setRightOpen((current) => !current)} className="btn-outline">{rightOpen ? <ChevronRight size={15} /> : <ChevronLeft size={15} />} Inspector</button>
+      </div>
 
-      <section className="order-1 min-w-0 xl:order-2">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--body)" }}>
-            <Route size={13} /> {draft.title}
+      {leftOpen ? (
+        <div className="absolute left-4 top-16 z-20 w-[260px] rounded-[22px] border p-4 shadow-2xl" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "rgba(10,10,12,0.92)", backdropFilter: "blur(16px)" }}>
+          <div className="mb-4 flex items-center gap-2">
+            <LayoutTemplate size={15} style={{ color: "var(--accent-blue)" }} />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Canvas tools</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="rounded-full border px-3 py-1.5 text-xs font-medium" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--mute)" }}>
-              {Math.round(zoom * 100)}%
+          <div className="space-y-3">
+            <input value={title} onChange={(event) => setTitle(event.target.value)} className="input-field" placeholder="Roadmap title" />
+            <input value={topic} onChange={(event) => setTopic(event.target.value)} className="input-field" placeholder="Primary topic" />
+            <div className="flex gap-2">
+              <input value={newTopic} onChange={(event) => setNewTopic(event.target.value)} className="input-field" placeholder="Add topic" />
+              <button type="button" onClick={addTopic} className="btn-outline"><Plus size={15} /></button>
             </div>
-            <button type="button" onClick={() => setZoom((current) => Math.min(1.8, current + 0.1))} className="btn-outline"><Plus size={15} /> In</button>
-            <button type="button" onClick={() => setZoom((current) => Math.max(0.45, current - 0.1))} className="btn-outline"><Minus size={15} /> Out</button>
-            <button type="button" onClick={() => void saveRoadmap()} className="btn-primary"><Save size={15} /> Save</button>
+            <div className="flex flex-wrap gap-2">
+              {topics.map((topicItem) => (
+                <span key={topicItem} className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--body)" }}>
+                  {topicItem}
+                  <button type="button" onClick={() => removeTopic(topicItem)} style={{ color: "var(--mute)" }}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <button type="button" onClick={addFreeNode} className="btn-outline w-full"><Plus size={15} /> Add node</button>
           </div>
         </div>
+      ) : null}
 
-        <div
-          className="relative overflow-auto rounded-[20px] border"
-          style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)", height: "clamp(420px, 68vh, 760px)", cursor: isPanning ? "grabbing" : "grab" }}
-          onWheel={handleWheel}
-          onPointerDown={beginPan}
-          onPointerMove={handlePointerMove}
-          onPointerUp={endPointerInteraction}
-          onPointerLeave={endPointerInteraction}
-        >
-          <div
-            className="relative"
-            style={{
-              width: CANVAS_WIDTH,
-              height: CANVAS_HEIGHT,
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: "top left",
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px)",
-              backgroundSize: "28px 28px",
-              backgroundColor: "var(--surface-deep)",
-            }}
-          >
-            <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`} fill="none">
-              {draft.edges.map((edge) => {
-                const from = draft.nodes.find((node) => node.id === edge.from);
-                const to = draft.nodes.find((node) => node.id === edge.to);
-                if (!from || !to) return null;
-                const x1 = from.x + from.width / 2;
-                const y1 = from.y + from.height;
-                const x2 = to.x + to.width / 2;
-                const y2 = to.y;
-                const bendY = y1 + (y2 - y1) / 2;
-                const path = `M ${x1} ${y1} L ${x1} ${bendY} L ${x2} ${bendY} L ${x2} ${y2}`;
-                const active = selectedEdgeId === edge.id;
-                return (
-                  <g key={edge.id}>
-                    <path d={path} stroke={active ? "rgba(17,255,153,1)" : "rgba(59,158,255,0.92)"} strokeWidth="3" strokeDasharray={edge.dashed ? "6 8" : undefined} strokeLinecap="round" strokeLinejoin="round" />
-                    <path d={path} stroke="transparent" strokeWidth="16" fill="none" onClick={() => { setSelectedEdgeId(edge.id); setSelectedNodeId(null); }} style={{ cursor: "pointer" }} />
-                  </g>
-                );
-              })}
-            </svg>
-
-            {draft.nodes.map((node) => {
-              const active = selectedNodeId === node.id;
-              return (
-                <button
-                  key={node.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedNodeId(node.id);
-                    setSelectedEdgeId(null);
-                  }}
-                  onPointerDown={(event) => {
-                    const rect = event.currentTarget.getBoundingClientRect();
-                    dragState.current = {
-                      id: node.id,
-                      offsetX: event.clientX - rect.left,
-                      offsetY: event.clientY - rect.top,
-                    };
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                  }}
-                  className="absolute rounded-[14px] border p-4 text-left transition-shadow"
-                  style={{
-                    left: node.x,
-                    top: node.y,
-                    width: node.width,
-                    minHeight: node.height,
-                    boxShadow: active ? "0 0 0 1px rgba(59,158,255,0.8)" : "none",
-                    ...nodeStyle(node.tone),
-                  }}
-                >
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium">{node.label}</p>
-                      <p className="mt-1 text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{node.topic}</p>
-                    </div>
-                    <Grip size={14} style={{ color: "var(--mute)" }} />
-                  </div>
-                  <p className="text-xs leading-6" style={{ color: node.tone === "optional" ? "var(--charcoal)" : "var(--body)" }}>{node.description}</p>
-                </button>
-              );
-            })}
+      {rightOpen ? (
+        <div className="absolute right-4 top-16 z-20 w-[300px] rounded-[22px] border p-4 shadow-2xl" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "rgba(10,10,12,0.92)", backdropFilter: "blur(16px)" }}>
+          <div className="mb-4 flex items-center gap-2">
+            <Route size={15} style={{ color: "var(--accent-orange)" }} />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Inspector</p>
           </div>
-        </div>
-      </section>
 
-      <aside className="feature-card order-3 self-start xl:col-span-2 2xl:col-span-1" style={{ padding: "18px" }}>
-        <div className="mb-4 flex items-center gap-2">
-          <Grip size={16} style={{ color: "var(--accent-orange)" }} />
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Inspector</p>
-        </div>
-
-        {selectedNode ? (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--body)" }}>Roadmap title</label>
-              <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} className="input-field" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--body)" }}>Label</label>
-              <input value={selectedNode.label} onChange={(event) => updateNode("label", event.target.value)} className="input-field" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--body)" }}>Description</label>
-              <textarea value={selectedNode.description} onChange={(event) => updateNode("description", event.target.value)} rows={4} className="input-field resize-none" />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--body)" }}>Topic</label>
-              <select value={selectedNode.topic} onChange={(event) => updateNode("topic", event.target.value)} className="input-field">
-                {draft.topics.map((topic) => <option key={topic} value={topic}>{topic}</option>)}
+          {selectedNode ? (
+            <div className="space-y-3">
+              <input value={selectedNode.data.label} onChange={(event) => updateSelectedNode({ label: event.target.value })} className="input-field" placeholder="Node label" />
+              <textarea value={selectedNode.data.description} onChange={(event) => updateSelectedNode({ description: event.target.value })} rows={4} className="input-field resize-none" placeholder="Node description" />
+              <select value={selectedNode.data.topic} onChange={(event) => updateSelectedNode({ topic: event.target.value })} className="input-field">
+                {topics.map((topicItem) => <option key={topicItem} value={topicItem}>{topicItem}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--body)" }}>Tone</label>
               <div className="grid grid-cols-3 gap-2">
                 {(["core", "skill", "optional"] as NodeTone[]).map((tone) => (
-                  <button key={tone} type="button" onClick={() => updateNode("tone", tone)} className="rounded-xl border px-3 py-2 text-xs font-medium capitalize" style={{ backgroundColor: selectedNode.tone === tone ? "var(--surface-elevated)" : "var(--surface-card)", borderColor: selectedNode.tone === tone ? "var(--hairline-strong)" : "var(--hairline)", color: "var(--ink)" }}>
-                    {selectedNode.tone === tone ? <Check size={12} className="inline mr-1" /> : null}
+                  <button key={tone} type="button" onClick={() => updateSelectedNode({ tone })} className="rounded-xl border px-3 py-2 text-xs font-medium capitalize" style={{ backgroundColor: selectedNode.data.tone === tone ? "var(--surface-elevated)" : "var(--surface-card)", borderColor: selectedNode.data.tone === tone ? "var(--hairline-strong)" : "var(--hairline)", color: "var(--ink)" }}>
+                    {selectedNode.data.tone === tone ? <Check size={12} className="mr-1 inline" /> : null}
                     {tone}
                   </button>
                 ))}
               </div>
+              <button type="button" onClick={() => { setNodes((current) => current.filter((node) => node.id !== selectedNode.id)); setEdges((current) => current.filter((edge) => edge.source !== selectedNode.id && edge.target !== selectedNode.id)); selectNode(null); }} className="btn-outline w-full" style={{ color: "var(--accent-red)", borderColor: "rgba(255,32,71,0.34)" }}>
+                <Trash2 size={15} /> Delete node
+              </button>
             </div>
-            <div className="rounded-xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Connect To</p>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {draft.nodes.filter((node) => node.id !== selectedNode.id).map((node) => (
-                  <div key={node.id} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-                    <span className="text-sm" style={{ color: "var(--ink)" }}>{node.label}</span>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => addConnection(node.id, false)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: "var(--hairline)", color: "var(--body)" }}>Solid</button>
-                      <button type="button" onClick={() => addConnection(node.id, true)} className="rounded-md border px-2 py-1 text-[11px]" style={{ borderColor: "var(--hairline)", color: "var(--body)" }}>Dotted</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          ) : selectedEdge ? (
+            <div className="space-y-3">
+              <button type="button" onClick={() => setEdges((current) => current.map((edge) => edge.id === selectedEdge.id ? { ...edge, style: { ...edge.style, strokeDasharray: edge.style?.strokeDasharray ? undefined : "6 8" } } : edge))} className="btn-outline w-full">Toggle dotted edge</button>
+              <button type="button" onClick={() => { setEdges((current) => current.filter((edge) => edge.id !== selectedEdge.id)); selectEdge(null); }} className="btn-outline w-full" style={{ color: "var(--accent-red)", borderColor: "rgba(255,32,71,0.34)" }}>
+                <Trash2 size={15} /> Delete edge
+              </button>
             </div>
-            <button type="button" onClick={deleteSelectedNode} className="btn-outline w-full" style={{ color: "var(--accent-red)", borderColor: "rgba(255,32,71,0.34)" }}>
-              <Trash2 size={15} /> Delete node
-            </button>
-          </div>
-        ) : selectedEdge ? (
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium" style={{ color: "var(--body)" }}>Edge style</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => updateEdge({ dashed: false })} className="rounded-xl border px-3 py-2 text-xs font-medium" style={{ backgroundColor: !selectedEdge.dashed ? "var(--surface-elevated)" : "var(--surface-card)", borderColor: !selectedEdge.dashed ? "var(--hairline-strong)" : "var(--hairline)", color: "var(--ink)" }}>Solid</button>
-                <button type="button" onClick={() => updateEdge({ dashed: true })} className="rounded-xl border px-3 py-2 text-xs font-medium" style={{ backgroundColor: selectedEdge.dashed ? "var(--surface-elevated)" : "var(--surface-card)", borderColor: selectedEdge.dashed ? "var(--hairline-strong)" : "var(--hairline)", color: "var(--ink)" }}>Dotted</button>
-              </div>
+          ) : (
+            <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--charcoal)" }}>
+              Select a node or edge inside the canvas to edit it.
             </div>
-            <button type="button" onClick={deleteSelectedEdge} className="btn-outline w-full" style={{ color: "var(--accent-red)", borderColor: "rgba(255,32,71,0.34)" }}>
-              <Trash2 size={15} /> Delete connection
-            </button>
-          </div>
-        ) : (
-          <div className="rounded-xl border p-5 text-center" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
-            <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>Select a node or edge</p>
-            <p className="mt-2 text-sm leading-6" style={{ color: "var(--charcoal)" }}>Edit roadmap details, topics, node content, or connections from this panel.</p>
-          </div>
-        )}
+          )}
 
-        {roadmapId ? (
-          <button type="button" onClick={() => void handleDeleteRoadmap()} className="btn-outline w-full mt-4" style={{ color: "var(--accent-red)", borderColor: "rgba(255,32,71,0.34)" }}>
-            <Trash2 size={15} /> Delete roadmap
-          </button>
-        ) : null}
-      </aside>
+          {roadmapId ? (
+            <button type="button" onClick={() => void handleDeleteRoadmap()} className="btn-outline mt-4 w-full" style={{ color: "var(--accent-red)", borderColor: "rgba(255,32,71,0.34)" }}>
+              <Trash2 size={15} /> Delete roadmap
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={(_event, node) => selectNode(node.id)}
+        onEdgeClick={(_event, edge) => selectEdge(edge.id)}
+        onPaneClick={() => {
+          setSelectedNodeId(null);
+          setSelectedEdgeId(null);
+        }}
+        fitView
+        minZoom={0.45}
+        maxZoom={1.8}
+        zoomOnScroll
+        panOnScroll={false}
+        zoomOnPinch
+        panOnDrag
+        zoomOnDoubleClick={false}
+        colorMode="dark"
+        defaultEdgeOptions={{
+          type: "smoothstep",
+          markerEnd: { type: MarkerType.ArrowClosed, width: 18, height: 18, color: "rgba(59,158,255,0.92)" },
+          style: { stroke: "rgba(59,158,255,0.92)", strokeWidth: 3 },
+        }}
+        style={{ backgroundColor: "#050507" }}
+      >
+        <Background color="rgba(255,255,255,0.08)" gap={28} />
+        <MiniMap pannable zoomable style={{ backgroundColor: "#0a0a0c", border: "1px solid rgba(255,255,255,0.08)" }} />
+        <Controls showInteractive={false} position="bottom-left" />
+      </ReactFlow>
     </div>
   );
 }
@@ -616,7 +689,15 @@ export function RoadmapPage() {
   const { user } = useUser();
   const { selectedWorkspaceId } = useWorkspaceStore();
   const [scope, setScope] = useState<Scope>(selectedWorkspaceId ? "workspace" : "private");
-  const [activeSource, setActiveSource] = useState<{ kind: SourceKind; id: string } | null>(null);
+  const [activeSource, setActiveSource] = useState<{ kind: SourceKind; id: string }>({ kind: "draft", id: "new" });
+  const [savedMenuOpen, setSavedMenuOpen] = useState(false);
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const draftCounterRef = useRef(1);
+
+  const nextDraftSource = () => {
+    draftCounterRef.current += 1;
+    return { kind: "draft" as const, id: `draft-${draftCounterRef.current}` };
+  };
 
   const roadmaps = (useQuery(
     api.roadmaps.listRoadmaps,
@@ -630,9 +711,11 @@ export function RoadmapPage() {
     edges: BuilderEdge[];
   }>;
 
-  const fallbackSource = activeSource ?? (roadmaps[0] ? { kind: "roadmap" as const, id: roadmaps[0]._id } : { kind: "template" as const, id: templates[0].id });
-  const sourceRoadmap = fallbackSource.kind === "roadmap" ? roadmaps.find((item) => item._id === fallbackSource.id) ?? roadmaps[0] ?? null : null;
-  const sourceTemplate = fallbackSource.kind === "template" ? templates.find((item) => item.id === fallbackSource.id) ?? templates[0] : null;
+  const resolvedSource = activeSource.kind === "roadmap" && !roadmaps.some((item) => item._id === activeSource.id)
+    ? { kind: "draft" as const, id: "new" }
+    : activeSource;
+  const sourceRoadmap = resolvedSource.kind === "roadmap" ? roadmaps.find((item) => item._id === resolvedSource.id) ?? null : null;
+  const sourceTemplate = resolvedSource.kind === "template" ? templates.find((item) => item.id === resolvedSource.id) ?? templates[0] : null;
   const initialDraft = sourceRoadmap
     ? {
         title: sourceRoadmap.title,
@@ -641,99 +724,61 @@ export function RoadmapPage() {
         nodes: sourceRoadmap.nodes.map((node) => ({ ...node })),
         edges: sourceRoadmap.edges.map((edge) => ({ ...edge })),
       }
-    : cloneTemplate(sourceTemplate ?? templates[0]);
+    : resolvedSource.kind === "template"
+      ? cloneTemplate(sourceTemplate ?? templates[0])
+      : createEmptyDraft();
 
   return (
-    <div className="page-container animate-fade-in-up max-w-none relative">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+    <div className="animate-fade-in-up" style={{ padding: 0, maxWidth: "none" }}>
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b px-4 py-4" style={{ borderColor: "var(--hairline-strong)" }}>
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--mute)" }}>Roadmap</p>
-          <h1 className="text-2xl font-medium tracking-tight sm:text-3xl" style={{ color: "var(--ink)" }}>Minimal roadmap builder</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: "var(--body)" }}>
-            Build, connect, and save roadmap steps without the extra UI noise.
-          </p>
+          <h1 className="text-2xl font-medium tracking-tight sm:text-3xl" style={{ color: "var(--ink)" }}>React Flow roadmap builder</h1>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={() => setScope((current) => (current === "private" ? "workspace" : "private"))} className="btn-outline">
+          <button type="button" onClick={() => setActiveSource(nextDraftSource())} className="btn-primary"><Plus size={15} /> New roadmap</button>
+          <div className="relative">
+            <button type="button" onClick={() => setTemplateMenuOpen((current) => !current)} className="btn-outline"><FileUp size={15} /> Import template</button>
+            {templateMenuOpen ? (
+              <div className="absolute right-0 top-full z-20 mt-2 w-[280px] rounded-2xl border p-2 shadow-2xl" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
+                {templates.map((template) => (
+                  <button key={template.id} type="button" onClick={() => { setActiveSource({ kind: "template", id: template.id }); setTemplateMenuOpen(false); }} className="w-full rounded-xl px-3 py-3 text-left transition-colors hover:bg-[var(--surface-elevated)]">
+                    <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{template.title}</p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>{template.topic}</p>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <div className="relative">
+            <button type="button" onClick={() => setSavedMenuOpen((current) => !current)} className="btn-outline"><LayoutTemplate size={15} /> Open saved roadmap</button>
+            {savedMenuOpen ? (
+              <div className="absolute right-0 top-full z-20 mt-2 w-[280px] rounded-2xl border p-2 shadow-2xl" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
+                {roadmaps.length === 0 ? (
+                  <div className="rounded-xl px-3 py-3 text-sm" style={{ color: "var(--charcoal)" }}>No saved roadmaps yet.</div>
+                ) : roadmaps.map((roadmap) => (
+                  <button key={roadmap._id} type="button" onClick={() => { setActiveSource({ kind: "roadmap", id: roadmap._id }); setSavedMenuOpen(false); }} className="w-full rounded-xl px-3 py-3 text-left transition-colors hover:bg-[var(--surface-elevated)]">
+                    <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{roadmap.title}</p>
+                    <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>{roadmap.topic}</p>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <button type="button" onClick={() => setScope((current) => current === "private" ? "workspace" : "private")} className="btn-outline">
             {scope === "private" ? "Private" : "Workspace"}
           </button>
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <aside className="feature-card self-start" style={{ padding: "18px" }}>
-          <div className="mb-4 flex items-center gap-2">
-            <LayoutTemplate size={16} style={{ color: "var(--accent-blue)" }} />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Saved Roadmaps</p>
-          </div>
-          <div className="space-y-2">
-            {roadmaps.length === 0 ? (
-              <div className="rounded-xl border p-4 text-sm" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--charcoal)" }}>
-                No saved roadmaps yet in this scope.
-              </div>
-            ) : (
-              roadmaps.map((roadmap) => (
-                <button
-                  key={roadmap._id}
-                  type="button"
-                  onClick={() => setActiveSource({ kind: "roadmap", id: roadmap._id })}
-                  className="w-full rounded-xl border px-3 py-3 text-left transition-colors"
-                  style={{
-                    backgroundColor: fallbackSource.kind === "roadmap" && fallbackSource.id === roadmap._id ? "var(--surface-elevated)" : "var(--surface-card)",
-                    borderColor: fallbackSource.kind === "roadmap" && fallbackSource.id === roadmap._id ? "var(--hairline-strong)" : "var(--hairline)",
-                    color: "var(--ink)",
-                  }}
-                >
-                  <p className="text-sm font-medium">{roadmap.title}</p>
-                  <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>{roadmap.topic}</p>
-                </button>
-              ))
-            )}
-          </div>
-        </aside>
-
-        <aside className="feature-card self-start" style={{ padding: "18px" }}>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-            <FileUp size={15} style={{ color: "var(--accent-green)" }} />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Templates</p>
-            </div>
-            <div className="rounded-full border px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--mute)" }}>
-              {scope}
-            </div>
-          </div>
-          <div className="space-y-2">
-            {templates.map((template) => (
-              <button
-                key={template.id}
-                type="button"
-                onClick={() => {
-                  setActiveSource({ kind: "template", id: template.id });
-                  toast.success(`Loaded ${template.title} template.`);
-                }}
-                className="w-full rounded-xl border px-3 py-3 text-left transition-colors"
-                style={{
-                  backgroundColor: fallbackSource.kind === "template" && fallbackSource.id === template.id ? "var(--surface-elevated)" : "var(--surface-card)",
-                  borderColor: fallbackSource.kind === "template" && fallbackSource.id === template.id ? "var(--hairline-strong)" : "var(--hairline)",
-                  color: "var(--ink)",
-                }}
-              >
-                <p className="text-sm font-medium">{template.title}</p>
-                <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>{template.topic}</p>
-              </button>
-            ))}
-          </div>
-        </aside>
-      </div>
-
       <RoadmapEditor
-        key={`${fallbackSource.kind}-${fallbackSource.id}`}
+        key={`${resolvedSource.kind}-${resolvedSource.id}-${scope}`}
         roadmapId={sourceRoadmap?._id ?? null}
         initialDraft={initialDraft}
         scope={scope}
         workspaceId={selectedWorkspaceId}
         onSaved={(savedId) => setActiveSource({ kind: "roadmap", id: savedId })}
-        onDeleted={() => setActiveSource(null)}
+        onDeleted={() => setActiveSource(nextDraftSource())}
       />
     </div>
   );

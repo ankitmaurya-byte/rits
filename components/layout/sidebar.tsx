@@ -6,7 +6,6 @@ import Image from "next/image";
 import { useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
-  Blocks,
   Bot,
   ChevronDown,
   ChevronRight,
@@ -53,7 +52,6 @@ const productLinks = [
 const exploreLinks = [
   { href: "/explore/yc", label: "YC Explorer", icon: Rocket },
   { href: "/explore/sharktank", label: "Shark Tank", icon: Telescope },
-  { href: "/explore/open-source", label: "Tech Feed", icon: Blocks },
   { href: "/explore/github-tools", label: "GitHub Tools", icon: SearchCode },
   { href: "/explore/ai-startups", label: "AI Startups", icon: Bot },
 ];
@@ -92,7 +90,7 @@ function NavSection({
           const isActive = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
-              key={href}
+              key={`${href}-${linkLabel}`}
               href={href}
               className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 group relative"
               style={{

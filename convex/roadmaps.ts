@@ -23,6 +23,8 @@ const edgeValidator = v.object({
   from: v.string(),
   to: v.string(),
   dashed: v.optional(v.boolean()),
+  sourceHandle: v.optional(v.string()),
+  targetHandle: v.optional(v.string()),
 });
 
 function sanitizeTopics(topics: string[]) {

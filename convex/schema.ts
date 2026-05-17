@@ -177,6 +177,19 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_user_private", ["createdBy", "scope"]),
 
+  resourceFolderShares: defineTable({
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
+    title: v.string(),
+    shareToken: v.string(),
+    payload: v.string(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_private", ["createdBy", "scope"])
+    .index("by_share_token", ["shareToken"]),
+
   aiReports: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),
     workspaceId: v.optional(v.id("workspaces")),

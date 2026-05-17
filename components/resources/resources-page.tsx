@@ -1,47 +1,118 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
 import {
-  ExternalLink,
-  FileText,
-  Lightbulb,
+  ChevronRight,
+  Copy,
+  Folder,
+  FolderPlus,
   Link2,
-  Lock,
   MoreVertical,
   Plus,
-  CheckSquare,
   Search,
-  LayoutGrid,
-  Trash2,
+  Share2,
   Users,
-  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
+
 import { api } from "@/convex/_generated/api";
-import { Id } from "@/convex/_generated/dataModel";
+import type { Id } from "@/convex/_generated/dataModel";
 import { useWorkspaceStore } from "@/store/workspace-store";
 import { useConfirm } from "@/components/ui/confirm-provider";
-import { ThemedSelect } from "@/components/ui/themed-select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 type ResourceScope = "private" | "workspace";
-type ResourceCard = {
+type DialogMode = "folder" | "link" | "rename";
+
+type ResourceDoc = {
   _id: Id<"resources">;
   url: string;
   description: string;
   createdAt: number;
 };
+
+type ResourceItem = {
+  id: string;
+  type: "folder" | "link";
+  title: string;
+  url?: string;
+  parentId: string | null;
+  createdAt: string;
+  resourceId?: Id<"resources">;
+  description?: string;
+};
+
+type FolderDraft = {
+  id: string;
+  title: string;
+  parentId: string | null;
+  createdAt: string;
+};
+
+type LinkMeta = {
+  parentId: string | null;
+  title?: string;
+};
+
+type ExplorerState = {
+  folders: FolderDraft[];
+  linkMeta: Record<string, LinkMeta>;
+};
+
+type SharePayload = {
+  title: string;
+  items: Array<{
+    id: string;
+    type: "folder" | "link";
+    title: string;
+    url?: string;
+    parentId: string | null;
+    createdAt: string;
+    description?: string;
+  }>;
+};
+
+function getColumnLayout(folders: ResourceItem[], links: ResourceItem[]) {
+  const total = folders.length + links.length;
+
+  if (total <= 10) {
+    return {
+      mode: "single" as const,
+      folderHeight: null,
+      linkHeight: null,
+    };
+  }
+
+  if (folders.length <= 5 && links.length > 10) {
+    return {
+      mode: "split" as const,
+      folderHeight: "20%",
+      linkHeight: "80%",
+    };
+  }
+
+  return {
+    mode: "split" as const,
+    folderHeight: "50%",
+    linkHeight: "50%",
+  };
+}
 
 function normalizeUrl(value: string) {
   const trimmed = value.trim();
@@ -100,25 +171,653 @@ function buildNoteContent(url: string, description: string) {
   return paragraphs.join("");
 }
 
-type GridPreset = "2x2" | "3x5" | "4x4" | "custom";
+function getStorageKey(scope: ResourceScope, workspaceId?: string | null) {
+  return scope === "workspace" ? `rits-resource-explorer:workspace:${workspaceId ?? "none"}` : "rits-resource-explorer:private";
+}
 
-function getGridClasses(preset: GridPreset, customColumns: number) {
-  if (preset === "2x2") return "grid-cols-1 md:grid-cols-2";
-  if (preset === "3x5") return "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
-  if (preset === "4x4") return "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4";
+function loadExplorerState(key: string): ExplorerState {
+  if (typeof window === "undefined") return { folders: [], linkMeta: {} };
 
-  const columnMap: Record<number, string> = {
-    1: "grid-cols-1",
-    2: "grid-cols-1 md:grid-cols-2",
-    3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
-    4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4",
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return { folders: [], linkMeta: {} };
+    const parsed = JSON.parse(raw) as ExplorerState;
+    return {
+      folders: Array.isArray(parsed.folders) ? parsed.folders : [],
+      linkMeta: parsed.linkMeta && typeof parsed.linkMeta === "object" ? parsed.linkMeta : {},
+    };
+  } catch {
+    return { folders: [], linkMeta: {} };
+  }
+}
+
+function saveExplorerState(key: string, value: ExplorerState) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function buildFolderSharePayload(folder: ResourceItem, items: ResourceItem[]): SharePayload {
+  const folderIds = new Set<string>([folder.id]);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    for (const item of items) {
+      if (item.type === "folder" && item.parentId && folderIds.has(item.parentId) && !folderIds.has(item.id)) {
+        folderIds.add(item.id);
+        changed = true;
+      }
+    }
+  }
+
+  const sharedItems = items
+    .filter((item) => item.parentId === folder.id || (item.parentId && folderIds.has(item.parentId)))
+    .map((item) => ({
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      url: item.url,
+      parentId: item.parentId === folder.id ? null : item.parentId,
+      createdAt: item.createdAt,
+      description: item.description,
+    }));
+
+  return {
+    title: folder.title,
+    items: sharedItems,
   };
-  return columnMap[customColumns] ?? columnMap[3];
+}
+
+function ResourceToolbar({
+  searchQuery,
+  onSearchChange,
+  onAddFolder,
+  onAddLink,
+  breadcrumb,
+}: {
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  onAddFolder: () => void;
+  onAddLink: () => void;
+  breadcrumb: string[];
+}) {
+  return (
+    <div className="border-b px-4 py-3" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Resources</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm" style={{ color: "var(--charcoal)" }}>
+            {breadcrumb.map((item, index) => (
+              <span key={`${item}-${index}`} className="inline-flex items-center gap-2">
+                {index > 0 ? <ChevronRight size={14} style={{ color: "var(--mute)" }} /> : null}
+                <span className="truncate">{item}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative min-w-0 lg:w-[320px]">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
+            <input value={searchQuery} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search folders and links" className="input-field pl-9" />
+          </div>
+          <div className="flex gap-2">
+            <button type="button" onClick={onAddFolder} className="btn-outline"><FolderPlus size={15} /> Add Folder</button>
+            <button type="button" onClick={onAddLink} className="btn-primary"><Plus size={15} /> Add Link</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResourceItemCard({
+  item,
+  selected,
+  onClick,
+  onRename,
+  onDelete,
+  onCreateTodo,
+  onCreateNote,
+  onCreateIdea,
+  onCopyShare,
+  onShareChats,
+}: {
+  item: ResourceItem;
+  selected: boolean;
+  onClick: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+  onCreateTodo: () => void;
+  onCreateNote: () => void;
+  onCreateIdea: () => void;
+  onCopyShare?: () => void;
+  onShareChats?: () => void;
+}) {
+  return (
+    <div className="group flex items-start gap-3 rounded-lg border px-3 py-3 transition-colors" style={{ borderColor: selected ? "rgba(59,158,255,0.4)" : "var(--hairline)", backgroundColor: selected ? "rgba(59,158,255,0.12)" : "var(--surface-card)" }}>
+      <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-start gap-3 text-left">
+        <div className="mt-0.5 shrink-0" style={{ color: item.type === "folder" ? "var(--accent-orange)" : "var(--accent-blue)" }}>
+          {item.type === "folder" ? <Folder size={16} /> : <Link2 size={16} />}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{item.title}</p>
+          <p className="mt-1 truncate text-xs" style={{ color: "var(--mute)" }}>
+            {item.type === "folder" ? formatDistanceToNow(new Date(item.createdAt), { addSuffix: true }) : truncate(item.url ?? "", 42)}
+          </p>
+        </div>
+      </button>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" className="rounded-md p-1.5 transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}>
+            <MoreVertical size={14} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onSelect={onRename}>Rename</DropdownMenuItem>
+          {item.type === "folder" ? (
+            <>
+              <DropdownMenuItem onSelect={onCopyShare}><Copy size={14} /> Copy public link</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onShareChats}><Share2 size={14} /> Share to chats</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+          {item.type === "link" ? (
+            <>
+              <DropdownMenuItem onSelect={onCreateTodo}>Turn into todo</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onCreateNote}>Turn into note</DropdownMenuItem>
+              <DropdownMenuItem onSelect={onCreateIdea}>Turn into idea</DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
+          <DropdownMenuItem variant="destructive" onSelect={onDelete}>Delete</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function ResourceColumn({
+  title,
+  items,
+  selectedFolderId,
+  onSelectFolder,
+  onOpenLink,
+  onRename,
+  onDelete,
+  onCreateTodo,
+  onCreateNote,
+  onCreateIdea,
+  onCopyShare,
+  onShareChats,
+}: {
+  title: string;
+  items: ResourceItem[];
+  selectedFolderId: string | null;
+  onSelectFolder: (folderId: string) => void;
+  onOpenLink: (url: string) => void;
+  onRename: (item: ResourceItem) => void;
+  onDelete: (item: ResourceItem) => void;
+  onCreateTodo: (item: ResourceItem) => void;
+  onCreateNote: (item: ResourceItem) => void;
+  onCreateIdea: (item: ResourceItem) => void;
+  onCopyShare: (item: ResourceItem) => void;
+  onShareChats: (item: ResourceItem) => void;
+}) {
+  const folders = items.filter((item) => item.type === "folder");
+  const links = items.filter((item) => item.type === "link");
+  const layout = getColumnLayout(folders, links);
+
+  const renderCard = (item: ResourceItem) => (
+    <ResourceItemCard
+      key={item.id}
+      item={item}
+      selected={item.type === "folder" && selectedFolderId === item.id}
+      onClick={() => item.type === "folder" ? onSelectFolder(item.id) : onOpenLink(item.url ?? "")}
+      onRename={() => onRename(item)}
+      onDelete={() => onDelete(item)}
+      onCreateTodo={() => onCreateTodo(item)}
+      onCreateNote={() => onCreateNote(item)}
+      onCreateIdea={() => onCreateIdea(item)}
+      onCopyShare={item.type === "folder" ? () => onCopyShare(item) : undefined}
+      onShareChats={item.type === "folder" ? () => onShareChats(item) : undefined}
+    />
+  );
+
+  return (
+    <div className="flex h-[calc(100dvh-220px)] min-h-[520px] w-[300px] shrink-0 flex-col rounded-[18px] border" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
+      <div className="border-b px-4 py-3" style={{ borderColor: "var(--hairline)" }}>
+        <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{title}</p>
+      </div>
+      <div className="min-h-0 flex-1 p-3">
+        {items.length === 0 ? (
+          <div className="flex h-full items-center justify-center rounded-xl border text-center text-sm" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--charcoal)" }}>
+            No resources here
+          </div>
+        ) : layout.mode === "single" ? (
+          <div className="h-full space-y-2 overflow-y-auto pr-1">
+            {[...folders, ...links].map(renderCard)}
+          </div>
+        ) : (
+          <div className="flex h-full flex-col overflow-hidden rounded-xl border" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
+            <div className="min-h-0 px-2 py-2" style={{ height: layout.folderHeight ?? undefined }}>
+              <div className="h-full space-y-2 overflow-y-auto pr-1">
+                {folders.length === 0 ? <p className="px-2 py-2 text-xs" style={{ color: "var(--mute)" }}>No folders</p> : folders.map(renderCard)}
+              </div>
+            </div>
+            <div className="mx-3 h-px" style={{ backgroundColor: "rgba(255,128,31,0.4)" }} />
+            <div className="min-h-0 px-2 py-2" style={{ height: layout.linkHeight ?? undefined }}>
+              <div className="h-full space-y-2 overflow-y-auto pr-1">
+                {links.length === 0 ? <p className="px-2 py-2 text-xs" style={{ color: "var(--mute)" }}>No links</p> : links.map(renderCard)}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AddResourceDialog({
+  mode,
+  initialTitle,
+  onClose,
+  onSubmit,
+}: {
+  mode: DialogMode | null;
+  initialTitle: string;
+  onClose: () => void;
+  onSubmit: (values: { title: string; url: string; description: string }) => void;
+}) {
+  const [title, setTitle] = useState(initialTitle);
+  const [url, setUrl] = useState("");
+  const [description, setDescription] = useState("");
+
+  return (
+    <Dialog open={mode !== null} onOpenChange={(value) => { if (!value) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{mode === "folder" ? "Add Folder" : mode === "link" ? "Add Link" : "Rename Item"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <input value={title} onChange={(event) => setTitle(event.target.value)} className="input-field" placeholder={mode === "folder" ? "Folder title" : "Title"} />
+          {mode === "link" ? (
+            <>
+              <input value={url} onChange={(event) => setUrl(event.target.value)} className="input-field" placeholder="https://example.com" />
+              <textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={4} className="input-field resize-none" placeholder="Optional context or note" />
+            </>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="btn-outline">Cancel</button>
+            <button type="button" onClick={() => onSubmit({ title, url, description })} className="btn-primary">Save</button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ShareFolderDialog({
+  folder,
+  rooms,
+  onClose,
+  onShare,
+}: {
+  folder: ResourceItem | null;
+  rooms: Array<{ id: string; label: string; meta: string }>;
+  onClose: () => void;
+  onShare: (roomId: string) => void;
+}) {
+  return (
+    <Dialog open={Boolean(folder)} onOpenChange={(value) => { if (!value) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Share folder to chats</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm" style={{ color: "var(--charcoal)" }}>Send <span style={{ color: "var(--ink)", fontWeight: 600 }}>{folder?.title}</span> into a private or workspace chat.</p>
+          <div className="max-h-[320px] space-y-2 overflow-y-auto">
+            {rooms.length === 0 ? (
+              <div className="rounded-xl border px-3 py-4 text-sm" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--charcoal)" }}>
+                No chat rooms available.
+              </div>
+            ) : rooms.map((room) => (
+              <button key={room.id} type="button" onClick={() => onShare(room.id)} className="w-full rounded-xl border px-3 py-3 text-left transition-colors hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{room.label}</p>
+                <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>{room.meta}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ResourcesExplorer({
+  scope,
+  isWorkspace,
+  selectedWorkspaceId,
+  convexUser,
+  titlePrefix,
+  routeBase,
+  resourceList,
+  storageKey,
+  createResource,
+  deleteResource,
+  createTodo,
+  createNote,
+  createIdea,
+}: {
+  scope: ResourceScope;
+  isWorkspace: boolean;
+  selectedWorkspaceId: Id<"workspaces"> | null;
+  convexUser: { _id: Id<"users"> };
+  titlePrefix: string;
+  routeBase: string;
+  resourceList: ResourceDoc[];
+  storageKey: string;
+  createResource: ReturnType<typeof useMutation<typeof api.resources.createResource>>;
+  deleteResource: ReturnType<typeof useMutation<typeof api.resources.deleteResource>>;
+  createTodo: ReturnType<typeof useMutation<typeof api.todos.createTodo>>;
+  createNote: ReturnType<typeof useMutation<typeof api.notes.createNote>>;
+  createIdea: ReturnType<typeof useMutation<typeof api.ideas.createIdea>>;
+}) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  const initialState = useMemo(() => loadExplorerState(storageKey), [storageKey]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedPath, setSelectedPath] = useState<string[]>([]);
+  const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
+  const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null);
+  const [shareFolder, setShareFolder] = useState<ResourceItem | null>(null);
+  const [folders, setFolders] = useState<FolderDraft[]>(initialState.folders);
+  const [linkMeta, setLinkMeta] = useState<Record<string, LinkMeta>>(initialState.linkMeta);
+  const privateRoomsQuery = useQuery(api.socialChats.listPrivateRooms, {});
+  const workspaceRoomsQuery = useQuery(api.socialChats.listWorkspaceRooms, isWorkspace && selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : "skip");
+  const privateRooms = useMemo(
+    () => (privateRoomsQuery ?? []) as Array<{ _id: Id<"socialChatRooms">; displayName?: string; title: string; scope: "private" | "workspace" }>,
+    [privateRoomsQuery]
+  );
+  const workspaceRooms = useMemo(
+    () => (workspaceRoomsQuery ?? []) as Array<{ _id: Id<"socialChatRooms">; title: string; scope: "private" | "workspace" }>,
+    [workspaceRoomsQuery]
+  );
+  const createFolderShare = useMutation(api.resources.createFolderShare);
+  const sendSharedMessage = useMutation(api.socialChats.sendSharedMessage);
+
+  useEffect(() => {
+    saveExplorerState(storageKey, { folders, linkMeta });
+  }, [folders, linkMeta, storageKey]);
+
+  const mergedItems = useMemo(() => {
+    const folderItems: ResourceItem[] = folders.map((folder) => ({ id: folder.id, type: "folder", title: folder.title, parentId: folder.parentId, createdAt: folder.createdAt }));
+    const linkItems: ResourceItem[] = resourceList.map((resource) => {
+      const meta = linkMeta[resource._id] ?? { parentId: null };
+      return {
+        id: resource._id,
+        type: "link",
+        title: meta.title?.trim() || getBaseTitle(resource.url, resource.description),
+        url: resource.url,
+        parentId: meta.parentId ?? null,
+        createdAt: new Date(resource.createdAt).toISOString(),
+        resourceId: resource._id,
+        description: resource.description,
+      };
+    });
+    return [...folderItems, ...linkItems];
+  }, [folders, linkMeta, resourceList]);
+
+  const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
+  const breadcrumb = useMemo(() => [titlePrefix, ...selectedPath.map((folderId) => folderById.get(folderId)?.title ?? "Folder")], [folderById, selectedPath, titlePrefix]);
+  const columns = useMemo(() => {
+    const parentIds = [null, ...selectedPath];
+    return parentIds.map((parentId, index) => ({
+      title: index === 0 ? titlePrefix : folderById.get(parentId ?? "")?.title ?? "Folder",
+      selectedFolderId: selectedPath[index] ?? null,
+      columnIndex: index,
+      items: mergedItems
+        .filter((item) => item.parentId === parentId)
+        .filter((item) => {
+          const query = searchQuery.trim().toLowerCase();
+          if (!query) return true;
+          return `${item.title} ${item.url ?? ""} ${item.description ?? ""}`.toLowerCase().includes(query);
+        })
+        .sort((left, right) => {
+          if (left.type !== right.type) return left.type === "folder" ? -1 : 1;
+          return left.title.localeCompare(right.title);
+        }),
+    }));
+  }, [folderById, mergedItems, searchQuery, selectedPath, titlePrefix]);
+
+  const availableRooms = useMemo(
+    () => [
+      ...privateRooms.map((room) => ({ id: room._id, label: room.displayName ?? room.title, meta: "Private chat" })),
+      ...workspaceRooms.map((room) => ({ id: room._id, label: room.title, meta: "Workspace chat" })),
+    ],
+    [privateRooms, workspaceRooms]
+  );
+
+  const currentParentId = selectedPath[selectedPath.length - 1] ?? null;
+
+  const handleCreateLink = async (values: { title: string; url: string; description: string }) => {
+    try {
+      const normalizedUrl = normalizeUrl(values.url);
+      const description = values.description.trim() ? `${values.title.trim()}\n${values.description.trim()}` : values.title.trim();
+      const resourceId = await createResource({
+        scope,
+        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
+        url: normalizedUrl,
+        description,
+        createdBy: convexUser._id,
+      });
+      setLinkMeta((current) => ({ ...current, [resourceId]: { parentId: currentParentId, title: values.title.trim() || getHostLabel(normalizedUrl) } }));
+      setDialogMode(null);
+      toast.success("Link saved.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save link.");
+    }
+  };
+
+  const handleCreateFolder = (values: { title: string }) => {
+    const title = values.title.trim();
+    if (!title) {
+      toast.error("Folder title is required.");
+      return;
+    }
+    setFolders((current) => [...current, { id: `folder-${Date.now()}`, title, parentId: currentParentId, createdAt: new Date().toISOString() }]);
+    setDialogMode(null);
+    toast.success("Folder created.");
+  };
+
+  const handleRename = (values: { title: string }) => {
+    const title = values.title.trim();
+    if (!renameTarget || !title) return;
+    if (renameTarget.type === "folder") {
+      setFolders((current) => current.map((folder) => folder.id === renameTarget.id ? { ...folder, title } : folder));
+    } else if (renameTarget.resourceId) {
+      setLinkMeta((current) => ({ ...current, [renameTarget.resourceId!]: { parentId: current[renameTarget.resourceId!]?.parentId ?? null, title } }));
+    }
+    setDialogMode(null);
+    setRenameTarget(null);
+    toast.success("Renamed.");
+  };
+
+  const handleDelete = async (item: ResourceItem) => {
+    const confirmed = await confirm({
+      title: `Delete ${item.type}?`,
+      description: item.type === "folder" ? "Child folders and links will move up one level." : "This saved link will be removed.",
+      confirmLabel: "Delete",
+      variant: "destructive",
+    });
+    if (!confirmed) return;
+    if (item.type === "folder") {
+      setFolders((current) => current.filter((folder) => folder.id !== item.id).map((folder) => folder.parentId === item.id ? { ...folder, parentId: item.parentId } : folder));
+      setLinkMeta((current) => Object.fromEntries(Object.entries(current).map(([resourceId, meta]) => [resourceId, meta.parentId === item.id ? { ...meta, parentId: item.parentId } : meta])));
+      setSelectedPath((current) => {
+        const index = current.indexOf(item.id);
+        return index === -1 ? current : current.slice(0, index);
+      });
+      toast.success("Folder deleted.");
+      return;
+    }
+    if (item.resourceId) {
+      await deleteResource({ id: item.resourceId });
+      setLinkMeta((current) => {
+        const next = { ...current };
+        delete next[item.resourceId!];
+        return next;
+      });
+      toast.success("Link deleted.");
+    }
+  };
+
+  const handleCreateTodo = async (item: ResourceItem) => {
+    if (item.type !== "link") return;
+    try {
+      await createTodo({
+        scope,
+        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
+        title: truncate(`Review ${item.title}`, 120),
+        priority: "medium",
+        status: "todo",
+        createdBy: convexUser._id,
+        groupId: isWorkspace ? null : undefined,
+        sourceUrl: item.url,
+        sourceDescription: item.description?.trim() || undefined,
+      });
+      toast.success("Added to todos.");
+    } catch {
+      toast.error("Failed to create todo.");
+    }
+  };
+
+  const handleCreateNote = async (item: ResourceItem) => {
+    if (item.type !== "link" || !item.url) return;
+    try {
+      const noteId = await createNote({
+        scope,
+        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
+        title: item.title,
+        content: buildNoteContent(item.url, item.description ?? item.title),
+        createdBy: convexUser._id,
+      });
+      toast.success("Note created from resource.");
+      router.push(`${routeBase}/notes?note=${noteId}`);
+    } catch {
+      toast.error("Failed to create note.");
+    }
+  };
+
+  const handleCreateIdea = async (item: ResourceItem) => {
+    if (item.type !== "link" || !item.url) return;
+    try {
+      await createIdea({
+        scope,
+        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
+        title: item.title,
+        description: item.description?.trim() ? `${item.description.trim()}\n\nSource: ${item.url}` : `Source: ${item.url}`,
+        tags: [],
+        createdBy: convexUser._id,
+      });
+      toast.success("Idea created from resource.");
+      router.push(`${routeBase}/ideas`);
+    } catch {
+      toast.error("Failed to create idea.");
+    }
+  };
+
+  const createFolderShareLink = async (folder: ResourceItem) => {
+    const payload = buildFolderSharePayload(folder, mergedItems);
+    const shareToken = await createFolderShare({
+      scope,
+      workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
+      title: folder.title,
+      payload: JSON.stringify(payload),
+    });
+    return `${window.location.origin}/share/resources/${shareToken}`;
+  };
+
+  const handleCopyShare = async (item: ResourceItem) => {
+    if (item.type !== "folder") return;
+    try {
+      const url = await createFolderShareLink(item);
+      await navigator.clipboard.writeText(url);
+      toast.success("Public share link copied.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create share link.");
+    }
+  };
+
+  const handleShareToRoom = async (roomId: string) => {
+    if (!shareFolder) return;
+    try {
+      const url = await createFolderShareLink(shareFolder);
+      await sendSharedMessage({
+        roomId: roomId as Id<"socialChatRooms">,
+        shareType: "resource",
+        shareTitle: `${shareFolder.title} folder`,
+        shareDescription: `Shared resource folder: ${shareFolder.title}`,
+        shareMeta: url,
+      });
+      setShareFolder(null);
+      toast.success("Folder shared to chat.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to share folder.");
+    }
+  };
+
+  return (
+    <div className="animate-fade-in-up h-full" style={{ padding: 0, maxWidth: "none" }}>
+      <ResourceToolbar searchQuery={searchQuery} onSearchChange={setSearchQuery} onAddFolder={() => { setRenameTarget(null); setDialogMode("folder"); }} onAddLink={() => { setRenameTarget(null); setDialogMode("link"); }} breadcrumb={breadcrumb} />
+
+      <div className="overflow-x-auto px-4 py-4">
+        <div className="flex gap-3">
+          {columns.map((column) => (
+            <ResourceColumn
+              key={`${column.title}-${column.columnIndex}-${column.selectedFolderId ?? "root"}`}
+              title={column.title}
+              items={column.items}
+              selectedFolderId={column.selectedFolderId}
+              onSelectFolder={(folderId) => setSelectedPath((current) => [...current.slice(0, column.columnIndex), folderId])}
+              onOpenLink={(url) => window.open(url, "_blank", "noopener,noreferrer")}
+              onRename={(item) => { setRenameTarget(item); setDialogMode("rename"); }}
+              onDelete={(item) => void handleDelete(item)}
+              onCreateTodo={(item) => void handleCreateTodo(item)}
+              onCreateNote={(item) => void handleCreateNote(item)}
+              onCreateIdea={(item) => void handleCreateIdea(item)}
+              onCopyShare={(item) => void handleCopyShare(item)}
+              onShareChats={(item) => setShareFolder(item)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <AddResourceDialog
+        key={`${dialogMode ?? "closed"}-${renameTarget?.id ?? "new"}`}
+        mode={dialogMode}
+        initialTitle={dialogMode === "rename" ? renameTarget?.title ?? "" : ""}
+        onClose={() => { setDialogMode(null); setRenameTarget(null); }}
+        onSubmit={(values) => {
+          if (dialogMode === "folder") return handleCreateFolder(values);
+          if (dialogMode === "link") return void handleCreateLink(values);
+          return handleRename(values);
+        }}
+      />
+
+      <ShareFolderDialog
+        folder={shareFolder}
+        rooms={availableRooms}
+        onClose={() => setShareFolder(null)}
+        onShare={(roomId) => void handleShareToRoom(roomId)}
+      />
+    </div>
+  );
 }
 
 export function ResourcesPage({ scope }: { scope: ResourceScope }) {
   const { user } = useUser();
-  const router = useRouter();
   const { selectedWorkspaceId } = useWorkspaceStore();
 
   const convexUser = useQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
@@ -147,40 +846,11 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
   const createNote = useMutation(api.notes.createNote);
   const createIdea = useMutation(api.ideas.createIdea);
 
-  const [showForm, setShowForm] = useState(false);
-  const [urlInput, setUrlInput] = useState("");
-  const [descriptionInput, setDescriptionInput] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [filterMode, setFilterMode] = useState<"all" | "with-description" | "without-description">("all");
-  const [gridPreset, setGridPreset] = useState<GridPreset>("3x5");
-  const [customColumns, setCustomColumns] = useState(3);
-  const confirm = useConfirm();
-
   const resources = scope === "workspace" ? workspaceResources : privateResources;
   const isWorkspace = scope === "workspace";
   const titlePrefix = isWorkspace ? workspace?.name ?? "Workspace" : "Private";
   const routeBase = isWorkspace ? "/workspace" : "/private";
-  const resourceList = useMemo(() => resources ?? [], [resources]);
-  const filteredResources = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return resourceList.filter((resource) => {
-      const matchesQuery =
-        !query ||
-        resource.url.toLowerCase().includes(query) ||
-        resource.description.toLowerCase().includes(query) ||
-        getHostLabel(resource.url).toLowerCase().includes(query);
-
-      const hasDescription = Boolean(resource.description.trim());
-      const matchesFilter =
-        filterMode === "all" ||
-        (filterMode === "with-description" && hasDescription) ||
-        (filterMode === "without-description" && !hasDescription);
-
-      return matchesQuery && matchesFilter;
-    });
-  }, [resourceList, searchQuery, filterMode]);
+  const storageKey = useMemo(() => getStorageKey(scope, selectedWorkspaceId ?? null), [scope, selectedWorkspaceId]);
 
   if (isWorkspace && !selectedWorkspaceId) {
     return (
@@ -192,400 +862,31 @@ export function ResourcesPage({ scope }: { scope: ResourceScope }) {
     );
   }
 
-  if (!user || convexUser === undefined || (isWorkspace && selectedWorkspaceId && workspace === undefined) || resources === undefined) {
+  if (!user || convexUser === undefined || !convexUser || (isWorkspace && selectedWorkspaceId && workspace === undefined) || resources === undefined) {
     return (
       <div className="page-container animate-fade-in-up">
-        <div className="skeleton h-10 w-52 mb-8" />
-        <div className="skeleton h-48 rounded-xl mb-8" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {[0, 1, 2, 3].map((item) => (
-            <div key={item} className="skeleton h-56 rounded-xl" />
-          ))}
-        </div>
+        <div className="skeleton h-10 w-52 mb-6" />
+        <div className="skeleton h-[560px] rounded-2xl" />
       </div>
     );
   }
 
-  const handleCreateResource = async () => {
-    if (!convexUser) {
-      toast.error("Your account is still loading.");
-      return;
-    }
-
-    try {
-      const normalizedUrl = normalizeUrl(urlInput);
-      setSaving(true);
-      await createResource({
-        scope,
-        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
-        url: normalizedUrl,
-        description: descriptionInput,
-        createdBy: convexUser._id,
-      });
-      setUrlInput("");
-      setDescriptionInput("");
-      setShowForm(false);
-      toast.success("Resource saved.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save resource.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDeleteResource = async (resourceId: Id<"resources">) => {
-    const confirmed = await confirm({
-      title: "Delete resource?",
-      description: "This saved link and its context will be removed.",
-      confirmLabel: "Delete",
-      variant: "destructive",
-    });
-    if (!confirmed) return;
-
-    setBusyKey(`${resourceId}:delete`);
-    try {
-      await deleteResource({ id: resourceId });
-      toast.success("Resource deleted.");
-    } catch {
-      toast.error("Failed to delete resource.");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const handleCreateTodo = async (resource: ResourceCard) => {
-    if (!convexUser) {
-      toast.error("Your account is still loading.");
-      return;
-    }
-
-    setBusyKey(`${resource._id}:todo`);
-    try {
-      await createTodo({
-        scope,
-        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
-        title: truncate(`Review ${getBaseTitle(resource.url, resource.description)}`, 120),
-        priority: "medium",
-        status: "todo",
-        createdBy: convexUser._id,
-        groupId: isWorkspace ? null : undefined,
-        sourceUrl: resource.url,
-        sourceDescription: resource.description.trim() || undefined,
-      });
-      toast.success("Added to todos.");
-    } catch {
-      toast.error("Failed to create todo.");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const handleCreateNote = async (resource: ResourceCard) => {
-    if (!convexUser) {
-      toast.error("Your account is still loading.");
-      return;
-    }
-
-    setBusyKey(`${resource._id}:note`);
-    try {
-      const noteId = await createNote({
-        scope,
-        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
-        title: getBaseTitle(resource.url, resource.description),
-        content: buildNoteContent(resource.url, resource.description),
-        createdBy: convexUser._id,
-      });
-      toast.success("Note created from resource.");
-      router.push(`${routeBase}/notes?note=${noteId}`);
-    } catch {
-      toast.error("Failed to create note.");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
-  const handleCreateIdea = async (resource: ResourceCard) => {
-    if (!convexUser) {
-      toast.error("Your account is still loading.");
-      return;
-    }
-
-    setBusyKey(`${resource._id}:idea`);
-    try {
-      await createIdea({
-        scope,
-        workspaceId: isWorkspace ? selectedWorkspaceId ?? undefined : undefined,
-        title: getBaseTitle(resource.url, resource.description),
-        description: resource.description.trim()
-          ? `${resource.description.trim()}\n\nSource: ${resource.url}`
-          : `Source: ${resource.url}`,
-        tags: [],
-        createdBy: convexUser._id,
-      });
-      toast.success("Idea created from resource.");
-      router.push(`${routeBase}/ideas`);
-    } catch {
-      toast.error("Failed to create idea.");
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
   return (
-    <div className="page-container animate-fade-in-up relative">
-      <div
-        className="absolute top-0 right-1/4 w-[600px] h-[400px] pointer-events-none"
-        style={{
-          background: "radial-gradient(ellipse at top, var(--accent-orange-glow) 0%, transparent 70%)",
-          opacity: 0.14,
-        }}
-      />
-
-      <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            {isWorkspace ? (
-              <span className="text-xs uppercase tracking-widest font-medium px-2 py-0.5 rounded" style={{ color: "var(--mute)", backgroundColor: "var(--surface-deep)", border: "1px solid var(--hairline)" }}>
-                {titlePrefix}
-              </span>
-            ) : (
-              <>
-                <Lock size={13} style={{ color: "var(--mute)" }} />
-                <span className="text-xs uppercase tracking-widest font-medium" style={{ color: "var(--mute)" }}>Private</span>
-              </>
-            )}
-          </div>
-          <h2 className="text-3xl font-medium tracking-tight mb-1" style={{ color: "var(--ink)" }}>Resources</h2>
-          <p className="text-sm font-medium max-w-2xl" style={{ color: "var(--charcoal)" }}>
-            Save links with context, then turn them into todos, notes, or ideas when you are ready.
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            if (showForm) {
-              setShowForm(false);
-              setUrlInput("");
-              setDescriptionInput("");
-              return;
-            }
-            setShowForm(true);
-          }}
-          className="btn-primary"
-        >
-          <Plus size={16} /> Add Resource
-        </button>
-      </div>
-
-      <div className="feature-card mb-8 relative z-40 overflow-visible p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-1 flex-col gap-4 md:flex-row md:items-center">
-            <div className="relative flex-1 max-w-2xl">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search links, hosts, or descriptions..."
-                className="input-field min-w-[340px] pl-9 lg:min-w-[520px]"
-              />
-            </div>
-
-            <ThemedSelect value={filterMode} onChange={(event) => setFilterMode(event.target.value as typeof filterMode)} className="md:w-[220px]">
-              <option value="all">All resources</option>
-              <option value="with-description">With description</option>
-              <option value="without-description">Without description</option>
-            </ThemedSelect>
-          </div>
-
-          <div className="relative z-50">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors hover:bg-[var(--surface-elevated)]"
-                  style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
-                >
-                  <LayoutGrid size={15} />
-                  Grid: {gridPreset === "custom" ? `Custom ${customColumns} col` : gridPreset}
-                  <ChevronDown size={14} style={{ color: "var(--mute)" }} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuLabel>Grid presets</DropdownMenuLabel>
-                {(["2x2", "3x5", "4x4", "custom"] as GridPreset[]).map((preset) => (
-                  <DropdownMenuItem key={preset} onSelect={() => setGridPreset(preset)}>
-                    {preset === "2x2" ? "2 x 2" : preset === "3x5" ? "3 x 5" : preset === "4x4" ? "4 x 4" : "Custom"}
-                  </DropdownMenuItem>
-                ))}
-                {gridPreset === "custom" ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <div className="px-2 py-1.5">
-                      <label className="mb-2 block text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: "var(--mute)" }}>Columns</label>
-                      <ThemedSelect value={customColumns} onChange={(event) => setCustomColumns(Number(event.target.value))}>
-                        <option value={1}>1 column</option>
-                        <option value={2}>2 columns</option>
-                        <option value={3}>3 columns</option>
-                        <option value={4}>4 columns</option>
-                      </ThemedSelect>
-                    </div>
-                  </>
-                ) : null}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </div>
-
-      {showForm && (
-        <div className="feature-card mb-12 animate-fade-in-up relative z-10">
-          <div className="max-w-3xl mx-auto space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Link</label>
-              <input
-                autoFocus
-                placeholder="https://example.com/article"
-                value={urlInput}
-                onChange={(event) => setUrlInput(event.target.value)}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2" style={{ color: "var(--body)" }}>Description</label>
-              <textarea
-                placeholder="Why this link matters, what to extract from it, or what to revisit later..."
-                value={descriptionInput}
-                onChange={(event) => setDescriptionInput(event.target.value)}
-                rows={5}
-                className="input-field resize-none"
-              />
-            </div>
-            <div className="flex gap-4 pt-6 border-t" style={{ borderColor: "var(--divider-soft)" }}>
-              <button onClick={handleCreateResource} disabled={saving} className="btn-primary">
-                {saving ? "Saving..." : "Save Resource"}
-              </button>
-              <button
-                onClick={() => {
-                  setShowForm(false);
-                  setUrlInput("");
-                  setDescriptionInput("");
-                }}
-                className="btn-outline"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {resourceList.length === 0 && !showForm && (
-        <div
-          className="flex flex-col items-center justify-center py-32 text-center border rounded-xl relative z-10"
-          style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)" }}
-        >
-          <Link2 size={32} className="mb-6" style={{ color: "var(--accent-orange)" }} />
-          <h3 className="text-xl font-medium mb-3" style={{ color: "var(--ink)" }}>
-            No {isWorkspace ? "workspace" : "private"} resources yet
-          </h3>
-          <p className="mb-10 max-w-md" style={{ color: "var(--charcoal)" }}>
-            Drop in articles, docs, references, or inspiration links and turn them into action when you need to.
-          </p>
-          <button onClick={() => setShowForm(true)} className="btn-primary">
-            <Plus size={16} /> Save first resource
-          </button>
-        </div>
-      )}
-
-      {filteredResources.length === 0 && resourceList.length > 0 ? (
-        <div className="feature-card relative z-10 flex flex-col items-center justify-center py-20 text-center">
-          <Search size={28} className="mb-4" style={{ color: "var(--stone)" }} />
-          <h3 className="mb-2 text-lg font-medium" style={{ color: "var(--ink)" }}>No matching resources</h3>
-          <p style={{ color: "var(--charcoal)" }}>Adjust your search or filter to find what you are looking for.</p>
-        </div>
-      ) : null}
-
-      <div className={`grid gap-6 relative z-0 ${getGridClasses(gridPreset, customColumns)}`}>
-        {filteredResources.map((resource, index) => {
-          const deleteBusy = busyKey === `${resource._id}:delete`;
-          const todoBusy = busyKey === `${resource._id}:todo`;
-          const noteBusy = busyKey === `${resource._id}:note`;
-          const ideaBusy = busyKey === `${resource._id}:idea`;
-
-          return (
-            <div key={resource._id} className="feature-card flex flex-col group relative overflow-hidden" style={{ animationDelay: `${index * 40}ms`, padding: "24px" }}>
-              <div className="absolute top-0 left-0 right-0 h-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ backgroundColor: "var(--accent-orange)" }} />
-
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <span className="badge-pill">{getHostLabel(resource.url)}</span>
-                    <span className="text-xs" style={{ color: "var(--mute)" }}>
-                      {formatDistanceToNow(new Date(resource.createdAt), { addSuffix: true })}
-                    </span>
-                  </div>
-                  <p className="text-sm font-medium break-all" style={{ color: "var(--ink)" }}>{resource.url}</p>
-                </div>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="rounded-md p-1.5 transition-colors hover:bg-[var(--surface-elevated)]"
-                      style={{ color: "var(--stone)" }}
-                      aria-label="Open resource actions"
-                    >
-                      <MoreVertical size={16} />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-52">
-                    <DropdownMenuItem asChild>
-                      <a href={resource.url} target="_blank" rel="noreferrer">
-                        <ExternalLink size={14} /> Open link
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled={todoBusy || busyKey !== null} onSelect={() => void handleCreateTodo(resource)}>
-                      <CheckSquare size={14} /> {todoBusy ? "Adding..." : "Add to todo"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled={noteBusy || busyKey !== null} onSelect={() => void handleCreateNote(resource)}>
-                      <FileText size={14} /> {noteBusy ? "Creating..." : "New note"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled={ideaBusy || busyKey !== null} onSelect={() => void handleCreateIdea(resource)}>
-                      <Lightbulb size={14} /> {ideaBusy ? "Creating..." : "New idea"}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem variant="destructive" disabled={deleteBusy} onSelect={() => void handleDeleteResource(resource._id)}>
-                      <Trash2 size={14} /> {deleteBusy ? "Deleting..." : "Delete"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-
-              {resource.description ? (
-                <p className="text-sm leading-relaxed whitespace-pre-wrap line-clamp-5 mb-6" style={{ color: "var(--charcoal)" }}>
-                  {resource.description}
-                </p>
-              ) : (
-                <p className="text-sm italic mb-6" style={{ color: "var(--stone)" }}>No description added.</p>
-              )}
-
-              <div className="mt-auto flex items-center justify-between gap-3 pt-5 border-t" style={{ borderColor: "var(--divider-soft)" }}>
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors hover:bg-[var(--surface-elevated)]"
-                  style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)" }}
-                >
-                  <ExternalLink size={14} /> Open Link
-                </a>
-                <span className="text-xs" style={{ color: "var(--mute)" }}>
-                  Quick actions in menu
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <ResourcesExplorer
+      key={storageKey}
+      scope={scope}
+      isWorkspace={isWorkspace}
+      selectedWorkspaceId={selectedWorkspaceId}
+      convexUser={convexUser}
+      titlePrefix={titlePrefix}
+      routeBase={routeBase}
+      resourceList={resources as ResourceDoc[]}
+      storageKey={storageKey}
+      createResource={createResource}
+      deleteResource={deleteResource}
+      createTodo={createTodo}
+      createNote={createNote}
+      createIdea={createIdea}
+    />
   );
 }

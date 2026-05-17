@@ -60,7 +60,7 @@ export function HardcodedHubPage({
               const Icon = action.icon;
               return (
                 <Link
-                  key={action.href}
+                  key={`${action.href}-${action.label}`}
                   href={action.href}
                   className="feature-card group flex items-start gap-3 p-4 transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]"
                 >
@@ -108,7 +108,7 @@ export function HardcodedHubPage({
                   const Icon = action.icon;
                   return (
                     <Link
-                      key={action.href}
+                      key={`${action.href}-${action.label}`}
                       href={action.href}
                       className="group rounded-xl border p-4 transition-all hover:border-[var(--hairline-strong)] hover:bg-[var(--surface-elevated)]"
                       style={{ borderColor: "var(--hairline)" }}

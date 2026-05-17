@@ -470,7 +470,7 @@ export default function Home() {
       <div aria-hidden style={{ position: "fixed", top: "30%", left: "-10%", width: 600, height: 600, background: "radial-gradient(ellipse, rgba(0,117,255,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
 
       {/* ─────────── NAV ─────────── */}
-      <nav className="relative z-10 flex h-[64px] items-center justify-between px-5 sm:px-8" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.6)" }}>
+      <nav className="relative z-10 flex h-[56px] sm:h-[64px] items-center justify-between px-4 sm:px-6 lg:px-8" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.6)" }}>
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-white">
             <Image
@@ -490,7 +490,7 @@ export default function Home() {
             className="hidden object-contain sm:block"
             priority
           />
-          <div style={{ width: 1, height: 14, background: "rgba(255,255,255,0.12)" }} />
+          <div className="hidden sm:block" style={{ width: 1, height: 14, background: "rgba(255,255,255,0.12)" }} />
           <span style={{ fontSize: 10, color: "rgba(252,253,255,0.35)", letterSpacing: "0.06em", textTransform: "uppercase", fontFamily: "monospace" }}>
             alpha
           </span>
@@ -507,23 +507,23 @@ export default function Home() {
           ))}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
           <SignInButton mode="modal">
-            <button className="btn-outline-rits" style={{ padding: "6px 14px" }}>Sign in</button>
+            <button className="btn-outline-rits hidden sm:inline-flex" style={{ padding: "6px 14px" }}>Sign in</button>
           </SignInButton>
           <SignUpButton mode="modal">
-            <button className="btn-primary-rits" style={{ padding: "6px 14px" }}>Get Started</button>
+            <button className="btn-primary-rits" style={{ padding: "6px 12px" }}>Get Started</button>
           </SignUpButton>
         </div>
       </nav>
 
       {/* ─────────── HERO ─────────── */}
-      <section className="relative z-10 flex flex-col items-center px-6 pt-20 text-center">
+      <section className="relative z-10 flex flex-col items-center px-4 sm:px-6 lg:px-8 pt-14 sm:pt-20 text-center">
 
         <div className="relative w-full max-w-[980px]" style={{ marginBottom: 24, animation: "fadeInUp 0.8s ease 0.1s both" }}>
           <div className="absolute inset-x-[8%] top-1/2 h-40 -translate-y-1/2 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(59,158,255,0.025) 34%, transparent 74%)", filter: "blur(18px)" }} />
-          <h1 className="relative px-4" style={{ fontSize: "clamp(52px, 9vw, 96px)", fontWeight: 400, lineHeight: 1.0, letterSpacing: "-0.04em", color: "#fcfdff", maxWidth: 900, margin: "0 auto", fontFamily: "monospace", textShadow: "0 10px 40px rgba(0,0,0,0.45)" }}>
+          <h1 className="relative px-2 sm:px-4" style={{ fontSize: "clamp(34px, 11vw, 96px)", fontWeight: 400, lineHeight: 1.02, letterSpacing: "-0.04em", color: "#fcfdff", maxWidth: 900, margin: "0 auto", fontFamily: "monospace", textShadow: "0 10px 40px rgba(0,0,0,0.45)" }}>
             <span className="hero-word">Research&nbsp;</span>
             <span className="hero-word">in&nbsp;</span>
             <span className="hero-word">tech&nbsp;</span>
@@ -531,12 +531,12 @@ export default function Home() {
           </h1>
         </div>
 
-        <p style={{ animation: "fadeInUp 0.8s ease 0.6s both", maxWidth: 620, fontSize: 18, lineHeight: 1.6, color: "rgba(252,253,255,0.55)", marginBottom: 48, fontFamily: "monospace" }}>
+        <p style={{ animation: "fadeInUp 0.8s ease 0.6s both", maxWidth: 620, fontSize: 15, lineHeight: 1.6, color: "rgba(252,253,255,0.55)", marginBottom: 40, fontFamily: "monospace" }} className="sm:text-[18px]">
           Research briefs, analysis systems, consultant-grade notes, and AI-assisted evaluation in one operating layer.
         </p>
 
         {/* CTAs */}
-        <div style={{ animation: "fadeInUp 0.8s ease 0.75s both", display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", marginBottom: 80 }}>
+        <div style={{ animation: "fadeInUp 0.8s ease 0.75s both", display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", marginBottom: 56 }}>
           <SignUpButton mode="modal">
             <button className="btn-primary-rits" style={{ height: 48, padding: "0 28px", fontSize: 15 }}>
               Get started free
@@ -550,17 +550,17 @@ export default function Home() {
         </div>
 
         {/* Workflow diagram */}
-        <div className="relative aspect-[12/7] w-full max-w-[1180px] pt-8 lg:pt-12" style={{ animation: "fadeInUp 0.8s ease 0.9s both" }}>
+        <div className="relative aspect-[12/8] sm:aspect-[12/7] w-full max-w-[1180px] pt-6 sm:pt-8 lg:pt-12" style={{ animation: "fadeInUp 0.8s ease 0.9s both" }}>
           <WorkflowDiagram />
       
         </div>
       </section>
 
       {/* ─────────── STATS BAND ─────────── */}
-      <section className="relative z-10 py-16 px-8" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+      <section className="relative z-10 px-4 sm:px-6 lg:px-8 py-12 sm:py-16" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 960, margin: "0 auto" }}>
           <Reveal>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-12">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-12">
               {stats.map((s) => (
                 <div key={s.label} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <div style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 400, fontFamily: "monospace", color: s.color, lineHeight: 1 }}>
@@ -576,7 +576,7 @@ export default function Home() {
       </section>
 
       {/* ─────────── FEATURES GRID ─────────── */}
-      <section id="features" className="relative z-10 py-24 px-8">
+      <section id="features" className="relative z-10 px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
         <div style={{ maxWidth: 1080, margin: "0 auto" }}>
           <Reveal>
             <div style={{ textAlign: "center", marginBottom: 64 }}>
@@ -616,7 +616,7 @@ export default function Home() {
       </section>
 
       {/* ─────────── AI SECTION ─────────── */}
-      <section id="ai" className="relative z-10 py-24 px-8" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section id="ai" className="relative z-10 px-4 sm:px-6 lg:px-8 py-16 sm:py-24" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div className="mx-auto grid max-w-[1080px] items-center gap-12 lg:grid-cols-2 lg:gap-16">
           <Reveal>
             <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,128,31,0.7)", fontFamily: "monospace", marginBottom: 16 }}>Rits AI</p>
@@ -674,7 +674,7 @@ export default function Home() {
       </section>
 
       {/* ─────────── FLOATING SHAPES BAND ─────────── */}
-      <section id="workspace" className="relative z-10 py-24 overflow-hidden" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section id="workspace" className="relative z-10 py-16 sm:py-24 overflow-hidden" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         {/* floating geometric SVGs */}
         <svg style={{ position: "absolute", top: "10%", left: "5%", opacity: 0.06, animation: "spinSlow 30s linear infinite" }} width="120" height="120" viewBox="0 0 120 120">
           <polygon points="60,10 110,90 10,90" fill="none" stroke="white" strokeWidth="1" />
@@ -689,7 +689,7 @@ export default function Home() {
           <circle cx="30" cy="30" r="15" fill="none" stroke="white" strokeWidth="0.5" />
         </svg>
 
-        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 32px", textAlign: "center" }}>
+        <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 16px", textAlign: "center" }}>
           <Reveal>
             <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>Method and infrastructure</p>
             <h2 style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff", marginBottom: 48 }}>
@@ -772,7 +772,7 @@ export default function Home() {
       </section>
 
       {/* ─────────── CTA BAND ─────────── */}
-      <section id="pricing" className="relative z-10 py-32 px-8 text-center" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <section id="pricing" className="relative z-10 px-4 sm:px-6 lg:px-8 py-20 sm:py-32 text-center" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         {/* large glow behind CTA */}
         <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at center, rgba(59,158,255,0.05) 0%, transparent 70%)", pointerEvents: "none" }} />
         <Reveal>
@@ -792,7 +792,7 @@ export default function Home() {
       </section>
 
       {/* ─────────── FOOTER ─────────── */}
-      <footer className="relative z-10 py-12 px-8" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      <footer className="relative z-10 px-4 sm:px-6 lg:px-8 py-10 sm:py-12" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ maxWidth: 1080, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Image

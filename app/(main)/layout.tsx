@@ -6,7 +6,7 @@ import { ProfileMenu } from "@/components/profile/profile-menu";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Search, Command } from "lucide-react";
+import { Bell, Search, Command, Menu, X, Home, Flame, Layers3, User } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { ChatSheet } from "@/components/ai/chat-sheet";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
@@ -115,7 +115,16 @@ export default function MainLayout({
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  const mobileNavItems = [
+    { href: "/dashboard", label: "Home", icon: Home },
+    { href: "/research", label: "Research", icon: Layers3 },
+    { href: "/feed", label: "Feed", icon: Flame },
+    { href: "/chats", label: "Chats", icon: Bell },
+    { href: "/profile", label: "Profile", icon: User },
+  ];
 
   const matches = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
@@ -178,17 +187,31 @@ export default function MainLayout({
   return (
     <ConfirmProvider>
       <div
-        className="flex h-screen overflow-hidden"
+        className="flex h-dvh overflow-hidden"
         style={{ backgroundColor: "var(--canvas)" }}
       >
-        <Sidebar />
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
 
-      <div className="flex flex-col flex-1 overflow-hidden">
+        {mobileNavOpen ? (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-black/60" onClick={() => setMobileNavOpen(false)} />
+            <div className="absolute left-0 top-0 h-full w-[272px] shadow-2xl">
+              <Sidebar />
+            </div>
+          </div>
+        ) : null}
+
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         {/* Top header */}
         <header className="layout-header shrink-0">
           <div className="flex items-center gap-4">
+            <button type="button" onClick={() => setMobileNavOpen((current) => !current)} className="inline-flex md:hidden items-center justify-center h-9 w-9 rounded-md border" style={{ borderColor: "var(--hairline)", color: "var(--ink)", backgroundColor: "var(--surface-card)" }}>
+              {mobileNavOpen ? <X size={16} /> : <Menu size={16} />}
+            </button>
             <h1
-              className="text-lg font-medium tracking-tight"
+              className="text-base sm:text-lg font-medium tracking-tight"
               style={{ color: "var(--ink)" }}
             >
               {title}
@@ -231,10 +254,10 @@ export default function MainLayout({
     </span>
   </button>
 
-  <div className="w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
+  <div className="hidden sm:block w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
 
   {/* Search */}
-  <div ref={searchRef} className="relative hidden sm:block">
+  <div ref={searchRef} className="relative hidden lg:block">
     <Search
       size={13}
       className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -302,7 +325,7 @@ export default function MainLayout({
     )}
   </div>
 
-  <div className="w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
+  <div className="hidden sm:block w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
 
   <ThemeToggle />
 
@@ -326,7 +349,7 @@ export default function MainLayout({
     />
   </button>
 
-  <div className="w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
+  <div className="hidden sm:block w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
 
   <ProfileMenu />
 </div>
@@ -337,7 +360,7 @@ export default function MainLayout({
           className="flex-1 overflow-auto"
           style={{ backgroundColor: "var(--canvas)" }}
         >
-          <div className="h-full relative">
+          <div className="h-full relative pb-20 md:pb-0">
             {/* Atmospheric top glow for every page */}
             <div
               className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] pointer-events-none"
@@ -399,7 +422,21 @@ export default function MainLayout({
     Chat with Rits AI
   </div>
  </div> : null}
-        <ChatSheet open={isAiOpen} onOpenChange={setIsAiOpen} />
+      <ChatSheet open={isAiOpen} onOpenChange={setIsAiOpen} />
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t md:hidden" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "rgba(0,0,0,0.92)", backdropFilter: "blur(14px)" }}>
+        <div className="grid grid-cols-5 gap-1 px-2 py-2">
+          {mobileNavItems.map(({ href, label, icon: Icon }) => {
+            const isActive = pathname === href || pathname.startsWith(href + "/");
+            return (
+              <button key={href} type="button" onClick={() => router.push(href)} className="flex flex-col items-center justify-center rounded-xl px-2 py-2 text-[11px] font-medium" style={{ color: isActive ? "var(--ink)" : "var(--mute)", backgroundColor: isActive ? "var(--surface-elevated)" : "transparent" }}>
+                <Icon size={16} />
+                <span className="mt-1">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
       </div>
     </ConfirmProvider>
   );

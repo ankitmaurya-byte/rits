@@ -1,5 +1,5 @@
-import { YcExplorerPage } from "@/components/startups/yc-explorer-page";
+import { AiStartupHuntPage } from "@/components/startups/ai-startup-hunt-page";
 
 export default function StartupsPage() {
-  return <YcExplorerPage />;
+  return <AiStartupHuntPage />;
 }

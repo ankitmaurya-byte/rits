@@ -53,7 +53,7 @@ const exploreLinks = [
   { href: "/explore/yc", label: "YC Explorer", icon: Rocket },
   { href: "/explore/sharktank", label: "Shark Tank", icon: Telescope },
   { href: "/explore/github-tools", label: "GitHub Tools", icon: SearchCode },
-  { href: "/explore/ai-startups", label: "AI Startups", icon: Bot },
+  { href: "/explore/ai-startups", label: "Startups", icon: Bot },
 ];
 
 const researchLinks = [

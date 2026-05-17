@@ -146,7 +146,7 @@ function CollapsibleNavSection({
     pathname.startsWith("/private/") || pathname.startsWith("/workspace/")
   );
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const isExpanded = isOpen || hasActiveLink || hasActiveChild;
+  const isExpanded = isOpen;
 
   return (
     <div className="mb-1">

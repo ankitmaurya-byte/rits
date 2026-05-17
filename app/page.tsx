@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
@@ -366,6 +365,8 @@ export default function Home() {
   const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const lastScrollY = useRef(0);
 
   useEffect(() => {
     if (isLoaded && isSignedIn) router.push("/dashboard");
@@ -375,6 +376,26 @@ export default function Home() {
     const handler = (e: MouseEvent) => setMousePos({ x: e.clientX, y: e.clientY });
     window.addEventListener("mousemove", handler);
     return () => window.removeEventListener("mousemove", handler);
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentY = window.scrollY;
+      const delta = currentY - lastScrollY.current;
+
+      if (currentY < 24) {
+        setHeaderHidden(false);
+      } else if (delta > 8) {
+        setHeaderHidden(true);
+      } else if (delta < -8) {
+        setHeaderHidden(false);
+      }
+
+      lastScrollY.current = currentY;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   return (
@@ -470,7 +491,7 @@ export default function Home() {
       <div aria-hidden style={{ position: "fixed", top: "30%", left: "-10%", width: 600, height: 600, background: "radial-gradient(ellipse, rgba(0,117,255,0.06) 0%, transparent 70%)", pointerEvents: "none", zIndex: 0 }} />
 
       {/* ─────────── NAV ─────────── */}
-      <nav className="relative z-10 flex h-[56px] sm:h-[64px] items-center justify-between px-4 sm:px-6 lg:px-8" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.6)" }}>
+      <nav className="fixed inset-x-0 top-0 z-30 flex h-[56px] sm:h-[64px] items-center justify-between px-4 sm:px-6 lg:px-8 transition-transform duration-300 ease-out" style={{ transform: headerHidden ? "translateY(calc(-100% - 1px))" : "translateY(0)", borderBottom: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", background: "rgba(0,0,0,0.82)" }}>
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-white">
             <Image
@@ -508,9 +529,8 @@ export default function Home() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <ThemeToggle />
           <SignInButton mode="modal">
-            <button className="btn-outline-rits hidden sm:inline-flex" style={{ padding: "6px 14px" }}>Sign in</button>
+            <button className="btn-outline-rits inline-flex" style={{ padding: "6px 12px" }}>Sign in</button>
           </SignInButton>
           <SignUpButton mode="modal">
             <button className="btn-primary-rits" style={{ padding: "6px 12px" }}>Get Started</button>
@@ -519,7 +539,7 @@ export default function Home() {
       </nav>
 
       {/* ─────────── HERO ─────────── */}
-      <section className="relative z-10 flex flex-col items-center px-4 sm:px-6 lg:px-8 pt-14 sm:pt-20 text-center">
+      <section className="relative z-10 flex flex-col items-center px-4 sm:px-6 lg:px-8 pt-24 sm:pt-28 text-center">
 
         <div className="relative w-full max-w-[980px]" style={{ marginBottom: 24, animation: "fadeInUp 0.8s ease 0.1s both" }}>
           <div className="absolute inset-x-[8%] top-1/2 h-40 -translate-y-1/2 rounded-full" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.06) 0%, rgba(59,158,255,0.025) 34%, transparent 74%)", filter: "blur(18px)" }} />

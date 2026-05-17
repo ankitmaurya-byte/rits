@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
   Bot,
@@ -145,18 +145,34 @@ function CollapsibleNavSection({
   const hasActiveChild = Boolean(children) && (
     pathname.startsWith("/private/") || pathname.startsWith("/workspace/")
   );
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const hasMountedRef = useRef(false);
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const isExpanded = isOpen;
 
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    if (isOpen) {
+      sectionRef.current?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+    }
+  }, [isOpen]);
+
   return (
-    <div className="mb-1">
+    <div ref={sectionRef} className="relative mb-1 scroll-mt-0">
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition-all duration-150 hover:bg-[var(--surface-elevated)]"
+        className="sticky top-0 bottom-0 z-10 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition-all duration-150 hover:bg-[var(--surface-elevated)]"
         style={{
           borderColor: hasActiveLink || hasActiveChild ? "var(--hairline-strong)" : "transparent",
-          backgroundColor: hasActiveLink || hasActiveChild ? "var(--surface-elevated)" : "transparent",
+          backgroundColor: hasActiveLink || hasActiveChild ? "var(--surface-elevated)" : "var(--canvas)",
         }}
       >
         <div className="flex items-center gap-2">
@@ -172,7 +188,7 @@ function CollapsibleNavSection({
         )}
       </button>
       {isExpanded ? (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2 space-y-2 pb-1">
           {links.length > 0 ? <NavSection label="" links={links} /> : null}
           {children}
         </div>
@@ -227,7 +243,7 @@ export function Sidebar() {
       </div>
 
       {/* Scrollable nav area */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-3 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4 pt-0">
         <CollapsibleNavSection
           label="Workspace"
           links={[]}

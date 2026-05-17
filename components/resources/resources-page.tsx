@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
@@ -282,6 +282,15 @@ function ResourceItemCard({
   onCreateIdea,
   onCopyShare,
   onShareChats,
+  draggable,
+  dragging,
+  dropActive,
+  onDragStart,
+  onDragEnd,
+  onDragEnter,
+  onDrop,
+  onDragItemStart,
+  onDragItemEnd,
 }: {
   item: ResourceItem;
   selected: boolean;
@@ -293,9 +302,48 @@ function ResourceItemCard({
   onCreateIdea: () => void;
   onCopyShare?: () => void;
   onShareChats?: () => void;
+  draggable?: boolean;
+  dragging?: boolean;
+  dropActive?: boolean;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+  onDragEnter?: () => void;
+  onDrop?: () => void;
+  onDragItemStart?: () => void;
+  onDragItemEnd?: () => void;
 }) {
   return (
-    <div className="group flex items-start gap-3 rounded-lg border px-3 py-3 transition-colors" style={{ borderColor: selected ? "rgba(59,158,255,0.4)" : "var(--hairline)", backgroundColor: selected ? "rgba(59,158,255,0.12)" : "var(--surface-card)" }}>
+    <div
+      draggable={draggable}
+      onDragStart={(event) => {
+        if (!draggable) return;
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", item.id);
+        onDragItemStart?.();
+        onDragStart?.();
+      }}
+      onDragEnd={() => {
+        onDragEnd?.();
+        onDragItemEnd?.();
+      }}
+      onDragEnter={() => onDragEnter?.()}
+      onDragOver={(event) => {
+        if (!onDrop) return;
+        event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (!onDrop) return;
+        event.preventDefault();
+        onDrop();
+      }}
+      className="group flex items-start gap-3 rounded-lg border px-3 py-3 transition-colors"
+      style={{
+        borderColor: dropActive ? "rgba(255,128,31,0.46)" : selected ? "rgba(59,158,255,0.4)" : "var(--hairline)",
+        backgroundColor: dropActive ? "rgba(255,128,31,0.12)" : selected ? "rgba(59,158,255,0.12)" : "var(--surface-card)",
+        opacity: dragging ? 0.45 : 1,
+        cursor: draggable ? "grab" : undefined,
+      }}
+    >
       <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-start gap-3 text-left">
         <div className="mt-0.5 shrink-0" style={{ color: item.type === "folder" ? "var(--accent-orange)" : "var(--accent-blue)" }}>
           {item.type === "folder" ? <Folder size={16} /> : <Link2 size={16} />}
@@ -351,6 +399,14 @@ function ResourceColumn({
   onCreateIdea,
   onCopyShare,
   onShareChats,
+  draggingItemId,
+  dropParentId,
+  onDropToParent,
+  onHoverFolder,
+  onDragItemStart,
+  parentId,
+  columnIndex,
+  onDragItemEnd,
 }: {
   title: string;
   items: ResourceItem[];
@@ -364,6 +420,14 @@ function ResourceColumn({
   onCreateIdea: (item: ResourceItem) => void;
   onCopyShare: (item: ResourceItem) => void;
   onShareChats: (item: ResourceItem) => void;
+  draggingItemId: string | null;
+  dropParentId: string | null;
+  onDropToParent: (parentId: string | null) => void;
+  onHoverFolder: (folderId: string, columnIndex: number) => void;
+  onDragItemStart: (itemId: string) => void;
+  parentId: string | null;
+  columnIndex: number;
+  onDragItemEnd: () => void;
 }) {
   const folders = items.filter((item) => item.type === "folder");
   const links = items.filter((item) => item.type === "link");
@@ -382,6 +446,13 @@ function ResourceColumn({
       onCreateIdea={() => onCreateIdea(item)}
       onCopyShare={item.type === "folder" ? () => onCopyShare(item) : undefined}
       onShareChats={item.type === "folder" ? () => onShareChats(item) : undefined}
+      draggable
+      dragging={draggingItemId === item.id}
+      dropActive={item.type === "folder" && dropParentId === item.id}
+      onDragItemStart={() => onDragItemStart(item.id)}
+      onDragEnter={item.type === "folder" ? () => onHoverFolder(item.id, columnIndex) : undefined}
+      onDrop={item.type === "folder" ? () => onDropToParent(item.id) : undefined}
+      onDragItemEnd={onDragItemEnd}
     />
   );
 
@@ -390,9 +461,16 @@ function ResourceColumn({
       <div className="border-b px-4 py-3" style={{ borderColor: "var(--hairline)" }}>
         <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{title}</p>
       </div>
-      <div className="min-h-0 flex-1 p-3">
+      <div
+        className="min-h-0 flex-1 p-3"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          onDropToParent(parentId);
+        }}
+      >
         {items.length === 0 ? (
-          <div className="flex h-full items-center justify-center rounded-xl border text-center text-sm" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--charcoal)" }}>
+          <div className="flex h-full items-center justify-center rounded-xl border text-center text-sm" style={{ borderColor: dropParentId === parentId ? "rgba(255,128,31,0.46)" : "var(--hairline)", backgroundColor: dropParentId === parentId ? "rgba(255,128,31,0.1)" : "var(--surface-deep)", color: "var(--charcoal)" }}>
             No resources here
           </div>
         ) : layout.mode === "single" ? (
@@ -532,6 +610,8 @@ function ResourcesExplorer({
   const [dialogMode, setDialogMode] = useState<DialogMode | null>(null);
   const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null);
   const [shareFolder, setShareFolder] = useState<ResourceItem | null>(null);
+  const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
+  const [dropParentId, setDropParentId] = useState<string | null>(null);
   const [folders, setFolders] = useState<FolderDraft[]>(initialState.folders);
   const [linkMeta, setLinkMeta] = useState<Record<string, LinkMeta>>(initialState.linkMeta);
   const privateRoomsQuery = useQuery(api.socialChats.listPrivateRooms, {});
@@ -600,6 +680,68 @@ function ResourcesExplorer({
   );
 
   const currentParentId = selectedPath[selectedPath.length - 1] ?? null;
+
+  const isDescendantFolder = (folderId: string, candidateParentId: string | null) => {
+    if (!candidateParentId) return false;
+    if (candidateParentId === folderId) return true;
+    let cursor: string | null = candidateParentId;
+    while (cursor) {
+      const parent = folderById.get(cursor);
+      if (!parent) return false;
+      if (parent.parentId === folderId) return true;
+      cursor = parent.parentId;
+    }
+    return false;
+  };
+
+  const hoverTimerRef = useRef<number | null>(null);
+
+  const clearHoverTimer = () => {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+
+  const handleHoverFolder = (folderId: string, columnIndex: number) => {
+    if (!draggingItemId) return;
+    clearHoverTimer();
+    hoverTimerRef.current = window.setTimeout(() => {
+      setSelectedPath((current) => [...current.slice(0, columnIndex), folderId]);
+    }, 450);
+    setDropParentId(folderId);
+  };
+
+  const moveItemToParent = (itemId: string, parentId: string | null) => {
+    const item = mergedItems.find((entry) => entry.id === itemId);
+    if (!item) return;
+    if (item.type === "folder") {
+      if (isDescendantFolder(item.id, parentId)) {
+        toast.error("A folder cannot be moved into itself or its children.");
+        return;
+      }
+      setFolders((current) => current.map((folder) => folder.id === item.id ? { ...folder, parentId } : folder));
+      return;
+    }
+    if (item.resourceId) {
+      setLinkMeta((current) => ({
+        ...current,
+        [item.resourceId!]: {
+          parentId,
+          title: current[item.resourceId!]?.title ?? item.title,
+        },
+      }));
+    }
+  };
+
+  const handleDropToParent = (parentId: string | null) => {
+    if (!draggingItemId) return;
+    clearHoverTimer();
+    moveItemToParent(draggingItemId, parentId);
+    setDraggingItemId(null);
+    setDropParentId(null);
+    toast.success("Item moved.");
+  };
 
   const handleCreateLink = async (values: { title: string; url: string; description: string }) => {
     try {
@@ -789,6 +931,22 @@ function ResourcesExplorer({
               onCreateIdea={(item) => void handleCreateIdea(item)}
               onCopyShare={(item) => void handleCopyShare(item)}
               onShareChats={(item) => setShareFolder(item)}
+              draggingItemId={draggingItemId}
+              dropParentId={dropParentId}
+              onDropToParent={handleDropToParent}
+              onHoverFolder={handleHoverFolder}
+              onDragItemStart={(itemId) => {
+                clearHoverTimer();
+                setDraggingItemId(itemId);
+                setDropParentId(null);
+              }}
+              onDragItemEnd={() => {
+                clearHoverTimer();
+                setDraggingItemId(null);
+                setDropParentId(null);
+              }}
+              parentId={column.columnIndex === 0 ? null : selectedPath[column.columnIndex - 1] ?? null}
+              columnIndex={column.columnIndex}
             />
           ))}
         </div>

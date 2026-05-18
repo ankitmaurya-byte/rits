@@ -363,6 +363,13 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_season", ["season"]),
 
+  sharkTankComments: defineTable({
+    pitchId: v.string(),
+    body: v.string(),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_pitch_id_and_created_at", ["pitchId", "createdAt"]),
+
   resources: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),
     workspaceId: v.optional(v.id("workspaces")),

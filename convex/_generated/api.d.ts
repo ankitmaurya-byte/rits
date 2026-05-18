@@ -22,6 +22,7 @@ import type * as researchOutputs from "../researchOutputs.js";
 import type * as resources from "../resources.js";
 import type * as roadmaps from "../roadmaps.js";
 import type * as sharkTank from "../sharkTank.js";
+import type * as sharkTankComments from "../sharkTankComments.js";
 import type * as social from "../social.js";
 import type * as socialChats from "../socialChats.js";
 import type * as todoGroups from "../todoGroups.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   resources: typeof resources;
   roadmaps: typeof roadmaps;
   sharkTank: typeof sharkTank;
+  sharkTankComments: typeof sharkTankComments;
   social: typeof social;
   socialChats: typeof socialChats;
   todoGroups: typeof todoGroups;

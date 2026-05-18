@@ -4,16 +4,22 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQuery as useConvexUserQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   BadgeDollarSign,
   Building2,
   ChevronDown,
   ChevronUp,
+  Copy,
+  Eye,
   FileText,
   Lightbulb,
   Link2,
+  MessageCircle,
   Search,
+  Send,
   Sparkles,
   Tv,
 } from "lucide-react";
@@ -22,6 +28,7 @@ import { api } from "@/convex/_generated/api";
 import { useWorkspace } from "@/lib/use-workspace";
 import type { SharkTankPitch } from "@/lib/shark-tank-india";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const EMPTY_SEASONS: Array<{ season: number; playlist_title?: string; playlist_link?: string; source_folder: string; pitches: SharkTankPitch[]; comingSoon?: boolean }> = [];
 
@@ -58,6 +65,24 @@ function getSharkTankDealStatus(pitch: SharkTankPitch) {
     return pitch.company_details.sharkTankDealStatus;
   }
   return "Deal status not detected";
+}
+
+function randomizeBySeed(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function buildChatShareText(pitch: SharkTankPitch) {
+  return [
+    `Shark Tank pitch: ${pitch.company_name_detected ?? pitch.episode_title ?? "Pitch"}`,
+    `Season ${pitch.season}${pitch.episode_number ? `, Episode ${pitch.episode_number}` : ""}`,
+    `Business Model: ${getBusinessModel(pitch)}`,
+    `Deal Status: ${getSharkTankDealStatus(pitch)}`,
+    `Link: ${pitch.youtube_link}`,
+  ].join("\n");
 }
 
 function buildPitchContext(pitch: SharkTankPitch) {
@@ -182,6 +207,7 @@ export function SharkTankExplorerPage() {
   const convexUser = useConvexUserQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
   const createNote = useMutation(api.notes.createNote);
   const createIdea = useMutation(api.ideas.createIdea);
+  const createComment = useMutation(api.sharkTankComments.create);
 
   const [selectedPitch, setSelectedPitch] = useState<SharkTankPitch | null>(null);
   const [analysisPrompt, setAnalysisPrompt] = useState("Research this Shark Tank pitch: evaluate the business model, market, founder strengths, risks, growth potential, and startup opportunities.");
@@ -191,14 +217,29 @@ export function SharkTankExplorerPage() {
   const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [selectedSeason, setSelectedSeason] = useState(4);
+  const [seenPitchIds, setSeenPitchIds] = useState<string[]>([]);
+  const [commentInput, setCommentInput] = useState("");
 
   const activeSeason = useMemo(() => seasons.find((season) => season.season === selectedSeason) ?? null, [selectedSeason, seasons]);
-  const filteredPitches = useMemo(() => {
-    if (!activeSeason) return [];
-    const query = searchValue.trim().toLowerCase();
-    if (!query) return activeSeason.pitches;
+  const comments = useQuery(api.sharkTankComments.listByPitch, selectedPitch ? { pitchId: selectedPitch.id } : "skip") ?? [];
 
-    return activeSeason.pitches.filter((pitch) => {
+  const orderedPitches = useMemo(() => {
+    if (!activeSeason) return [];
+
+    const sorted = [...activeSeason.pitches].sort((left, right) => (
+      randomizeBySeed(`${activeSeason.season}-${left.id}`) - randomizeBySeed(`${activeSeason.season}-${right.id}`)
+    ));
+
+    const unseen = sorted.filter((pitch) => !seenPitchIds.includes(pitch.id));
+    const seen = sorted.filter((pitch) => seenPitchIds.includes(pitch.id));
+    return [...unseen, ...seen];
+  }, [activeSeason, seenPitchIds]);
+
+  const filteredPitches = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    if (!query) return orderedPitches;
+
+    return orderedPitches.filter((pitch) => {
       const haystack = [
         pitch.company_name_detected,
         pitch.episode_title,
@@ -213,12 +254,58 @@ export function SharkTankExplorerPage() {
 
       return haystack.includes(query);
     });
-  }, [activeSeason, searchValue]);
+  }, [orderedPitches, searchValue]);
+
+  const toggleSeenPitch = (pitchId: string) => {
+    setSeenPitchIds((current) => (
+      current.includes(pitchId)
+        ? current.filter((id) => id !== pitchId)
+        : [...current, pitchId]
+    ));
+  };
 
   const openPitch = (pitch: SharkTankPitch) => {
     setSelectedPitch(pitch);
     setAnalysisResult("");
     setAnalysisPromptOpen(false);
+    setCommentInput("");
+  };
+
+  const handleCopyLink = async (pitch: SharkTankPitch) => {
+    try {
+      await navigator.clipboard.writeText(pitch.youtube_link);
+      toast.success("Pitch link copied.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to copy link.");
+    }
+  };
+
+  const handleShareToChats = async (pitch: SharkTankPitch) => {
+    try {
+      await navigator.clipboard.writeText(buildChatShareText(pitch));
+      toast.success("Chat share copied.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to prepare chat share.");
+    }
+  };
+
+  const handleCreateComment = async () => {
+    if (!selectedPitch || !convexUser) {
+      toast.error("Wait for your account to load.");
+      return;
+    }
+    if (!commentInput.trim()) {
+      toast.error("Comment cannot be empty.");
+      return;
+    }
+
+    try {
+      await createComment({ pitchId: selectedPitch.id, body: commentInput, createdBy: convexUser._id });
+      setCommentInput("");
+      toast.success("Comment sent.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to send comment.");
+    }
   };
 
   const handleAnalyzePitch = async () => {
@@ -335,7 +422,48 @@ export function SharkTankExplorerPage() {
           <section className="overflow-hidden p-0">
             <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-0 xl:grid-cols-3">
               {filteredPitches.map((pitch) => (
-                <button key={pitch.id} type="button" onClick={() => openPitch(pitch)} className="overflow-hidden rounded-2xl border text-left transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                <button key={pitch.id} type="button" onClick={() => openPitch(pitch)} className="group relative cursor-pointer overflow-hidden rounded-2xl border text-left transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", opacity: seenPitchIds.includes(pitch.id) ? 0.86 : 1 }}>
+                  <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-0 transition-opacity group-hover:opacity-100" style={{ borderColor: "var(--hairline)", backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)", color: seenPitchIds.includes(pitch.id) ? "var(--accent-green)" : "var(--mute)" }}>
+                    {seenPitchIds.includes(pitch.id) ? "Seen" : "New"}
+                  </span>
+                  <div className="absolute right-3 top-3 z-10 flex flex-wrap justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleShareToChats(pitch);
+                      }}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium"
+                      style={{ borderColor: "var(--hairline)", backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)", color: "var(--ink)" }}
+                    >
+                      <MessageCircle size={13} />
+                      Share to chats
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleCopyLink(pitch);
+                      }}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium"
+                      style={{ borderColor: "var(--hairline)", backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)", color: "var(--ink)" }}
+                    >
+                      <Copy size={13} />
+                      Copy link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleSeenPitch(pitch.id);
+                      }}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-3 py-1.5 text-[11px] font-medium"
+                      style={{ borderColor: "var(--hairline)", backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)", color: "var(--ink)" }}
+                    >
+                      <Eye size={13} />
+                      {seenPitchIds.includes(pitch.id) ? "Unsee" : "Seen"}
+                    </button>
+                  </div>
                   <Image src={imageUrl(pitch.thumbnail)} alt={pitch.company_name_detected ?? pitch.episode_title ?? "Shark Tank pitch"} width={1200} height={700} className="h-44 w-full object-cover" unoptimized />
                   <div className="p-3">
                     <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
@@ -456,7 +584,19 @@ export function SharkTankExplorerPage() {
                     <button onClick={() => void handleAnalyzePitch()} disabled={analysisLoading || !analysisPrompt.trim()} className="btn-primary"><Sparkles size={15} /> {analysisLoading ? "Researching..." : "Research with AI"}</button>
                   </div>
                   <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
-                    {analysisResult ? <div className="whitespace-pre-wrap text-sm leading-7" style={{ color: "var(--body)" }}>{analysisResult}</div> : <p className="text-sm" style={{ color: "var(--charcoal)" }}>Run AI research to generate market, founder, moat, risk, and idea insights for this pitch.</p>}
+                    {analysisResult ? (
+                      <div className="flex items-start gap-3">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-full border" style={{ borderColor: "rgba(17,255,153,0.22)", backgroundColor: "rgba(17,255,153,0.08)", color: "var(--accent-green)" }}>
+                          <Sparkles size={15} />
+                        </div>
+                        <div className="min-w-0 flex-1 rounded-2xl border px-4 py-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>AI response</p>
+                          <div className="prose prose-sm max-w-none text-sm leading-7" style={{ color: "var(--body)" }}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysisResult}</ReactMarkdown>
+                          </div>
+                        </div>
+                      </div>
+                    ) : <p className="text-sm" style={{ color: "var(--charcoal)" }}>Run AI research to generate market, founder, moat, risk, and idea insights for this pitch.</p>}
                   </div>
                 </section>
               </div>
@@ -507,6 +647,44 @@ export function SharkTankExplorerPage() {
                   <div className="grid gap-3">
                     <button onClick={() => void handleAddToNotes()} disabled={loadingActionId === "note"} className="btn-outline justify-start"><FileText size={15} /> {loadingActionId === "note" ? "Saving..." : "Add in notes"}</button>
                     <button onClick={() => void handleAddToIdeas()} disabled={loadingActionId === "idea"} className="btn-outline justify-start"><Lightbulb size={15} /> {loadingActionId === "idea" ? "Saving..." : "Add in ideas"}</button>
+                  </div>
+                </section>
+
+                <section className="feature-card p-5">
+                  <div className="mb-4 flex items-center gap-2">
+                    <MessageCircle size={16} style={{ color: "var(--accent-blue)" }} />
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Comments</p>
+                  </div>
+                  <div className="rounded-2xl border p-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                    <div className="max-h-[320px] space-y-3 overflow-auto pr-1">
+                      {comments.length ? comments.map((comment) => {
+                        const isMe = convexUser ? comment.createdBy === convexUser._id : false;
+                        return (
+                          <div key={comment._id} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                            <div className={`flex max-w-[88%] items-end gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                              <Avatar className="size-8 shrink-0"><AvatarFallback>{comment.authorName.slice(0, 2).toUpperCase()}</AvatarFallback></Avatar>
+                              <div className="rounded-2xl border px-4 py-3" style={{ borderColor: "var(--hairline)", backgroundColor: isMe ? "rgba(17,255,153,0.10)" : "var(--surface-card)" }}>
+                                <div className="mb-1 flex items-center gap-2 text-[11px]" style={{ color: "var(--mute)" }}>
+                                  <span className="font-semibold" style={{ color: "var(--ink)" }}>{comment.authorName}</span>
+                                  <span>{new Date(comment.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                </div>
+                                <p className="text-sm leading-7" style={{ color: "var(--body)" }}>{comment.body}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }) : <p className="text-sm" style={{ color: "var(--charcoal)" }}>No comments yet. Start the discussion.</p>}
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <textarea
+                        value={commentInput}
+                        onChange={(event) => setCommentInput(event.target.value)}
+                        rows={3}
+                        className="input-field min-h-[92px] flex-1 resize-none"
+                        placeholder="Write a comment in chat style..."
+                      />
+                      <button type="button" onClick={() => void handleCreateComment()} className="btn-primary self-end"><Send size={15} /> Send</button>
+                    </div>
                   </div>
                 </section>
               </div>

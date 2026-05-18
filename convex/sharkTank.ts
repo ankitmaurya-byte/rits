@@ -1,4 +1,5 @@
 import { internalMutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 
 function deriveEpisodeNumber(title: string) {
@@ -55,66 +56,74 @@ function seasonPlaceholder(season: number) {
     detected_pitch_count: 0,
     playlist_title: undefined,
     playlist_link: undefined,
-    comingSoon: season !== 4,
+    comingSoon: season !== 4 && season !== 5,
     pitches: [],
+  };
+}
+
+function buildSeasonFromRows(season: number, rows: Doc<"sharkTankPitchesAdmin">[]) {
+  const orderedRows = rows.sort((a, b) => {
+    const episodeA = a.episodeNumber ?? -1;
+    const episodeB = b.episodeNumber ?? -1;
+    if (episodeA !== episodeB) return episodeB - episodeA;
+    return (a.pitchIndexInEpisode ?? 0) - (b.pitchIndexInEpisode ?? 0);
+  });
+
+  const firstRow = orderedRows[0];
+
+  return {
+    season,
+    source_folder: `Season ${season}`,
+    generated_at: firstRow?.generatedAt ?? null,
+    extraction_note: `Season ${season} is live from the Convex dataset.`,
+    episode_file_count: orderedRows.length,
+    detected_pitch_count: orderedRows.length,
+    playlist_title: firstRow?.playlistTitle,
+    playlist_link: firstRow?.playlistLink,
+    comingSoon: false,
+    pitches: orderedRows.map((row) => ({
+      id: row.sourceId,
+      season: row.season,
+      episode_number: row.episodeNumber ?? null,
+      episode_title: row.episodeTitle ?? null,
+      air_date: row.airDate ?? null,
+      source_file: row.sourceFile,
+      pitch_index_in_episode: row.pitchIndexInEpisode ?? null,
+      company_name_detected: row.companyName ?? null,
+      founders_detected: row.founders.length ? row.founders : null,
+      ask_amount_value: row.askAmountValue ?? null,
+      ask_amount_unit: row.askAmountUnit ?? null,
+      ask_amount_in_inr: row.askAmountInInr ?? null,
+      ask_equity_percent: row.askEquityPercent ?? null,
+      ask_text: row.askText ?? null,
+      pitch_summary_detected: row.pitchSummary ?? null,
+      intro_excerpt: row.introExcerpt ?? null,
+      youtube_link: row.youtubeLink ?? "",
+      thumbnail: row.thumbnail ?? "",
+      product_images: row.productImages ?? [],
+      website_links: row.websiteLinks ?? [],
+      team: row.team ?? [],
+      transcript: row.transcript ?? "",
+      company_details: row.companyDetailsJson ? JSON.parse(row.companyDetailsJson) : null,
+    })),
   };
 }
 
 export const getExplorerSeasons = query({
   args: {},
   handler: async (ctx) => {
-    const seasonFourRows = await ctx.db
-      .query("sharkTankPitchesAdmin")
-      .withIndex("by_season", (q) => q.eq("season", 4))
-      .collect();
+    const [seasonFourRows, seasonFiveRows] = await Promise.all([
+      ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 4)).collect(),
+      ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 5)).collect(),
+    ]);
 
-    const orderedRows = seasonFourRows.sort((a, b) => {
-      const episodeA = a.episodeNumber ?? -1;
-      const episodeB = b.episodeNumber ?? -1;
-      if (episodeA !== episodeB) return episodeB - episodeA;
-      return (a.pitchIndexInEpisode ?? 0) - (b.pitchIndexInEpisode ?? 0);
-    });
-
-    const firstRow = orderedRows[0];
-    const seasonFour = {
-      season: 4,
-      source_folder: "Season 4",
-      generated_at: firstRow?.generatedAt ?? null,
-      extraction_note:
-        "Season 4 is live from the Convex dataset. Seasons 1, 2, 3, and 5 remain visible as coming soon.",
-      episode_file_count: orderedRows.length,
-      detected_pitch_count: orderedRows.length,
-      playlist_title: firstRow?.playlistTitle,
-      playlist_link: firstRow?.playlistLink,
-      comingSoon: false,
-      pitches: orderedRows.map((row) => ({
-        id: row.sourceId,
-        season: row.season,
-        episode_number: row.episodeNumber ?? null,
-        episode_title: row.episodeTitle ?? null,
-        air_date: row.airDate ?? null,
-        source_file: row.sourceFile,
-        pitch_index_in_episode: row.pitchIndexInEpisode ?? null,
-        company_name_detected: row.companyName ?? null,
-        founders_detected: row.founders.length ? row.founders : null,
-        ask_amount_value: row.askAmountValue ?? null,
-        ask_amount_unit: row.askAmountUnit ?? null,
-        ask_amount_in_inr: row.askAmountInInr ?? null,
-        ask_equity_percent: row.askEquityPercent ?? null,
-        ask_text: row.askText ?? null,
-        pitch_summary_detected: row.pitchSummary ?? null,
-        intro_excerpt: row.introExcerpt ?? null,
-        youtube_link: row.youtubeLink ?? "",
-        thumbnail: row.thumbnail ?? "",
-        product_images: row.productImages ?? [],
-        website_links: row.websiteLinks ?? [],
-        team: row.team ?? [],
-        transcript: row.transcript ?? "",
-        company_details: row.companyDetailsJson ? JSON.parse(row.companyDetailsJson) : null,
-      })),
-    };
-
-    return [seasonPlaceholder(1), seasonPlaceholder(2), seasonPlaceholder(3), seasonFour, seasonPlaceholder(5)];
+    return [
+      seasonPlaceholder(1),
+      seasonPlaceholder(2),
+      seasonPlaceholder(3),
+      seasonFourRows.length ? buildSeasonFromRows(4, seasonFourRows) : seasonPlaceholder(4),
+      seasonFiveRows.length ? buildSeasonFromRows(5, seasonFiveRows) : seasonPlaceholder(5),
+    ];
   },
 });
 

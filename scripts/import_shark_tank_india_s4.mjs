@@ -3,14 +3,18 @@ import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const rootDir = resolve(new URL("..", import.meta.url).pathname);
-const datasetPath = resolve(rootDir, "lib/shark-tank-india/shark_tank_india_s4.json");
-const raw = readFileSync(datasetPath, "utf8");
-const dataset = JSON.parse(raw);
 const useProd = process.argv.includes("--prod");
-
-if (!Array.isArray(dataset.videos)) {
-  throw new Error("Expected dataset.videos to be an array.");
-}
+const datasets = [
+  { season: 4, datasetPath: resolve(rootDir, "lib/shark-tank-india/shark_tank_india_s4.json") },
+  { season: 5, datasetPath: resolve(rootDir, "lib/shark-tank-india/shark_tank_india_s5.json") },
+].map((entry) => {
+  const raw = readFileSync(entry.datasetPath, "utf8");
+  const dataset = JSON.parse(raw);
+  if (!Array.isArray(dataset.videos)) {
+    throw new Error(`Expected ${entry.datasetPath} dataset.videos to be an array.`);
+  }
+  return { ...entry, dataset };
+});
 
 function runConvex(functionName, args) {
   const convexArgs = ["convex", "run", functionName, JSON.stringify(args)];
@@ -63,20 +67,22 @@ function normalizeVideo(video) {
   };
 }
 
-console.log(`Clearing existing season 4 rows from Convex${useProd ? " production" : ""}...`);
-runConvex("sharkTank:clearSeason", { season: 4 });
+for (const { season, datasetPath, dataset } of datasets) {
+  console.log(`Clearing existing season ${season} rows from Convex${useProd ? " production" : ""}...`);
+  runConvex("sharkTank:clearSeason", { season });
 
-console.log(`Importing ${dataset.videos.length} Shark Tank videos from ${datasetPath}${useProd ? " into production" : ""}...`);
-dataset.videos.forEach((video, index) => {
-  console.log(`Importing ${index + 1}/${dataset.videos.length}: ${video.id}`);
-  runConvex("sharkTank:importPitch", {
-    season: 4,
-    generatedAt: dataset.generatedAt,
-    playlistTitle: dataset.playlistTitle,
-    playlistLink: dataset.playlistLink,
-    pitchIndexInEpisode: index + 1,
-    video: normalizeVideo(video),
+  console.log(`Importing ${dataset.videos.length} Shark Tank videos from ${datasetPath}${useProd ? " into production" : ""}...`);
+  dataset.videos.forEach((video, index) => {
+    console.log(`Importing season ${season} ${index + 1}/${dataset.videos.length}: ${video.id}`);
+    runConvex("sharkTank:importPitch", {
+      season,
+      generatedAt: dataset.generatedAt,
+      playlistTitle: dataset.playlistTitle,
+      playlistLink: dataset.playlistLink,
+      pitchIndexInEpisode: index + 1,
+      video: normalizeVideo(video),
+    });
   });
-});
+}
 
-console.log("Shark Tank season 4 import completed.");
+console.log("Shark Tank seasons import completed.");

@@ -7,7 +7,8 @@
     "dev:turbo": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:sharktank": "node scripts/import_shark_tank_india_s4.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.3",

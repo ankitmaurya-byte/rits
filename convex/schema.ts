@@ -10,6 +10,8 @@ export default defineSchema({
     image: v.optional(v.string()),
     status: v.optional(v.string()),
     suspendedAt: v.optional(v.number()),
+    strikeCount: v.optional(v.number()),
+    cooldownUntil: v.optional(v.number()),
     bio: v.optional(v.string()),
     description: v.optional(v.string()),
     currentCompany: v.optional(v.string()),
@@ -111,6 +113,50 @@ export default defineSchema({
     .index("by_source_type", ["sourceType"])
     .index("by_status", ["status"])
     .index("by_created_by", ["createdBy"]),
+
+  exploreEntries: defineTable({
+    datasetKind: v.union(
+      v.literal("yc"),
+      v.literal("shark_tank"),
+      v.literal("startup_hunt"),
+      v.literal("ai_startups")
+    ),
+    slug: v.string(),
+    name: v.string(),
+    website: v.optional(v.string()),
+    description: v.optional(v.string()),
+    category: v.optional(v.string()),
+    logoUrl: v.optional(v.string()),
+    tags: v.array(v.string()),
+    metadata: v.optional(v.string()),
+    createdBy: v.id("adminUsers"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_dataset_kind", ["datasetKind"])
+    .index("by_dataset_kind_and_slug", ["datasetKind", "slug"]),
+
+  integrationConfigs: defineTable({
+    slug: v.string(),
+    label: v.string(),
+    enabled: v.boolean(),
+    healthStatus: v.string(),
+    notes: v.optional(v.string()),
+    updatedAt: v.number(),
+    updatedBy: v.id("adminUsers"),
+  }).index("by_slug", ["slug"]),
+
+  newsletterIssues: defineTable({
+    title: v.string(),
+    source: v.string(),
+    sender: v.string(),
+    accessScope: v.string(),
+    status: v.string(),
+    summary: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.id("adminUsers"),
+  }).index("by_created_at", ["createdAt"]),
 
   workspaces: defineTable({
     name: v.string(),
@@ -263,6 +309,59 @@ export default defineSchema({
   })
     .index("by_repo_full_name", ["repoFullName"])
     .index("by_created_at", ["createdAt"]),
+
+  ycStartupsAdmin: defineTable({
+    sourceId: v.string(),
+    name: v.string(),
+    slug: v.string(),
+    batch: v.string(),
+    industry: v.string(),
+    description: v.string(),
+    founders: v.array(v.string()),
+    website: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_source_id", ["sourceId"])
+    .index("by_slug", ["slug"])
+    .index("by_batch", ["batch"]),
+
+  sharkTankPitchesAdmin: defineTable({
+    sourceId: v.string(),
+    slug: v.string(),
+    season: v.number(),
+    originalTitle: v.optional(v.string()),
+    episodeNumber: v.optional(v.number()),
+    episodeTitle: v.optional(v.string()),
+    airDate: v.optional(v.string()),
+    companyName: v.optional(v.string()),
+    founders: v.array(v.string()),
+    askAmountValue: v.optional(v.number()),
+    askAmountUnit: v.optional(v.string()),
+    askAmountInInr: v.optional(v.number()),
+    askEquityPercent: v.optional(v.number()),
+    askText: v.optional(v.string()),
+    pitchSummary: v.optional(v.string()),
+    introExcerpt: v.optional(v.string()),
+    youtubeLink: v.optional(v.string()),
+    thumbnail: v.optional(v.string()),
+    productImages: v.optional(v.array(v.string())),
+    websiteLinks: v.optional(v.array(v.string())),
+    team: v.optional(v.array(v.string())),
+    transcript: v.optional(v.string()),
+    isTranslatedEnglish: v.optional(v.boolean()),
+    companyDetailsJson: v.optional(v.string()),
+    playlistTitle: v.optional(v.string()),
+    playlistLink: v.optional(v.string()),
+    generatedAt: v.optional(v.string()),
+    sourceFile: v.string(),
+    pitchIndexInEpisode: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_source_id", ["sourceId"])
+    .index("by_slug", ["slug"])
+    .index("by_season", ["season"]),
 
   resources: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),

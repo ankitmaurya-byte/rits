@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as adminAuth from "../adminAuth.js";
 import type * as adminHelpers from "../adminHelpers.js";
 import type * as authHelpers from "../authHelpers.js";
 import type * as chat from "../chat.js";
@@ -20,6 +21,7 @@ import type * as notes from "../notes.js";
 import type * as researchOutputs from "../researchOutputs.js";
 import type * as resources from "../resources.js";
 import type * as roadmaps from "../roadmaps.js";
+import type * as sharkTank from "../sharkTank.js";
 import type * as social from "../social.js";
 import type * as socialChats from "../socialChats.js";
 import type * as todoGroups from "../todoGroups.js";
@@ -36,6 +38,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  adminAuth: typeof adminAuth;
   adminHelpers: typeof adminHelpers;
   authHelpers: typeof authHelpers;
   chat: typeof chat;
@@ -47,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   researchOutputs: typeof researchOutputs;
   resources: typeof resources;
   roadmaps: typeof roadmaps;
+  sharkTank: typeof sharkTank;
   social: typeof social;
   socialChats: typeof socialChats;
   todoGroups: typeof todoGroups;

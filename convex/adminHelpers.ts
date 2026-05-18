@@ -10,10 +10,10 @@ export const DEFAULT_ADMIN_PASSWORD = "ankitisme";
 
 export const ADMIN_PERMISSION_PRESETS: Record<string, string[]> = {
   super_admin: ["*"],
-  content_admin: ["content.read", "content.edit", "content.delete", "resources.manage", "reports.manage", "roadmaps.manage"],
-  data_admin: ["imports.manage", "exports.manage", "yc.manage", "sharktank.manage", "explore.manage", "startups.manage"],
-  support_admin: ["users.read", "workspaces.read", "moderation.manage", "support.manage"],
-  read_only_admin: ["dashboard.read", "users.read", "workspaces.read", "content.read", "audit.read"],
+  content_admin: ["content.manage", "resources.manage", "reports.manage", "audit.read"],
+  data_admin: ["explore.manage", "imports.manage", "exports.manage", "yc.manage", "sharktank.manage", "startup_data.manage", "integrations.manage", "audit.read"],
+  support_admin: ["users.read", "users.suspend", "workspaces.read", "moderation.manage", "audit.read"],
+  read_only_admin: ["users.read", "workspaces.read", "audit.read"],
 };
 
 export function createAdminSessionToken() {

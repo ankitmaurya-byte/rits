@@ -26,6 +26,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
@@ -97,6 +99,38 @@ function Avatar({ label, color = "var(--surface-elevated)", size = 44 }: { label
       style={{ width: size, height: size, backgroundColor: color, color: "var(--ink)" }}
     >
       {label.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
+
+function AiMessageBody({ content }: { content: string }) {
+  return (
+    <div className="min-w-0">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h1 className="mb-3 text-[15px] font-semibold leading-7 tracking-tight first:mt-0 last:mb-0" style={{ color: "var(--ink)" }}>{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-2 text-[14px] font-semibold leading-7 tracking-tight first:mt-0 last:mb-0" style={{ color: "var(--ink)" }}>{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 text-[13px] font-semibold leading-6 first:mt-0 last:mb-0" style={{ color: "var(--ink)" }}>{children}</h3>,
+          p: ({ children }) => <p className="mb-3 text-sm leading-7 last:mb-0" style={{ color: "var(--body)" }}>{children}</p>,
+          ul: ({ children }) => <ul className="mb-3 ml-4 list-disc space-y-1.5 text-sm leading-7 last:mb-0" style={{ color: "var(--body)" }}>{children}</ul>,
+          ol: ({ children }) => <ol className="mb-3 ml-4 list-decimal space-y-1.5 text-sm leading-7 last:mb-0" style={{ color: "var(--body)" }}>{children}</ol>,
+          li: ({ children }) => <li className="pl-0.5">{children}</li>,
+          strong: ({ children }) => <strong style={{ color: "var(--ink)" }}>{children}</strong>,
+          a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2" style={{ color: "var(--accent-blue)" }}>{children}</a>,
+          code: ({ children, className }) => {
+            const isBlock = className?.startsWith("language-");
+            if (isBlock) {
+              return <code className="block overflow-x-auto text-[12px] leading-6" style={{ color: "var(--ink)" }}>{children}</code>;
+            }
+            return <code className="rounded-md px-1.5 py-0.5 text-[12px]" style={{ backgroundColor: "rgba(255,255,255,0.06)", border: "1px solid var(--hairline)", color: "var(--ink)" }}>{children}</code>;
+          },
+          pre: ({ children }) => <pre className="mb-3 overflow-x-auto rounded-2xl border p-3 text-[12px] last:mb-0" style={{ borderColor: "rgba(126,200,255,0.16)", backgroundColor: "rgba(255,255,255,0.03)" }}>{children}</pre>,
+          blockquote: ({ children }) => <blockquote className="mb-3 border-l-2 pl-3 italic last:mb-0" style={{ borderColor: "rgba(126,200,255,0.3)", color: "var(--charcoal)" }}>{children}</blockquote>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -667,14 +701,40 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
                 <div className="space-y-2">
                   {messages.map((message: RoomMessage) => {
                     const isOutgoing = currentUserId ? message.senderId === currentUserId : false;
+                    const isAi = message.senderKind === "ai";
                     return (
                       <div key={message._id} className={`flex ${isOutgoing ? "justify-end" : "justify-start"}`}>
-                        <div className="max-w-[78%] rounded-[18px] px-4 py-2.5" style={{ backgroundColor: isOutgoing ? "rgba(17,255,153,0.16)" : "var(--surface-elevated)", color: "var(--ink)", borderTopRightRadius: isOutgoing ? 6 : 18, borderTopLeftRadius: isOutgoing ? 18 : 6 }}>
-                          {!isOutgoing && message.sender && mode === "workspace" ? <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--mute)" }}>{message.sender.name}</p> : null}
+                        <div
+                          className="max-w-[78%] rounded-[20px] border px-4 py-3"
+                          style={{
+                            background: isOutgoing
+                              ? "rgba(17,255,153,0.16)"
+                              : isAi
+                                ? "linear-gradient(180deg, rgba(126,200,255,0.08) 0%, rgba(255,255,255,0.03) 100%)"
+                                : "var(--surface-elevated)",
+                            borderColor: isOutgoing
+                              ? "rgba(17,255,153,0.2)"
+                              : isAi
+                                ? "rgba(126,200,255,0.16)"
+                                : "var(--hairline)",
+                            color: "var(--ink)",
+                            boxShadow: isAi ? "0 0 0 1px rgba(126,200,255,0.05) inset" : "none",
+                            borderTopRightRadius: isOutgoing ? 6 : 18,
+                            borderTopLeftRadius: isOutgoing ? 18 : 6,
+                          }}
+                        >
+                          {!isOutgoing && isAi ? (
+                            <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: "rgba(126,200,255,0.18)", backgroundColor: "rgba(126,200,255,0.08)", color: "#7ec8ff" }}>
+                              <Sparkles size={11} />
+                              Rits AI
+                            </div>
+                          ) : !isOutgoing && message.sender && mode === "workspace" ? <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: "var(--mute)" }}>{message.sender.name}</p> : null}
                           {message.messageType === "share" ? (
                             <SharedMessageCard message={message} onImport={() => void handleImportShared(message)} />
+                          ) : isAi ? (
+                            <AiMessageBody content={message.body} />
                           ) : (
-                            <p className="text-sm leading-7" style={{ color: message.senderKind === "ai" ? "var(--body)" : "var(--ink)" }}>{message.body}</p>
+                            <p className="text-sm leading-7" style={{ color: "var(--ink)" }}>{message.body}</p>
                           )}
                           <div className={`mt-1 flex items-center gap-1 ${isOutgoing ? "justify-end" : "justify-start"}`}>
                             <span className="text-[11px]" style={{ color: "var(--mute)" }}>{new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>

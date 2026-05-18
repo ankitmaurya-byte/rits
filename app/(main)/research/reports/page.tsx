@@ -1,5 +1,5 @@
-import { AnalysisPage } from "@/components/research/analysis-page";
+import { AiReportsPage } from "@/components/research/ai-reports-page";
 
 export default function ResearchReportsPage() {
-  return <AnalysisPage />;
+  return <AiReportsPage />;
 }

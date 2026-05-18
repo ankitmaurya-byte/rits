@@ -9,8 +9,8 @@ export default function ResearchPage() {
       description="Use one maintained analysis surface for links, files, docs, transcripts, notes, and mixed research context, then move the output into MVP generation and execution workflows."
       accent="var(--accent-blue)"
       primaryActions={[
-        { href: "/research/reports", label: "Analysis", description: "Paste links, files, docs, notes, or any raw material into one unified analysis surface.", icon: Layers3 },
-        { href: "/research/reports", label: "Analyze anything", description: "Run structured AI analysis across mixed source material in one place.", icon: FolderSearch },
+        { href: "/research/analysis", label: "Analysis", description: "Paste links, files, docs, notes, or any raw material into one unified analysis surface.", icon: Layers3 },
+        { href: "/research/analysis", label: "Analyze anything", description: "Run structured AI analysis across mixed source material in one place.", icon: FolderSearch },
         { href: "/research/competitors", label: "Competitors", description: "Build market maps, rival sets, and category comparisons.", icon: ScanSearch },
         { href: "/research/newsletters", label: "Newsletters", description: "Follow newsletters through a clean RITS inbox instead of your personal email.", icon: Mail },
         { href: "/research/mvp-lab", label: "MVP lab", description: "Transform research into landing pages, MVP specs, and product scaffolds.", icon: Rocket },
@@ -18,11 +18,12 @@ export default function ResearchPage() {
       panels={[
         {
           eyebrow: "AI modes",
-            title: "Unified analysis flow",
-            description: "Files and links no longer need separate analysis surfaces. Everything now routes into one maintained analysis layer with saved outputs.",
-            metric: "4 modes",
-            actions: [
-             { href: "/research/reports", label: "Analysis", description: "Open the working analysis surface for structured AI output and saved reports.", icon: Sparkles },
+             title: "Unified analysis flow",
+             description: "Files and links no longer need separate analysis surfaces. Everything now routes into one maintained analysis layer with saved outputs.",
+             metric: "4 modes",
+             actions: [
+             { href: "/research/analysis", label: "Analysis", description: "Open the working analysis surface for structured AI output and saved reports.", icon: Sparkles },
+             { href: "/research/reports", label: "AI Reports", description: "Open the filter-heavy report discovery surface for saved analysis results.", icon: Layers3 },
              { href: "/chats", label: "Research chats", description: "Use shared AI conversations as the narrative layer over reports.", icon: FileSearch },
             ],
           },

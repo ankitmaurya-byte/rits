@@ -57,7 +57,7 @@ const exploreLinks = [
 ];
 
 const researchLinks = [
-  { href: "/research/reports", label: "Analysis", icon: Layers3 },
+  { href: "/research/analysis", label: "Analysis", icon: Layers3 },
   { href: "/research/competitors", label: "Competitors", icon: Users },
   { href: "/research/newsletters", label: "Newsletters", icon: Mail },
   { href: "/research/reports", label: "AI Reports", icon: Bot },

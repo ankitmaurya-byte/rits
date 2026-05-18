@@ -16,6 +16,101 @@ export default defineSchema({
     .index("by_clerk_id", ["clerkId"])
     .index("by_token_identifier", ["tokenIdentifier"]),
 
+  adminUsers: defineTable({
+    email: v.string(),
+    name: v.string(),
+    password: v.string(),
+    role: v.union(
+      v.literal("super_admin"),
+      v.literal("content_admin"),
+      v.literal("data_admin"),
+      v.literal("support_admin"),
+      v.literal("read_only_admin")
+    ),
+    permissions: v.array(v.string()),
+    status: v.union(v.literal("active"), v.literal("disabled")),
+    linkedUserId: v.optional(v.id("users")),
+    createdBy: v.optional(v.id("adminUsers")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastLoginAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_status", ["status"]),
+
+  adminSessions: defineTable({
+    adminUserId: v.id("adminUsers"),
+    sessionToken: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_session_token", ["sessionToken"])
+    .index("by_admin_user", ["adminUserId"]),
+
+  adminAuditLogs: defineTable({
+    adminUserId: v.id("adminUsers"),
+    action: v.string(),
+    entityType: v.string(),
+    entityId: v.optional(v.string()),
+    summary: v.string(),
+    before: v.optional(v.string()),
+    after: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_admin_user", ["adminUserId"])
+    .index("by_entity_type", ["entityType"])
+    .index("by_created_at", ["createdAt"]),
+
+  adminFeatureFlags: defineTable({
+    key: v.string(),
+    label: v.string(),
+    enabled: v.boolean(),
+    description: v.optional(v.string()),
+    updatedBy: v.optional(v.id("adminUsers")),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
+  moderationReports: defineTable({
+    entityType: v.string(),
+    entityId: v.string(),
+    reportedByUserId: v.optional(v.id("users")),
+    reason: v.string(),
+    status: v.union(v.literal("open"), v.literal("reviewed"), v.literal("resolved"), v.literal("dismissed")),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_entity_type_and_entity_id", ["entityType", "entityId"]),
+
+  moderationActions: defineTable({
+    reportId: v.optional(v.id("moderationReports")),
+    adminUserId: v.id("adminUsers"),
+    entityType: v.string(),
+    entityId: v.string(),
+    action: v.string(),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_report", ["reportId"])
+    .index("by_admin_user", ["adminUserId"]),
+
+  importJobs: defineTable({
+    sourceType: v.string(),
+    fileName: v.string(),
+    status: v.union(v.literal("queued"), v.literal("processing"), v.literal("completed"), v.literal("failed")),
+    stats: v.optional(v.string()),
+    errors: v.optional(v.string()),
+    payload: v.optional(v.string()),
+    createdBy: v.id("adminUsers"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_source_type", ["sourceType"])
+    .index("by_status", ["status"])
+    .index("by_created_by", ["createdBy"]),
+
   workspaces: defineTable({
     name: v.string(),
     description: v.optional(v.string()),

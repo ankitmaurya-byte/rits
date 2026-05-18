@@ -6,15 +6,20 @@ const rootDir = resolve(new URL("..", import.meta.url).pathname);
 const datasetPath = resolve(rootDir, "lib/shark-tank-india/shark_tank_india_s4.json");
 const raw = readFileSync(datasetPath, "utf8");
 const dataset = JSON.parse(raw);
+const useProd = process.argv.includes("--prod");
 
 if (!Array.isArray(dataset.videos)) {
   throw new Error("Expected dataset.videos to be an array.");
 }
 
 function runConvex(functionName, args) {
+  const convexArgs = ["convex", "run", functionName, JSON.stringify(args)];
+  if (useProd) {
+    convexArgs.push("--prod");
+  }
   const result = spawnSync(
     "npx",
-    ["convex", "run", functionName, JSON.stringify(args)],
+    convexArgs,
     {
       cwd: rootDir,
       stdio: "inherit",
@@ -58,10 +63,10 @@ function normalizeVideo(video) {
   };
 }
 
-console.log(`Clearing existing season 4 rows from Convex...`);
+console.log(`Clearing existing season 4 rows from Convex${useProd ? " production" : ""}...`);
 runConvex("sharkTank:clearSeason", { season: 4 });
 
-console.log(`Importing ${dataset.videos.length} Shark Tank videos from ${datasetPath}...`);
+console.log(`Importing ${dataset.videos.length} Shark Tank videos from ${datasetPath}${useProd ? " into production" : ""}...`);
 dataset.videos.forEach((video, index) => {
   console.log(`Importing ${index + 1}/${dataset.videos.length}: ${video.id}`);
   runConvex("sharkTank:importPitch", {

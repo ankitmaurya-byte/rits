@@ -7,12 +7,14 @@ import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
 import {
   BadgeDollarSign,
+  Building2,
   ChevronDown,
   ChevronUp,
   ExternalLink,
   FileText,
   Lightbulb,
   Link2,
+  Search,
   Sparkles,
   Tv,
   Users,
@@ -24,6 +26,13 @@ import type { SharkTankPitch } from "@/lib/shark-tank-india";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const EMPTY_SEASONS: Array<{ season: number; playlist_title?: string; playlist_link?: string; source_folder: string; pitches: SharkTankPitch[] }> = [];
+
+type ExpandableSectionProps = {
+  title: string;
+  eyebrow?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+};
 
 function formatAsk(pitch: SharkTankPitch) {
   if (pitch.ask_text) return pitch.ask_text;
@@ -56,6 +65,48 @@ function buildPitchContext(pitch: SharkTankPitch) {
 function buildDisplayJson(pitch: SharkTankPitch) {
   const rest = Object.fromEntries(Object.entries(pitch).filter(([key]) => key !== "transcript"));
   return JSON.stringify(rest, null, 2);
+}
+
+function getYouTubeEmbedUrl(link: string) {
+  try {
+    const url = new URL(link);
+    const id = url.searchParams.get("v");
+    if (id) return `https://www.youtube.com/embed/${id}`;
+    if (url.hostname.includes("youtu.be")) {
+      const shortId = url.pathname.replace(/^\//, "");
+      return shortId ? `https://www.youtube.com/embed/${shortId}` : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function formatDetailLabel(key: string) {
+  return key.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
+}
+
+function ExpandableSection({ title, eyebrow, defaultOpen = false, children }: ExpandableSectionProps) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <section className="feature-card p-5">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between gap-4 text-left"
+      >
+        <div>
+          {eyebrow ? <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>{eyebrow}</p> : null}
+          <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{title}</p>
+        </div>
+        <span className="rounded-full border p-2" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
+          {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+      {open ? <div className="mt-4">{children}</div> : null}
+    </section>
+  );
 }
 
 function imageUrl(file: string) {
@@ -104,7 +155,7 @@ function PitchFrameSlideshow({ images }: { images: string[] }) {
   return (
     <div>
       <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
-        <Image src={imageUrl(images[index]!)} alt="Pitch frame" width={1200} height={800} className="h-[260px] w-full object-cover" unoptimized />
+        <Image src={imageUrl(images[index]!)} alt="Pitch frame" width={1200} height={800} className="h-[300px] w-full object-contain" unoptimized />
       </div>
       <div className="mt-3 flex justify-center gap-2">
         {images.map((_, itemIndex) => (
@@ -129,8 +180,30 @@ export function SharkTankExplorerPage() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
   const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
 
   const seasonFour = useMemo(() => seasons.find((season) => season.season === 4) ?? null, [seasons]);
+  const filteredPitches = useMemo(() => {
+    if (!seasonFour) return [];
+    const query = searchValue.trim().toLowerCase();
+    if (!query) return seasonFour.pitches;
+
+    return seasonFour.pitches.filter((pitch) => {
+      const haystack = [
+        pitch.company_name_detected,
+        pitch.episode_title,
+        pitch.pitch_summary_detected,
+        pitch.intro_excerpt,
+        ...(pitch.founders_detected ?? []),
+        ...pitch.website_links,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [searchValue, seasonFour]);
   const seasonCards = [1, 2, 3, 4, 5].map((season) => ({
     season,
     live: season === 4,
@@ -140,6 +213,7 @@ export function SharkTankExplorerPage() {
   const openPitch = (pitch: SharkTankPitch) => {
     setSelectedPitch(pitch);
     setAnalysisResult("");
+    setAnalysisPromptOpen(false);
   };
 
   const handleAnalyzePitch = async () => {
@@ -243,13 +317,25 @@ export function SharkTankExplorerPage() {
                 <div className="max-w-3xl">
                   <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--mute)" }}>Season 4</p>
                   <h3 className="text-2xl font-medium" style={{ color: "var(--ink)" }}>{seasonFour.playlist_title ?? seasonFour.source_folder}</h3>
+                  <p className="mt-3 text-sm leading-6" style={{ color: "var(--charcoal)" }}>
+                    Search by company, founder, summary, or links to jump into any pitch quickly.
+                  </p>
                 </div>
                 <a href={seasonFour.playlist_link} target="_blank" rel="noreferrer" className="btn-outline"><ExternalLink size={15} /> Playlist</a>
+              </div>
+              <div className="mt-5 relative max-w-xl">
+                <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
+                <input
+                  value={searchValue}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  placeholder="Search Shark Tank pitches"
+                  className="input-field h-12 w-full pl-11"
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 px-6 py-6 xl:grid-cols-2">
-              {seasonFour.pitches.map((pitch) => (
+              {filteredPitches.map((pitch) => (
                 <button key={pitch.id} type="button" onClick={() => openPitch(pitch)} className="overflow-hidden rounded-2xl border text-left transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
                   <Image src={imageUrl(pitch.thumbnail)} alt={pitch.company_name_detected ?? pitch.episode_title ?? "Shark Tank pitch"} width={1200} height={700} className="h-44 w-full object-cover" unoptimized />
                   <div className="p-5">
@@ -268,6 +354,11 @@ export function SharkTankExplorerPage() {
                   </div>
                 </button>
               ))}
+              {filteredPitches.length === 0 ? (
+                <div className="col-span-full rounded-2xl border px-6 py-12 text-center" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--charcoal)" }}>
+                  No Shark Tank pitches match your search.
+                </div>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -276,33 +367,80 @@ export function SharkTankExplorerPage() {
       <Dialog open={Boolean(selectedPitch)} onOpenChange={(open) => !open && setSelectedPitch(null)}>
         {selectedPitch ? (
           <DialogContent
-            className="!top-[4vh] max-h-[92vh] !-translate-y-0 max-w-6xl overflow-y-auto p-0 sm:max-w-6xl"
+            className="!top-[3vh] max-h-[94vh] !-translate-y-0 max-w-7xl overflow-y-auto p-0 sm:max-w-7xl"
             overlayClassName="bg-black/35 supports-backdrop-filter:backdrop-blur-[2px]"
             showCloseButton
           >
-            <div className="border-b px-6 py-5" style={{ borderColor: "var(--hairline)" }}>
+            <div className="sticky top-0 z-20 border-b px-6 py-5" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
               <DialogHeader>
-                <DialogTitle className="text-2xl" style={{ color: "var(--ink)" }}>{selectedPitch.company_name_detected || selectedPitch.episode_title || "Pitch"}</DialogTitle>
-                <DialogDescription style={{ color: "var(--charcoal)" }}>Season {selectedPitch.season} • Episode {selectedPitch.episode_number ?? "?"}</DialogDescription>
+                <div className="flex flex-col gap-3 pr-12 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <DialogTitle className="text-2xl" style={{ color: "var(--ink)" }}>{selectedPitch.company_name_detected || selectedPitch.episode_title || "Pitch"}</DialogTitle>
+                    <DialogDescription className="mt-2" style={{ color: "var(--charcoal)" }}>Season {selectedPitch.season} • Episode {selectedPitch.episode_number ?? "?"}</DialogDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--charcoal)" }}>
+                      {formatFounders(selectedPitch.founders_detected)}
+                    </span>
+                    <span className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--accent-orange)" }}>
+                      {formatAsk(selectedPitch)}
+                    </span>
+                  </div>
+                </div>
               </DialogHeader>
             </div>
 
-            <div className="grid gap-6 p-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="grid gap-6 p-6 xl:grid-cols-[1.15fr_0.85fr]">
               <div className="space-y-6">
                 <section className="feature-card p-5">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Season 4 frames</p>
-                  <PitchFrameSlideshow images={selectedPitch.product_images} />
+                  <div className="mb-4 flex items-center gap-2">
+                    <Tv size={16} style={{ color: "var(--accent-blue)" }} />
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Pitch video</p>
+                  </div>
+                  {getYouTubeEmbedUrl(selectedPitch.youtube_link) ? (
+                    <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
+                      <iframe
+                        src={getYouTubeEmbedUrl(selectedPitch.youtube_link)!}
+                        title={selectedPitch.company_name_detected ?? "Shark Tank video"}
+                        className="aspect-video w-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border p-5" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--charcoal)" }}>
+                      Embedded video is unavailable for this pitch.
+                    </div>
+                  )}
                 </section>
 
                 <section className="feature-card p-5">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Pitch overview</p>
-                  <div className="space-y-3 text-sm leading-7" style={{ color: "var(--body)" }}>
-                    <p><strong>Founders:</strong> {formatFounders(selectedPitch.founders_detected)}</p>
-                    <p><strong>Ask:</strong> {formatAsk(selectedPitch)}</p>
-                    <p><strong>Episode title:</strong> {selectedPitch.episode_title || "Not detected"}</p>
-                    <p><strong>YouTube:</strong> <a href={selectedPitch.youtube_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-blue)" }}>{selectedPitch.youtube_link}</a></p>
+                  <div className="mb-4 flex items-center gap-2">
+                    <Building2 size={16} style={{ color: "var(--accent-orange)" }} />
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Pitch overview</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Founders</p>
+                      <p className="mt-2 text-sm leading-6" style={{ color: "var(--ink)" }}>{formatFounders(selectedPitch.founders_detected)}</p>
+                    </div>
+                    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Ask</p>
+                      <p className="mt-2 text-sm leading-6" style={{ color: "var(--ink)" }}>{formatAsk(selectedPitch)}</p>
+                    </div>
+                    <div className="rounded-2xl border p-4 sm:col-span-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Summary</p>
+                      <p className="mt-2 text-sm leading-7" style={{ color: "var(--body)" }}>
+                        {selectedPitch.pitch_summary_detected || selectedPitch.intro_excerpt || "Summary not detected."}
+                      </p>
+                    </div>
                   </div>
                 </section>
+
+                <ExpandableSection title="Product images" eyebrow="Media" defaultOpen>
+                  <PitchFrameSlideshow images={selectedPitch.product_images} />
+                </ExpandableSection>
 
                 <section className="feature-card p-5">
                   <div className="mb-3 flex items-center gap-2">
@@ -310,7 +448,10 @@ export function SharkTankExplorerPage() {
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>AI research</p>
                   </div>
                   <button type="button" onClick={() => setAnalysisPromptOpen((value) => !value)} className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}>
-                    <span className="text-sm font-medium">AI prompt</span>
+                    <div>
+                      <p className="text-sm font-medium">AI prompt</p>
+                      <p className="mt-1 text-xs" style={{ color: "var(--charcoal)" }}>Expand to edit the research prompt before running AI.</p>
+                    </div>
                     {analysisPromptOpen ? <ChevronUp size={14} style={{ color: "var(--mute)" }} /> : <ChevronDown size={14} style={{ color: "var(--mute)" }} />}
                   </button>
                   {analysisPromptOpen ? <textarea value={analysisPrompt} onChange={(event) => setAnalysisPrompt(event.target.value)} rows={4} className="input-field mt-3 min-h-[110px] resize-y" placeholder="Ask AI to research this pitch..." /> : null}
@@ -324,23 +465,45 @@ export function SharkTankExplorerPage() {
               </div>
 
               <div className="space-y-6">
-                <section className="feature-card p-5">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Links</p>
+                <ExpandableSection title="Links" eyebrow="Resources">
                   <div className="space-y-2">
-                    {[selectedPitch.youtube_link, ...selectedPitch.website_links].map((link) => (
-                      <a key={link} href={link} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm" style={{ borderColor: "var(--hairline)", color: "var(--accent-blue)" }}>
-                        <Link2 size={14} /> {link}
+                    {[selectedPitch.youtube_link, ...selectedPitch.website_links].filter(Boolean).map((link) => (
+                      <a key={link} href={link} target="_blank" rel="noreferrer" className="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm leading-6" style={{ borderColor: "var(--hairline)", color: "var(--accent-blue)" }}>
+                        <Link2 size={14} className="mt-1 shrink-0" />
+                        <span className="break-all">{link}</span>
                       </a>
                     ))}
                   </div>
-                </section>
+                </ExpandableSection>
 
-                <section className="feature-card p-5">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Pitch data JSON</p>
+                <ExpandableSection title="Company details" eyebrow="Business details" defaultOpen>
+                  {selectedPitch.company_details && Object.keys(selectedPitch.company_details).length > 0 ? (
+                    <div className="grid gap-3">
+                      {Object.entries(selectedPitch.company_details).map(([key, value]) => (
+                        <div key={key} className="rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{formatDetailLabel(key)}</p>
+                          <div className="mt-2 text-sm leading-7" style={{ color: "var(--body)" }}>
+                            {Array.isArray(value) ? value.join(", ") : String(value ?? "Not available")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm" style={{ color: "var(--charcoal)" }}>No additional company details available.</p>
+                  )}
+                </ExpandableSection>
+
+                <ExpandableSection title="Transcript" eyebrow="Raw source">
+                  <div className="max-h-[360px] overflow-auto rounded-xl border p-4 text-sm leading-7" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--body)" }}>
+                    {selectedPitch.transcript || "Transcript not available."}
+                  </div>
+                </ExpandableSection>
+
+                <ExpandableSection title="Pitch data JSON" eyebrow="Debug data">
                   <pre className="max-h-[420px] overflow-auto rounded-xl border p-4 text-xs leading-6" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--body)" }}>
                     {buildDisplayJson(selectedPitch)}
                   </pre>
-                </section>
+                </ExpandableSection>
 
                 <section className="feature-card p-5">
                   <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Quick actions</p>

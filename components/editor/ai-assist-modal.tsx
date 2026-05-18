@@ -9,7 +9,6 @@ import {
   Plus,
   X,
   Sparkles,
-  ClipboardPaste,
 } from "lucide-react";
 import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
 
@@ -157,6 +156,7 @@ export function AiAssistModal({
   onReplace,
 }: AiAssistModalProps) {
   const [prompt, setPrompt] = useState("");
+  const [promptOpen, setPromptOpen] = useState(true);
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -327,42 +327,44 @@ export function AiAssistModal({
           </div>
 
           {/* Prompt input */}
-          <div
-            className="flex items-end gap-3 rounded-xl border px-4 py-3"
-            style={{
-              borderColor: "var(--hairline-strong)",
-              backgroundColor: "var(--surface-elevated)",
-            }}
-          >
-            <textarea
-              ref={textareaRef}
-              value={prompt}
-              onChange={(e) => {
-                setPrompt(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleGenerate();
-                }
-              }}
-              placeholder={`What should the AI do with this ${contextType}? (Enter to generate)`}
-              rows={1}
-              className="flex-1 resize-none border-0 bg-transparent text-[13.5px] leading-6 shadow-none outline-none"
-              style={{ color: "var(--ink)", minHeight: "24px", maxHeight: "120px" }}
-              disabled={loading}
-            />
-            <button
-              type="button"
-              onClick={() => void handleGenerate()}
-              disabled={loading || !prompt.trim()}
-              className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full transition-opacity disabled:opacity-30"
-              style={{ backgroundColor: "var(--ink)", color: "var(--canvas)" }}
-            >
-              {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+          <div className="rounded-xl border px-4 py-3" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
+            <button type="button" onClick={() => setPromptOpen((value) => !value)} className="flex w-full items-center justify-between text-left">
+              <span className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: "var(--mute)" }}>AI prompt</span>
+              {promptOpen ? <ChevronUp size={13} style={{ color: "var(--mute)" }} /> : <ChevronDown size={13} style={{ color: "var(--mute)" }} />}
             </button>
+            {promptOpen ? (
+              <div className="mt-3 flex items-end gap-3">
+                <textarea
+                  ref={textareaRef}
+                  value={prompt}
+                  onChange={(e) => {
+                    setPrompt(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleGenerate();
+                    }
+                  }}
+                  placeholder={`What should the AI do with this ${contextType}? (Enter to generate)`}
+                  rows={1}
+                  className="flex-1 resize-none border-0 bg-transparent text-[13.5px] leading-6 shadow-none outline-none"
+                  style={{ color: "var(--ink)", minHeight: "24px", maxHeight: "120px" }}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleGenerate()}
+                  disabled={loading || !prompt.trim()}
+                  className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full transition-opacity disabled:opacity-30"
+                  style={{ backgroundColor: "var(--ink)", color: "var(--canvas)" }}
+                >
+                  {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {/* Error */}

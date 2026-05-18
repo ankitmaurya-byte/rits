@@ -426,3 +426,439 @@ Think of Rits as:
 - with an AI layer that can either:
   - help write inside a single artifact
   - reason across the whole stored workspace context
+
+## Admin App Context
+
+This section exists specifically so a separate admin application can be built
+without relying on chat history.
+
+### Intended admin product
+
+The admin application should be a separate Next.js app such as:
+
+- `admin.rits.com`
+
+It should:
+
+- use the same Convex deployment and schema as the main app
+- read and control product data across users, workspaces, content, explore data,
+  startup data, and moderation state
+- follow the same design language from `DESIGN.md`
+- not share the same end-user UI shell or routing structure as the main app
+
+### Admin app scope
+
+The admin app should be able to inspect and manage:
+
+- users
+- workspaces
+- workspace memberships
+- invites
+- ideas
+- todos
+- todo groups
+- notes
+- resources
+- roadmaps
+- AI reports
+- MVP pages / public share pages
+- social / chat data
+- newsletters
+- startup hunt data
+- YC explorer data
+- Shark Tank data
+- GitHub tools data
+- integrations metadata
+- moderation / strike systems
+- admin members / roles / permissions
+- audit logs
+
+### Existing product areas relevant to admin
+
+Current high-value surfaces already built in the main app:
+
+- `Roadmap` builder
+- `Startup Hunt` product-hunt-style startup list and detail views
+- `Tech Feed`
+- `Competitor Market Map`
+- `Newsletter Research Hub`
+- `Resources` column explorer with sharing
+- `Integrations` directory and detail routes
+
+An admin app should assume these features may require operational visibility,
+data editing, moderation, and imports.
+
+## Current Route Inventory
+
+### Public / marketing
+
+- `/`
+
+### Main authenticated product
+
+- `/dashboard`
+- `/feed`
+- `/chats`
+- `/ideas`
+- `/todos`
+- `/notes`
+- `/roadmap`
+- `/startups`
+- `/startups/[slug]`
+- `/integrations`
+- `/integrations/[slug]`
+- `/profile`
+- `/settings`
+- `/feedback`
+
+### Explore
+
+- `/explore`
+- `/explore/yc`
+- `/explore/sharktank`
+- `/explore/github-tools`
+- `/explore/ai-startups`
+- `/explore/open-source` (currently used for Tech Feed shell / legacy path)
+
+### Research
+
+- `/research`
+- `/research/analysis`
+- `/research/reports`
+- `/research/competitors`
+- `/research/newsletters`
+- `/research/mvp-lab`
+- `/research/link-analysis`
+- `/research/files`
+
+### Private scope
+
+- `/private/chats`
+- `/private/ideas`
+- `/private/todos`
+- `/private/notes`
+- `/private/resources`
+- `/private/vaults`
+- `/private/vaults/[vaultId]`
+
+### Workspace scope
+
+- `/workspace/chats`
+- `/workspace/ideas`
+- `/workspace/todos`
+- `/workspace/notes`
+- `/workspace/resources`
+- `/workspace/vaults`
+- `/workspace/vaults/[vaultId]`
+- `/workspace/settings`
+- `/workspace/settings/members`
+- `/workspace/members` (redirect route)
+- `/workspace/join`
+
+### Public share routes
+
+- `/share/mvp/[shareToken]`
+- `/share/resources/[shareToken]`
+
+## Data Model Context For Admin
+
+### Tables clearly present in schema
+
+Based on the current codebase and schema usage, the admin app should expect at
+least these tables:
+
+- `users`
+- `workspaces`
+- `workspaceMembers`
+- `workspaceInvites`
+- `ideas`
+- `todos`
+- `todoGroups`
+- `notes`
+- `resources`
+- `resourceFolderShares`
+- `aiReports`
+- `mvpPages`
+- `roadmaps`
+- `friendRequests`
+- `friendships`
+- `socialChatRooms`
+- `socialChatParticipants`
+- `socialChatMessages`
+- `chatConversations`
+- `chatMessages`
+- `githubTools`
+
+The admin app should inspect `convex/schema.ts` directly before adding new
+tables, because the product is evolving and more tables may already exist.
+
+### Special product-side localStorage data not yet fully backend-backed
+
+Some newer features are currently backed partly or fully by local mock data /
+browser storage. The admin app should not assume all data is already stored in
+Convex.
+
+Examples:
+
+- startup hunt submissions / votes / comments
+- some resource explorer folder organization metadata
+- dismissed banners
+- newsletter signup local mock state
+- some feed-like product shells
+
+If the admin app needs operational control over these features, it may need to:
+
+- migrate them into real Convex tables, or
+- provide admin tooling only after persistence is moved server-side
+
+## Explore / Dataset Context
+
+### YC data
+
+- YC explorer UI exists in `components/startups/yc-explorer-page.tsx`
+- mock/source data currently comes from `lib/yc-startups`
+- users can analyze YC startups and push outputs into notes / ideas / todos
+
+Admin implication:
+
+- an admin app should support importing, editing, validating, and deleting YC
+  startup data
+
+### Shark Tank data
+
+- Shark Tank explorer UI exists in `components/startups/sharktank-explorer-page.tsx`
+- source data comes from `lib/shark-tank-india`
+
+Admin implication:
+
+- an admin app should support pitch/season import, correction, enrichment, and
+  deletion tools
+
+### GitHub tools data
+
+- managed via `convex/githubTools.ts`
+- UI exists in `components/explore/github-tools-explorer-page.tsx`
+- has AI summaries, use cases, opportunities, README content, and analysis
+
+Admin implication:
+
+- admin app should support reviewing and editing imported repos and AI fields
+
+### Startup Hunt data
+
+- product route: `/startups`
+- detail route: `/startups/[slug]`
+- shared mock/local state layer in `lib/ai-startup-hunt.ts`
+
+Admin implication:
+
+- if Startup Hunt becomes core data, move it to Convex and give admin tools for:
+  - startup CRUD
+  - vote auditing
+  - comment moderation
+  - thread moderation
+
+## Resource System Context
+
+There are now two distinct concepts in resources:
+
+1. backend resource link records in `resources`
+2. frontend/local folder organization metadata layered over those links
+
+Also present:
+
+- public folder share snapshots via `resourceFolderShares`
+
+Admin implication:
+
+- admin should be able to inspect and revoke public resource share links
+- if folder structure becomes product-critical, migrate local folder metadata to
+  server-side persistence
+
+## Social / Messaging Context
+
+Private/workspace chat infrastructure exists already.
+
+Important Convex modules:
+
+- `convex/social.ts`
+- `convex/socialChats.ts`
+
+Known capabilities:
+
+- private friend/direct chat flows
+- workspace room chats
+- shared content messages
+- AI analysis messages
+- friend requests / friendships
+
+Admin implication:
+
+- admin tooling may need:
+  - room inspection
+  - message moderation
+  - abuse / spam review
+  - user relationship debugging
+
+## Auth Context For Admin Build
+
+Current main product auth:
+
+- Clerk on frontend
+- Convex auth via Clerk tokens
+- app-level `users` table mapped from Clerk identities
+
+Admin app options:
+
+1. use Clerk and map admin identity to same `users` table
+2. use a dedicated admin auth layer stored in Convex
+3. bootstrap with app-controlled admin credentials and later migrate to Clerk
+
+Strong recommendation:
+
+- perform authorization server-side in Convex
+- never trust client-only role checks
+- use helper functions such as:
+  - `requireAdmin()`
+  - `requirePermission(permission)`
+  - `logAdminAction(...)`
+
+## Suggested New Admin Tables
+
+If building the admin app now, likely new tables include:
+
+- `adminUsers`
+- `adminRoles`
+- `adminAuditLogs`
+- `adminFeatureFlags`
+- `moderationReports`
+- `moderationActions`
+- `importJobs`
+
+Suggested fields:
+
+### `adminUsers`
+
+- `userId` or auth identifier
+- `email`
+- `role`
+- `permissions`
+- `status`
+- `createdBy`
+- `createdAt`
+- `updatedAt`
+- `lastLoginAt`
+
+### `adminAuditLogs`
+
+- `adminUserId`
+- `action`
+- `entityType`
+- `entityId`
+- `summary`
+- `before`
+- `after`
+- `createdAt`
+
+### `importJobs`
+
+- `sourceType`
+- `status`
+- `fileName`
+- `stats`
+- `errors`
+- `createdBy`
+- `createdAt`
+
+## Bootstrap Admin Requirement
+
+The requested admin bootstrap user is:
+
+- email: `ankit@rits.fun`
+- password: `ankitisme`
+
+Important note for implementers:
+
+- treat this as a bootstrap / seed requirement, not long-term production auth
+- if building production-safe auth, create a secure migration path away from a
+  raw stored password
+
+## Design Requirements For Admin
+
+The admin app should follow `DESIGN.md`.
+
+That means:
+
+- same dark canvas / surface layering
+- same thin border language
+- same muted typography hierarchy
+- same restrained glow treatment
+- no generic bright SaaS admin theme
+- should feel like RITS internal tooling
+
+Useful visual patterns to keep:
+
+- left sidebar navigation
+- structured cards
+- compact but premium controls
+- clean table/list/detail layouts
+- sticky top bars where helpful
+
+## Useful Existing UI Pieces To Reuse
+
+These existing UI primitives or patterns may help when building admin:
+
+- `components/ui/dialog.tsx`
+- `components/ui/avatar.tsx`
+- `components/ui/dropdown-menu.tsx`
+- `components/ui/themed-select.tsx`
+- `components/ui/confirm-provider.tsx`
+- `components/ui/theme-toggle.tsx`
+- layout conventions from `app/(main)/layout.tsx`
+
+Potential admin page patterns can also borrow from existing screens:
+
+- resources explorer
+- startup hunt list/detail
+- roadmap builder overlays
+- feed cards
+- newsletter hub side panels
+
+## Convex Modules Worth Reading Before Admin Build
+
+If building admin, read these first:
+
+- `convex/schema.ts`
+- `convex/authHelpers.ts`
+- `convex/users.ts`
+- `convex/workspaces.ts`
+- `convex/ideas.ts`
+- `convex/todos.ts`
+- `convex/todoGroups.ts`
+- `convex/notes.ts`
+- `convex/resources.ts`
+- `convex/researchOutputs.ts`
+- `convex/roadmaps.ts`
+- `convex/social.ts`
+- `convex/socialChats.ts`
+- `convex/githubTools.ts`
+
+Also read:
+
+- `convex/_generated/ai/guidelines.md`
+
+## Admin App Success Criteria
+
+An external agent building `admin.rits.com` should be able to use this file to
+understand:
+
+- what the main product is
+- what routes and surfaces already exist
+- what data tables already exist
+- what data is still local/mock
+- what admin-specific tables likely need to be added
+- what auth and permissions concerns matter
+- what styling language should be preserved
+
+If more product areas are added later, this file should be extended rather than
+replaced.

@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import {
   BadgeDollarSign,
   CalendarDays,
+  ChevronDown,
+  ChevronUp,
   FileText,
   FolderOpen,
   Lightbulb,
@@ -89,6 +91,7 @@ export function SharkTankExplorerPage({ seasons }: { seasons: SharkTankSeason[] 
   const [analysisResult, setAnalysisResult] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
+  const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
 
   const totalPitches = seasons.reduce((sum, season) => sum + season.detected_pitch_count, 0);
   const totalEpisodes = seasons.reduce((sum, season) => sum + season.episode_file_count, 0);
@@ -373,13 +376,19 @@ export function SharkTankExplorerPage({ seasons }: { seasons: SharkTankSeason[] 
                     <Sparkles size={16} style={{ color: "var(--accent-blue)" }} />
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>AI research</p>
                   </div>
-                  <textarea
-                    value={analysisPrompt}
-                    onChange={(event) => setAnalysisPrompt(event.target.value)}
-                    rows={4}
-                    className="input-field min-h-[110px] resize-y"
-                    placeholder="Ask AI to research this pitch..."
-                  />
+                  <button type="button" onClick={() => setAnalysisPromptOpen((value) => !value)} className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}>
+                    <span className="text-sm font-medium">AI prompt</span>
+                    {analysisPromptOpen ? <ChevronUp size={14} style={{ color: "var(--mute)" }} /> : <ChevronDown size={14} style={{ color: "var(--mute)" }} />}
+                  </button>
+                  {analysisPromptOpen ? (
+                    <textarea
+                      value={analysisPrompt}
+                      onChange={(event) => setAnalysisPrompt(event.target.value)}
+                      rows={4}
+                      className="input-field mt-3 min-h-[110px] resize-y"
+                      placeholder="Ask AI to research this pitch..."
+                    />
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-3">
                     <button onClick={() => void handleAnalyzePitch()} disabled={analysisLoading || !analysisPrompt.trim()} className="btn-primary">
                       <Sparkles size={15} /> {analysisLoading ? "Researching..." : "Research with AI"}

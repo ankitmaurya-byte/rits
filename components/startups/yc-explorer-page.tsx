@@ -7,7 +7,7 @@ import { useUser } from "@clerk/nextjs";
 import { useQuery as useConvexUserQuery } from "convex/react";
 import { toast } from "sonner";
 import { mockYCStartups, type YCStartup } from "@/lib/yc-startups";
-import { FileText, Lightbulb, CheckSquare, Rocket, ExternalLink, Search, Filter, Sparkles, X } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Lightbulb, CheckSquare, Rocket, ExternalLink, Search, Filter, Sparkles, X } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ThemedSelect } from "@/components/ui/themed-select";
 
@@ -33,6 +33,7 @@ export function YcExplorerPage() {
   const [analysisPrompt, setAnalysisPrompt] = useState("Analyze this startup's business model, moat, risks, competitors, and possible startup ideas inspired by it.");
   const [analysisResult, setAnalysisResult] = useState("");
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
   const loaderRef = useRef<HTMLDivElement>(null);
 
   const filteredStartups = useMemo(() => {
@@ -440,13 +441,19 @@ export function YcExplorerPage() {
                     <Sparkles size={16} style={{ color: "var(--accent-purple)" }} />
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>AI analysis</p>
                   </div>
-                  <textarea
-                    value={analysisPrompt}
-                    onChange={(e) => setAnalysisPrompt(e.target.value)}
-                    rows={4}
-                    className="input-field min-h-[110px] resize-y"
-                    placeholder="Ask AI to analyze this startup..."
-                  />
+                  <button type="button" onClick={() => setAnalysisPromptOpen((value) => !value)} className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}>
+                    <span className="text-sm font-medium">AI prompt</span>
+                    {analysisPromptOpen ? <ChevronUp size={14} style={{ color: "var(--mute)" }} /> : <ChevronDown size={14} style={{ color: "var(--mute)" }} />}
+                  </button>
+                  {analysisPromptOpen ? (
+                    <textarea
+                      value={analysisPrompt}
+                      onChange={(e) => setAnalysisPrompt(e.target.value)}
+                      rows={4}
+                      className="input-field mt-3 min-h-[110px] resize-y"
+                      placeholder="Ask AI to analyze this startup..."
+                    />
+                  ) : null}
                   <div className="mt-3 flex flex-wrap gap-3">
                     <button onClick={() => void handleAnalyzeStartup()} disabled={analysisLoading || !analysisPrompt.trim()} className="btn-primary">
                       <Sparkles size={15} /> {analysisLoading ? "Analyzing..." : "Analyze with AI"}

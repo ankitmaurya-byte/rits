@@ -20,6 +20,8 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import {
   BookOpen,
+  ChevronDown,
+  ChevronUp,
   Cpu,
   ExternalLink,
   FilePlus2,
@@ -184,6 +186,7 @@ export function GithubToolsExplorerPage() {
   const [repoAnalysisPrompt, setRepoAnalysisPrompt] = useState(
     "Analyze this repository: summarize what it does, who it is for, its moat, risks, business potential, and what product ideas or workflows can be built from it."
   );
+  const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [fetchingRepos, setFetchingRepos] = useState(false);
   const [savingManual, setSavingManual] = useState(false);
@@ -718,11 +721,11 @@ export function GithubToolsExplorerPage() {
                 ) : null}
 
                 <section className="feature-card p-5">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Sparkles size={16} style={{ color: "var(--accent-blue)" }} />
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Analysis prompt</p>
-                  </div>
-                  <textarea value={repoAnalysisPrompt} onChange={(event) => setRepoAnalysisPrompt(event.target.value)} rows={5} className="input-field min-h-[130px] resize-y" />
+                  <button type="button" onClick={() => setAnalysisPromptOpen((value) => !value)} className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}>
+                    <span className="inline-flex items-center gap-2 text-sm font-medium"><Sparkles size={15} style={{ color: "var(--accent-blue)" }} /> AI prompt</span>
+                    {analysisPromptOpen ? <ChevronUp size={14} style={{ color: "var(--mute)" }} /> : <ChevronDown size={14} style={{ color: "var(--mute)" }} />}
+                  </button>
+                  {analysisPromptOpen ? <textarea value={repoAnalysisPrompt} onChange={(event) => setRepoAnalysisPrompt(event.target.value)} rows={5} className="input-field mt-3 min-h-[130px] resize-y" /> : null}
                 </section>
 
                 <section className="feature-card p-5">

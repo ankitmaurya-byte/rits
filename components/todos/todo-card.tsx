@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
-import { MoreVertical, Sparkles, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, MoreVertical, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import type { DraggableAttributes } from "@dnd-kit/core";
@@ -82,6 +82,7 @@ export function TodoCard({
   const [saving, setSaving] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiBusy, setAiBusy] = useState<"describe" | "build" | null>(null);
+  const [showAiPrompt, setShowAiPrompt] = useState(false);
   const aiPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const moveStatusRef = useRef<HTMLSelectElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -333,44 +334,51 @@ export function TodoCard({
               </button>
             </div>
 
-            <div className="space-y-4 border-t pt-4" style={{ borderColor: "var(--hairline)" }}>
-              <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
-                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ink)" }}>
-                  <Sparkles size={12} /> AI
-                </div>
-                <textarea
-                  ref={aiPromptRef}
-                  value={aiPrompt}
-                  onChange={(event) => setAiPrompt(event.target.value)}
-                  placeholder="Describe the task you want, or ask AI to improve the description..."
-                  rows={3}
-                  className="input-field min-h-[90px] resize-y"
-                />
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleAi("describe");
-                    }}
-                    disabled={aiBusy !== null}
-                    className="btn-outline text-xs"
-                  >
-                    {aiBusy === "describe" ? "Writing..." : "Write description"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleAi("build");
-                    }}
-                    disabled={aiBusy !== null}
-                    className="btn-primary text-xs"
-                  >
-                    {aiBusy === "build" ? "Generating..." : "Fill whole todo"}
-                  </button>
-                </div>
-              </div>
+              <div className="space-y-4 border-t pt-4" style={{ borderColor: "var(--hairline)" }}>
+               <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
+                 <button type="button" onClick={() => setShowAiPrompt((current) => !current)} className="flex w-full items-center justify-between text-left">
+                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ink)" }}>
+                     <Sparkles size={12} /> AI prompt
+                   </div>
+                   {showAiPrompt ? <ChevronUp size={14} style={{ color: "var(--mute)" }} /> : <ChevronDown size={14} style={{ color: "var(--mute)" }} />}
+                 </button>
+                 {showAiPrompt ? (
+                   <>
+                     <textarea
+                       ref={aiPromptRef}
+                       value={aiPrompt}
+                       onChange={(event) => setAiPrompt(event.target.value)}
+                       placeholder="Describe the task you want, or ask AI to improve the description..."
+                       rows={3}
+                       className="input-field mt-3 min-h-[90px] resize-y"
+                     />
+                     <div className="mt-3 flex flex-wrap gap-2">
+                       <button
+                         type="button"
+                         onClick={(event) => {
+                           event.stopPropagation();
+                           void handleAi("describe");
+                         }}
+                         disabled={aiBusy !== null}
+                         className="btn-outline text-xs"
+                       >
+                         {aiBusy === "describe" ? "Writing..." : "Write description"}
+                       </button>
+                       <button
+                         type="button"
+                         onClick={(event) => {
+                           event.stopPropagation();
+                           void handleAi("build");
+                         }}
+                         disabled={aiBusy !== null}
+                         className="btn-primary text-xs"
+                       >
+                         {aiBusy === "build" ? "Generating..." : "Fill whole todo"}
+                       </button>
+                     </div>
+                   </>
+                 ) : null}
+               </div>
 
               <div>
                 <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>

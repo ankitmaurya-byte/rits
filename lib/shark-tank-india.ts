@@ -24,7 +24,7 @@ export type SharkTankPitch = {
   website_links: string[];
   team: string[];
   transcript: string;
-  company_details?: Record<string, unknown> | null;
+  company_details: Record<string, unknown> | null;
 };
 
 export type SharkTankSeason = {
@@ -147,6 +147,7 @@ export async function loadSharkTankSeasons() {
       website_links: video.websiteLinks,
       team: video.team,
       transcript: video.transcript,
+      company_details: null,
     })),
   };
 

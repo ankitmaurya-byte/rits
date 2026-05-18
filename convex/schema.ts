@@ -9,6 +9,7 @@ export default defineSchema({
     email: v.string(),
     image: v.optional(v.string()),
     status: v.optional(v.string()),
+    suspendedAt: v.optional(v.number()),
     bio: v.optional(v.string()),
     description: v.optional(v.string()),
     currentCompany: v.optional(v.string()),
@@ -116,6 +117,8 @@ export default defineSchema({
     description: v.optional(v.string()),
     ownerId: v.id("users"),
     inviteToken: v.optional(v.string()), // optional for existing records; always set on create
+    status: v.optional(v.union(v.literal("active"), v.literal("disabled"), v.literal("archived"))),
+    disabledAt: v.optional(v.number()),
   }).index("by_invite_token", ["inviteToken"]),
 
   // Many-to-many: users <-> workspaces

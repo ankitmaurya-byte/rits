@@ -434,3 +434,238 @@ export const listAuditLogs = query({
     return await ctx.db.query("adminAuditLogs").collect();
   },
 });
+
+export const suspendUser = mutation({
+  args: {
+    sessionToken: v.string(),
+    userId: v.id("users"),
+    suspended: v.boolean(),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "users.suspend");
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new ConvexError("User not found");
+
+    const patch = {
+      status: args.suspended ? "suspended" : undefined,
+      suspendedAt: args.suspended ? Date.now() : undefined,
+    };
+
+    await ctx.db.patch(user._id, patch);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: args.suspended ? "suspend_user" : "unsuspend_user",
+      entityType: "users",
+      entityId: user._id,
+      summary: `${args.suspended ? "Suspended" : "Unsuspended"} ${user.email}${args.reason ? `: ${args.reason}` : ""}`,
+      before: JSON.stringify(user),
+      after: JSON.stringify({ ...user, ...patch }),
+    });
+    return user._id;
+  },
+});
+
+export const updateWorkspaceStatus = mutation({
+  args: {
+    sessionToken: v.string(),
+    workspaceId: v.id("workspaces"),
+    status: v.union(v.literal("active"), v.literal("disabled"), v.literal("archived")),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "workspaces.edit");
+    const workspace = await ctx.db.get(args.workspaceId);
+    if (!workspace) throw new ConvexError("Workspace not found");
+
+    const patch = {
+      status: args.status,
+      disabledAt: args.status === "active" ? undefined : Date.now(),
+    };
+
+    await ctx.db.patch(workspace._id, patch);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "update_workspace_status",
+      entityType: "workspaces",
+      entityId: workspace._id,
+      summary: `Workspace ${workspace.name} -> ${args.status}${args.reason ? `: ${args.reason}` : ""}`,
+      before: JSON.stringify(workspace),
+      after: JSON.stringify({ ...workspace, ...patch }),
+    });
+    return workspace._id;
+  },
+});
+
+export const listFeatureFlags = query({
+  args: { sessionToken: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdminPermission(ctx, args.sessionToken, "integrations.manage");
+    return await ctx.db.query("adminFeatureFlags").collect();
+  },
+});
+
+export const upsertFeatureFlag = mutation({
+  args: {
+    sessionToken: v.string(),
+    key: v.string(),
+    label: v.string(),
+    enabled: v.boolean(),
+    description: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "integrations.manage");
+    const existing = await ctx.db.query("adminFeatureFlags").withIndex("by_key", (q) => q.eq("key", args.key.trim())).unique();
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        label: args.label.trim(),
+        enabled: args.enabled,
+        description: args.description?.trim(),
+        updatedBy: adminUser._id,
+        updatedAt: now,
+      });
+      await logAdminAction(ctx, {
+        adminUserId: adminUser._id,
+        action: "update_feature_flag",
+        entityType: "adminFeatureFlags",
+        entityId: existing._id,
+        summary: `Updated feature flag ${args.key}`,
+      });
+      return existing._id;
+    }
+
+    const createdId = await ctx.db.insert("adminFeatureFlags", {
+      key: args.key.trim(),
+      label: args.label.trim(),
+      enabled: args.enabled,
+      description: args.description?.trim(),
+      updatedBy: adminUser._id,
+      updatedAt: now,
+    });
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "create_feature_flag",
+      entityType: "adminFeatureFlags",
+      entityId: createdId,
+      summary: `Created feature flag ${args.key}`,
+    });
+    return createdId;
+  },
+});
+
+export const deleteFeatureFlag = mutation({
+  args: { sessionToken: v.string(), featureFlagId: v.id("adminFeatureFlags") },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "integrations.manage");
+    const flag = await ctx.db.get(args.featureFlagId);
+    if (!flag) throw new ConvexError("Feature flag not found");
+    await ctx.db.delete(flag._id);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "delete_feature_flag",
+      entityType: "adminFeatureFlags",
+      entityId: flag._id,
+      summary: `Deleted feature flag ${flag.key}`,
+    });
+    return null;
+  },
+});
+
+export const importYcDataset = mutation({
+  args: { sessionToken: v.string(), fileName: v.string(), payload: v.string() },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "yc.manage");
+    const now = Date.now();
+    const jobId = await ctx.db.insert("importJobs", {
+      sourceType: "yc",
+      fileName: args.fileName,
+      payload: args.payload,
+      status: "queued",
+      stats: JSON.stringify({ mode: "stub" }),
+      createdBy: adminUser._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await logAdminAction(ctx, { adminUserId: adminUser._id, action: "import_yc_dataset", entityType: "importJobs", entityId: jobId, summary: `Queued YC import ${args.fileName}` });
+    return { jobId, status: "queued", mode: "stub" as const };
+  },
+});
+
+export const importSharkTankDataset = mutation({
+  args: { sessionToken: v.string(), fileName: v.string(), payload: v.string() },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "sharktank.manage");
+    const now = Date.now();
+    const jobId = await ctx.db.insert("importJobs", {
+      sourceType: "sharktank",
+      fileName: args.fileName,
+      payload: args.payload,
+      status: "queued",
+      stats: JSON.stringify({ mode: "stub" }),
+      createdBy: adminUser._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await logAdminAction(ctx, { adminUserId: adminUser._id, action: "import_sharktank_dataset", entityType: "importJobs", entityId: jobId, summary: `Queued Shark Tank import ${args.fileName}` });
+    return { jobId, status: "queued", mode: "stub" as const };
+  },
+});
+
+export const importStartupDataset = mutation({
+  args: { sessionToken: v.string(), fileName: v.string(), payload: v.string() },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "startups.manage");
+    const now = Date.now();
+    const jobId = await ctx.db.insert("importJobs", {
+      sourceType: "startup_hunt",
+      fileName: args.fileName,
+      payload: args.payload,
+      status: "queued",
+      stats: JSON.stringify({ mode: "stub" }),
+      createdBy: adminUser._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await logAdminAction(ctx, { adminUserId: adminUser._id, action: "import_startup_dataset", entityType: "importJobs", entityId: jobId, summary: `Queued startup import ${args.fileName}` });
+    return { jobId, status: "queued", mode: "stub" as const };
+  },
+});
+
+export const getDailyStats = query({
+  args: { sessionToken: v.string(), days: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    await requireAdminPermission(ctx, args.sessionToken, "dashboard.read");
+    const days = Math.max(1, Math.min(args.days ?? 30, 90));
+    const now = Date.now();
+    const dayMs = 1000 * 60 * 60 * 24;
+    const start = now - days * dayMs;
+
+    const [users, workspaces, ideas, todos, notes, resources, reports] = await Promise.all([
+      ctx.db.query("users").collect(),
+      ctx.db.query("workspaces").collect(),
+      ctx.db.query("ideas").collect(),
+      ctx.db.query("todos").collect(),
+      ctx.db.query("notes").collect(),
+      ctx.db.query("resources").collect(),
+      ctx.db.query("aiReports").collect(),
+    ]);
+
+    return Array.from({ length: days }, (_, index) => {
+      const bucketStart = start + index * dayMs;
+      const bucketEnd = bucketStart + dayMs;
+      const inBucket = (value: number | undefined) => value !== undefined && value >= bucketStart && value < bucketEnd;
+      return {
+        dayStart: bucketStart,
+        users: users.filter((item) => inBucket(item._creationTime)).length,
+        workspaces: workspaces.filter((item) => inBucket(item._creationTime)).length,
+        ideas: ideas.filter((item) => inBucket(item.createdAt)).length,
+        todos: todos.filter((item) => inBucket(item.createdAt)).length,
+        notes: notes.filter((item) => inBucket(item.updatedAt)).length,
+        resources: resources.filter((item) => inBucket(item.createdAt)).length,
+        reports: reports.filter((item) => inBucket(item.createdAt)).length,
+      };
+    });
+  },
+});

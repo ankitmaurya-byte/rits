@@ -10,14 +10,12 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
-  ExternalLink,
   FileText,
   Lightbulb,
   Link2,
   Search,
   Sparkles,
   Tv,
-  Users,
 } from "lucide-react";
 
 import { api } from "@/convex/_generated/api";
@@ -25,7 +23,7 @@ import { useWorkspace } from "@/lib/use-workspace";
 import type { SharkTankPitch } from "@/lib/shark-tank-india";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const EMPTY_SEASONS: Array<{ season: number; playlist_title?: string; playlist_link?: string; source_folder: string; pitches: SharkTankPitch[] }> = [];
+const EMPTY_SEASONS: Array<{ season: number; playlist_title?: string; playlist_link?: string; source_folder: string; pitches: SharkTankPitch[]; comingSoon?: boolean }> = [];
 
 type ExpandableSectionProps = {
   title: string;
@@ -48,17 +46,28 @@ function formatFounders(founders: string[] | null) {
   return founders.join(", ");
 }
 
+function getBusinessModel(pitch: SharkTankPitch) {
+  if (typeof pitch.company_details?.businessModel === "string" && pitch.company_details.businessModel.trim()) {
+    return pitch.company_details.businessModel;
+  }
+  return "Business model not detected";
+}
+
+function getSharkTankDealStatus(pitch: SharkTankPitch) {
+  if (typeof pitch.company_details?.sharkTankDealStatus === "string" && pitch.company_details.sharkTankDealStatus.trim()) {
+    return pitch.company_details.sharkTankDealStatus;
+  }
+  return "Deal status not detected";
+}
+
 function buildPitchContext(pitch: SharkTankPitch) {
   return [
     `Season: ${pitch.season}`,
     `Episode: ${pitch.episode_number ?? "Unknown"}`,
     `Episode title: ${pitch.episode_title ?? "Unknown"}`,
     `Company: ${pitch.company_name_detected ?? "Unknown"}`,
-    `Founders: ${formatFounders(pitch.founders_detected)}`,
-    `Ask: ${formatAsk(pitch)}`,
-    `Summary: ${pitch.pitch_summary_detected ?? "Not detected"}`,
-    `Intro excerpt: ${pitch.intro_excerpt ?? "Not detected"}`,
-    `Transcript:\n${pitch.transcript}`,
+    `Business Model: ${getBusinessModel(pitch)}`,
+    `Shark Tank Deal Status: ${getSharkTankDealStatus(pitch)}`,
   ].join("\n");
 }
 
@@ -181,14 +190,15 @@ export function SharkTankExplorerPage() {
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
   const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  const [selectedSeason, setSelectedSeason] = useState(4);
 
-  const seasonFour = useMemo(() => seasons.find((season) => season.season === 4) ?? null, [seasons]);
+  const activeSeason = useMemo(() => seasons.find((season) => season.season === selectedSeason) ?? null, [selectedSeason, seasons]);
   const filteredPitches = useMemo(() => {
-    if (!seasonFour) return [];
+    if (!activeSeason) return [];
     const query = searchValue.trim().toLowerCase();
-    if (!query) return seasonFour.pitches;
+    if (!query) return activeSeason.pitches;
 
-    return seasonFour.pitches.filter((pitch) => {
+    return activeSeason.pitches.filter((pitch) => {
       const haystack = [
         pitch.company_name_detected,
         pitch.episode_title,
@@ -203,12 +213,7 @@ export function SharkTankExplorerPage() {
 
       return haystack.includes(query);
     });
-  }, [searchValue, seasonFour]);
-  const seasonCards = [1, 2, 3, 4, 5].map((season) => ({
-    season,
-    live: season === 4,
-    data: seasons.find((item) => item.season === season) ?? null,
-  }));
+  }, [activeSeason, searchValue]);
 
   const openPitch = (pitch: SharkTankPitch) => {
     setSelectedPitch(pitch);
@@ -293,70 +298,62 @@ export function SharkTankExplorerPage() {
   }
 
   return (
-    <div className="page-container animate-fade-in-up relative">
-      <div className="absolute right-0 top-0 h-[360px] w-[560px] pointer-events-none" style={{ background: "radial-gradient(circle at top right, var(--accent-blue) 0%, transparent 70%)", opacity: 0.18 }} />
+    <div className="page-container animate-fade-in-up relative px-0 py-2 sm:px-0 sm:py-3 lg:px-0">
+      <div className="absolute right-0 top-0 h-[260px] w-[420px] pointer-events-none" style={{ background: "radial-gradient(circle at top right, var(--accent-blue) 0%, transparent 70%)", opacity: 0.14 }} />
 
-      <div className="relative z-10 space-y-6">
-        <section className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          {seasonCards.map((card) => (
-            <div key={card.season} className="feature-card p-5" style={{ backgroundColor: card.live ? "var(--surface-card)" : "var(--surface-deep)", opacity: card.live ? 1 : 0.82 }}>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>Season {card.season}</p>
-                <span className="rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em]" style={{ borderColor: "var(--hairline)", color: card.live ? "var(--accent-green)" : "var(--mute)" }}>
-                  {card.live ? "Live" : "Coming soon"}
-                </span>
-              </div>
+      <div className="relative z-10 space-y-1">
+        <section className="pb-8">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--mute)" }}>Explore</p>
+              <h2 className="mt-1 text-xl font-medium" style={{ color: "var(--ink)" }}>Shark Tank India</h2>
             </div>
-          ))}
-        </section>
-
-        {seasonFour ? (
-          <section className="feature-card overflow-hidden p-0">
-            <div className="border-b px-6 py-5" style={{ borderColor: "var(--divider-soft)" }}>
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="max-w-3xl">
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--mute)" }}>Season 4</p>
-                  <h3 className="text-2xl font-medium" style={{ color: "var(--ink)" }}>{seasonFour.playlist_title ?? seasonFour.source_folder}</h3>
-                  <p className="mt-3 text-sm leading-6" style={{ color: "var(--charcoal)" }}>
-                    Search by company, founder, summary, or links to jump into any pitch quickly.
-                  </p>
-                </div>
-                <a href={seasonFour.playlist_link} target="_blank" rel="noreferrer" className="btn-outline"><ExternalLink size={15} /> Playlist</a>
-              </div>
-              <div className="mt-5 relative max-w-xl">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:min-w-[560px] lg:max-w-[760px] lg:flex-1 lg:justify-end">
+              <div className="relative sm:flex-1 lg:min-w-[420px]">
                 <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
                 <input
                   value={searchValue}
                   onChange={(event) => setSearchValue(event.target.value)}
                   placeholder="Search Shark Tank pitches"
-                  className="input-field h-12 w-full pl-11"
+                  className="input-field h-11 w-full pl-11"
                 />
               </div>
+              <select
+                value={selectedSeason}
+                onChange={(event) => setSelectedSeason(Number(event.target.value))}
+                className="input-field h-11 w-full sm:w-28"
+              >
+                {[1, 2, 3, 4, 5].map((season) => (
+                  <option key={season} value={season}>Season {season}</option>
+                ))}
+              </select>
             </div>
+          </div>
+        </section>
 
-            <div className="grid grid-cols-1 gap-4 px-6 py-6 xl:grid-cols-2">
+        {activeSeason ? (
+          <section className="overflow-hidden p-0">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-0 xl:grid-cols-3">
               {filteredPitches.map((pitch) => (
                 <button key={pitch.id} type="button" onClick={() => openPitch(pitch)} className="overflow-hidden rounded-2xl border text-left transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
                   <Image src={imageUrl(pitch.thumbnail)} alt={pitch.company_name_detected ?? pitch.episode_title ?? "Shark Tank pitch"} width={1200} height={700} className="h-44 w-full object-cover" unoptimized />
-                  <div className="p-5">
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                  <div className="p-3">
+                    <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Episode {pitch.episode_number ?? "?"}</p>
                         <h4 className="mt-2 text-lg font-medium" style={{ color: "var(--ink)" }}>{pitch.company_name_detected || pitch.episode_title || "Pitch"}</h4>
                       </div>
                     </div>
                     <div className="space-y-3 text-sm">
-                      <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><Users size={15} className="mt-0.5 shrink-0" /><span>{formatFounders(pitch.founders_detected)}</span></div>
-                      <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><BadgeDollarSign size={15} className="mt-0.5 shrink-0" /><span>{formatAsk(pitch)}</span></div>
-                      <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><Tv size={15} className="mt-0.5 shrink-0" /><span>{pitch.episode_title || "Episode title not detected"}</span></div>
-                      <p className="line-clamp-4 leading-6" style={{ color: "var(--body)" }}>{pitch.pitch_summary_detected || pitch.intro_excerpt || "Summary not detected"}</p>
+                      <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><Building2 size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-3">{getBusinessModel(pitch)}</span></div>
+                      <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><BadgeDollarSign size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-3">{getSharkTankDealStatus(pitch)}</span></div>
                     </div>
                   </div>
                 </button>
               ))}
               {filteredPitches.length === 0 ? (
                 <div className="col-span-full rounded-2xl border px-6 py-12 text-center" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--charcoal)" }}>
-                  No Shark Tank pitches match your search.
+                  {activeSeason.pitches.length === 0 ? "No Shark Tank data available." : "No Shark Tank pitches match your search."}
                 </div>
               ) : null}
             </div>
@@ -390,8 +387,8 @@ export function SharkTankExplorerPage() {
               </DialogHeader>
             </div>
 
-            <div className="grid gap-6 p-6 xl:grid-cols-[1.15fr_0.85fr]">
-              <div className="space-y-6">
+            <div className="grid items-start gap-6 p-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="min-w-0 space-y-6">
                 <section className="feature-card p-5">
                   <div className="mb-4 flex items-center gap-2">
                     <Tv size={16} style={{ color: "var(--accent-blue)" }} />
@@ -464,7 +461,7 @@ export function SharkTankExplorerPage() {
                 </section>
               </div>
 
-              <div className="space-y-6">
+              <div className="min-w-0 space-y-6">
                 <ExpandableSection title="Links" eyebrow="Resources">
                   <div className="space-y-2">
                     {[selectedPitch.youtube_link, ...selectedPitch.website_links].filter(Boolean).map((link) => (
@@ -500,7 +497,7 @@ export function SharkTankExplorerPage() {
                 </ExpandableSection>
 
                 <ExpandableSection title="Pitch data JSON" eyebrow="Debug data">
-                  <pre className="max-h-[420px] overflow-auto rounded-xl border p-4 text-xs leading-6" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--body)" }}>
+                  <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-4 text-xs leading-6" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--body)" }}>
                     {buildDisplayJson(selectedPitch)}
                   </pre>
                 </ExpandableSection>

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQuery as useConvexUserQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import ReactMarkdown from "react-markdown";
@@ -39,6 +39,9 @@ type ExpandableSectionProps = {
   children: React.ReactNode;
 };
 
+const INITIAL_VISIBLE_PITCHES = 12;
+const VISIBLE_PITCHES_STEP = 9;
+
 function formatAsk(pitch: SharkTankPitch) {
   if (pitch.ask_text) return pitch.ask_text;
   if (pitch.ask_amount_value && pitch.ask_amount_unit) {
@@ -75,16 +78,6 @@ function randomizeBySeed(value: string) {
   return hash;
 }
 
-function buildChatShareText(pitch: SharkTankPitch) {
-  return [
-    `Shark Tank pitch: ${pitch.company_name_detected ?? pitch.episode_title ?? "Pitch"}`,
-    `Season ${pitch.season}${pitch.episode_number ? `, Episode ${pitch.episode_number}` : ""}`,
-    `Business Model: ${getBusinessModel(pitch)}`,
-    `Deal Status: ${getSharkTankDealStatus(pitch)}`,
-    `Link: ${pitch.youtube_link}`,
-  ].join("\n");
-}
-
 function buildPitchContext(pitch: SharkTankPitch) {
   return [
     `Season: ${pitch.season}`,
@@ -94,11 +87,6 @@ function buildPitchContext(pitch: SharkTankPitch) {
     `Business Model: ${getBusinessModel(pitch)}`,
     `Shark Tank Deal Status: ${getSharkTankDealStatus(pitch)}`,
   ].join("\n");
-}
-
-function buildDisplayJson(pitch: SharkTankPitch) {
-  const rest = Object.fromEntries(Object.entries(pitch).filter(([key]) => key !== "transcript"));
-  return JSON.stringify(rest, null, 2);
 }
 
 function getYouTubeEmbedUrl(link: string) {
@@ -208,6 +196,7 @@ export function SharkTankExplorerPage() {
   const createNote = useMutation(api.notes.createNote);
   const createIdea = useMutation(api.ideas.createIdea);
   const createComment = useMutation(api.sharkTankComments.create);
+  const sendSharedMessage = useMutation(api.socialChats.sendSharedMessage);
 
   const [selectedPitch, setSelectedPitch] = useState<SharkTankPitch | null>(null);
   const [analysisPrompt, setAnalysisPrompt] = useState("Research this Shark Tank pitch: evaluate the business model, market, founder strengths, risks, growth potential, and startup opportunities.");
@@ -216,24 +205,39 @@ export function SharkTankExplorerPage() {
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
   const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [selectedSeason, setSelectedSeason] = useState(4);
+  const [selectedSeason, setSelectedSeason] = useState<"all" | number>(4);
   const [seenPitchIds, setSeenPitchIds] = useState<string[]>([]);
   const [commentInput, setCommentInput] = useState("");
+  const [visiblePitchCount, setVisiblePitchCount] = useState(INITIAL_VISIBLE_PITCHES);
+  const [sharePitch, setSharePitch] = useState<SharkTankPitch | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
-  const activeSeason = useMemo(() => seasons.find((season) => season.season === selectedSeason) ?? null, [selectedSeason, seasons]);
+  const activeSeason = useMemo(() => {
+    if (selectedSeason === "all") return null;
+    return seasons.find((season) => season.season === selectedSeason) ?? null;
+  }, [selectedSeason, seasons]);
   const comments = useQuery(api.sharkTankComments.listByPitch, selectedPitch ? { pitchId: selectedPitch.id } : "skip") ?? [];
+  const privateRooms = useQuery(api.socialChats.listPrivateRooms, user ? {} : "skip") ?? [];
+  const workspaceRooms = useQuery(api.socialChats.listWorkspaceRooms, workspaceId ? { workspaceId } : "skip") ?? [];
+
+  const visibleSeasonPitches = useMemo(() => {
+    if (selectedSeason === "all") {
+      return seasons.flatMap((season) => season.pitches);
+    }
+    return activeSeason?.pitches ?? [];
+  }, [activeSeason, seasons, selectedSeason]);
 
   const orderedPitches = useMemo(() => {
-    if (!activeSeason) return [];
+    if (!visibleSeasonPitches.length) return [];
 
-    const sorted = [...activeSeason.pitches].sort((left, right) => (
-      randomizeBySeed(`${activeSeason.season}-${left.id}`) - randomizeBySeed(`${activeSeason.season}-${right.id}`)
+    const sorted = [...visibleSeasonPitches].sort((left, right) => (
+      randomizeBySeed(`${left.season}-${left.id}`) - randomizeBySeed(`${right.season}-${right.id}`)
     ));
 
     const unseen = sorted.filter((pitch) => !seenPitchIds.includes(pitch.id));
     const seen = sorted.filter((pitch) => seenPitchIds.includes(pitch.id));
     return [...unseen, ...seen];
-  }, [activeSeason, seenPitchIds]);
+  }, [seenPitchIds, visibleSeasonPitches]);
 
   const filteredPitches = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
@@ -255,6 +259,29 @@ export function SharkTankExplorerPage() {
       return haystack.includes(query);
     });
   }, [orderedPitches, searchValue]);
+
+  const visiblePitches = useMemo(
+    () => filteredPitches.slice(0, visiblePitchCount),
+    [filteredPitches, visiblePitchCount],
+  );
+
+  useEffect(() => {
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return;
+    if (visiblePitches.length >= filteredPitches.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        setVisiblePitchCount((current) => Math.min(current + VISIBLE_PITCHES_STEP, filteredPitches.length));
+      },
+      { rootMargin: "320px 0px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [filteredPitches.length, visiblePitches.length]);
 
   const toggleSeenPitch = (pitchId: string) => {
     setSeenPitchIds((current) => (
@@ -281,11 +308,23 @@ export function SharkTankExplorerPage() {
   };
 
   const handleShareToChats = async (pitch: SharkTankPitch) => {
+    setSharePitch(pitch);
+  };
+
+  const handleSendPitchToRoom = async (roomId: string) => {
+    if (!sharePitch) return;
     try {
-      await navigator.clipboard.writeText(buildChatShareText(pitch));
-      toast.success("Chat share copied.");
+      await sendSharedMessage({
+        roomId: roomId as never,
+        shareType: "resource",
+        shareTitle: sharePitch.company_name_detected ?? sharePitch.episode_title ?? "Shark Tank pitch",
+        shareDescription: `${getBusinessModel(sharePitch)}\n\n${getSharkTankDealStatus(sharePitch)}`,
+        shareMeta: sharePitch.youtube_link,
+      });
+      setSharePitch(null);
+      toast.success("Shared to chat.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to prepare chat share.");
+      toast.error(error instanceof Error ? error.message : "Failed to share to chat.");
     }
   };
 
@@ -396,20 +435,31 @@ export function SharkTankExplorerPage() {
               <h2 className="mt-1 text-xl font-medium" style={{ color: "var(--ink)" }}>Shark Tank India</h2>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:min-w-[560px] lg:max-w-[760px] lg:flex-1 lg:justify-end">
-              <div className="relative sm:flex-1 lg:min-w-[420px]">
-                <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
+              <div
+                className="relative flex h-11 items-center rounded-2xl border sm:flex-1 lg:min-w-[420px]"
+                style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", boxShadow: "0 10px 24px rgba(0,0,0,0.10)" }}
+              >
+                <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--charcoal)" }} />
                 <input
                   value={searchValue}
-                  onChange={(event) => setSearchValue(event.target.value)}
+                  onChange={(event) => {
+                    setSearchValue(event.target.value);
+                    setVisiblePitchCount(INITIAL_VISIBLE_PITCHES);
+                  }}
                   placeholder="Search Shark Tank pitches"
-                  className="input-field h-11 w-full pl-11"
+                  className="h-full w-full bg-transparent pl-11 pr-4 text-sm outline-none placeholder:text-[color:var(--mute)]"
+                  style={{ color: "var(--ink)" }}
                 />
               </div>
               <select
                 value={selectedSeason}
-                onChange={(event) => setSelectedSeason(Number(event.target.value))}
+                onChange={(event) => {
+                  setSelectedSeason(event.target.value === "all" ? "all" : Number(event.target.value));
+                  setVisiblePitchCount(INITIAL_VISIBLE_PITCHES);
+                }}
                 className="input-field h-11 w-full sm:w-28"
               >
+                <option value="all">All</option>
                 {[1, 2, 3, 4, 5].map((season) => (
                   <option key={season} value={season}>Season {season}</option>
                 ))}
@@ -418,14 +468,11 @@ export function SharkTankExplorerPage() {
           </div>
         </section>
 
-        {activeSeason ? (
+        {selectedSeason === "all" || activeSeason ? (
           <section className="overflow-hidden p-0">
             <div className="grid grid-cols-1 gap-x-4 gap-y-3 p-0 xl:grid-cols-3">
-              {filteredPitches.map((pitch) => (
+              {visiblePitches.map((pitch) => (
                 <button key={pitch.id} type="button" onClick={() => openPitch(pitch)} className="group relative cursor-pointer overflow-hidden rounded-2xl border text-left transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", opacity: seenPitchIds.includes(pitch.id) ? 0.86 : 1 }}>
-                  <span className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.16em] opacity-0 transition-opacity group-hover:opacity-100" style={{ borderColor: "var(--hairline)", backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)", color: seenPitchIds.includes(pitch.id) ? "var(--accent-green)" : "var(--mute)" }}>
-                    {seenPitchIds.includes(pitch.id) ? "Seen" : "New"}
-                  </span>
                   <div className="absolute right-3 top-3 z-10 flex flex-wrap justify-end gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                     <button
                       type="button"
@@ -481,10 +528,23 @@ export function SharkTankExplorerPage() {
               ))}
               {filteredPitches.length === 0 ? (
                 <div className="col-span-full rounded-2xl border px-6 py-12 text-center" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--charcoal)" }}>
-                  {activeSeason.pitches.length === 0 ? "No Shark Tank data available." : "No Shark Tank pitches match your search."}
+                  {visibleSeasonPitches.length === 0 ? "No Shark Tank data available." : "No Shark Tank pitches match your search."}
                 </div>
               ) : null}
             </div>
+            {filteredPitches.length > 0 ? (
+              <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center py-4">
+                {visiblePitches.length < filteredPitches.length ? (
+                  <div className="rounded-full border px-4 py-2 text-xs uppercase tracking-[0.16em]" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
+                    Loading more pitches...
+                  </div>
+                ) : filteredPitches.length > INITIAL_VISIBLE_PITCHES ? (
+                  <div className="text-xs uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>
+                    End of feed
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </section>
         ) : null}
       </div>
@@ -510,6 +570,8 @@ export function SharkTankExplorerPage() {
                     <span className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--accent-orange)" }}>
                       {formatAsk(selectedPitch)}
                     </span>
+                    <button onClick={() => void handleAddToNotes()} disabled={loadingActionId === "note"} className="btn-outline h-8 px-3 text-xs"><FileText size={14} /> {loadingActionId === "note" ? "Saving..." : "Add note"}</button>
+                    <button onClick={() => void handleAddToIdeas()} disabled={loadingActionId === "idea"} className="btn-outline h-8 px-3 text-xs"><Lightbulb size={14} /> {loadingActionId === "idea" ? "Saving..." : "Add idea"}</button>
                   </div>
                 </div>
               </DialogHeader>
@@ -562,11 +624,6 @@ export function SharkTankExplorerPage() {
                     </div>
                   </div>
                 </section>
-
-                <ExpandableSection title="Product images" eyebrow="Media" defaultOpen>
-                  <PitchFrameSlideshow images={selectedPitch.product_images} />
-                </ExpandableSection>
-
                 <section className="feature-card p-5">
                   <div className="mb-3 flex items-center gap-2">
                     <Sparkles size={16} style={{ color: "var(--accent-blue)" }} />
@@ -602,17 +659,6 @@ export function SharkTankExplorerPage() {
               </div>
 
               <div className="min-w-0 space-y-6">
-                <ExpandableSection title="Links" eyebrow="Resources">
-                  <div className="space-y-2">
-                    {[selectedPitch.youtube_link, ...selectedPitch.website_links].filter(Boolean).map((link) => (
-                      <a key={link} href={link} target="_blank" rel="noreferrer" className="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm leading-6" style={{ borderColor: "var(--hairline)", color: "var(--accent-blue)" }}>
-                        <Link2 size={14} className="mt-1 shrink-0" />
-                        <span className="break-all">{link}</span>
-                      </a>
-                    ))}
-                  </div>
-                </ExpandableSection>
-
                 <ExpandableSection title="Company details" eyebrow="Business details" defaultOpen>
                   {selectedPitch.company_details && Object.keys(selectedPitch.company_details).length > 0 ? (
                     <div className="grid gap-3">
@@ -630,25 +676,9 @@ export function SharkTankExplorerPage() {
                   )}
                 </ExpandableSection>
 
-                <ExpandableSection title="Transcript" eyebrow="Raw source">
-                  <div className="max-h-[360px] overflow-auto rounded-xl border p-4 text-sm leading-7" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--body)" }}>
-                    {selectedPitch.transcript || "Transcript not available."}
-                  </div>
+                <ExpandableSection title="Product images" eyebrow="Media" defaultOpen>
+                  <PitchFrameSlideshow images={selectedPitch.product_images} />
                 </ExpandableSection>
-
-                <ExpandableSection title="Pitch data JSON" eyebrow="Debug data">
-                  <pre className="max-h-[420px] overflow-auto whitespace-pre-wrap break-all rounded-xl border p-4 text-xs leading-6" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--body)" }}>
-                    {buildDisplayJson(selectedPitch)}
-                  </pre>
-                </ExpandableSection>
-
-                <section className="feature-card p-5">
-                  <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Quick actions</p>
-                  <div className="grid gap-3">
-                    <button onClick={() => void handleAddToNotes()} disabled={loadingActionId === "note"} className="btn-outline justify-start"><FileText size={15} /> {loadingActionId === "note" ? "Saving..." : "Add in notes"}</button>
-                    <button onClick={() => void handleAddToIdeas()} disabled={loadingActionId === "idea"} className="btn-outline justify-start"><Lightbulb size={15} /> {loadingActionId === "idea" ? "Saving..." : "Add in ideas"}</button>
-                  </div>
-                </section>
 
                 <section className="feature-card p-5">
                   <div className="mb-4 flex items-center gap-2">
@@ -687,6 +717,80 @@ export function SharkTankExplorerPage() {
                     </div>
                   </div>
                 </section>
+
+                <ExpandableSection title="Links" eyebrow="Resources">
+                  <div className="space-y-2">
+                    {[selectedPitch.youtube_link, ...selectedPitch.website_links].filter(Boolean).map((link) => (
+                      <a key={link} href={link} target="_blank" rel="noreferrer" className="flex items-start gap-3 rounded-xl border px-4 py-3 text-sm leading-6" style={{ borderColor: "var(--hairline)", color: "var(--accent-blue)" }}>
+                        <Link2 size={14} className="mt-1 shrink-0" />
+                        <span className="break-all">{link}</span>
+                      </a>
+                    ))}
+                  </div>
+                </ExpandableSection>
+              </div>
+            </div>
+          </DialogContent>
+        ) : null}
+      </Dialog>
+
+      <Dialog open={Boolean(sharePitch)} onOpenChange={(open) => !open && setSharePitch(null)}>
+        {sharePitch ? (
+          <DialogContent className="max-w-2xl p-0 sm:max-w-2xl" overlayClassName="bg-black/25 supports-backdrop-filter:backdrop-blur-[2px]" showCloseButton>
+            <div className="border-b px-6 py-5" style={{ borderColor: "var(--hairline)" }}>
+              <DialogHeader>
+                <DialogTitle style={{ color: "var(--ink)" }}>Share To Chats</DialogTitle>
+                <DialogDescription style={{ color: "var(--charcoal)" }}>
+                  {sharePitch.company_name_detected ?? sharePitch.episode_title ?? "Shark Tank pitch"}
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+            <div className="space-y-6 p-6">
+              <div>
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Private chats</p>
+                <div className="grid gap-3">
+                  {privateRooms.length ? privateRooms.map((room) => (
+                    <button
+                      key={room._id}
+                      type="button"
+                      onClick={() => void handleSendPitchToRoom(room._id)}
+                      className="flex cursor-pointer items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+                      style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}
+                    >
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{room.displayName ?? room.title}</p>
+                        <p className="mt-1 text-xs" style={{ color: "var(--charcoal)" }}>{room.lastMessagePreview ?? "No messages yet"}</p>
+                      </div>
+                      <MessageCircle size={16} style={{ color: "var(--accent-blue)" }} />
+                    </button>
+                  )) : <p className="text-sm" style={{ color: "var(--charcoal)" }}>No private chats available.</p>}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Workspace chats</p>
+                <div className="grid gap-3">
+                  {workspaceRooms.length ? workspaceRooms.map((room) => (
+                    <button
+                      key={room._id}
+                      type="button"
+                      onClick={() => void handleSendPitchToRoom(room._id)}
+                      className="flex cursor-pointer items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors hover:bg-[var(--surface-elevated)]"
+                      style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}
+                    >
+                      <div>
+                        <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{room.title}</p>
+                        <p className="mt-1 text-xs" style={{ color: "var(--charcoal)" }}>{room.lastMessagePreview ?? room.objective ?? "No messages yet"}</p>
+                      </div>
+                      <MessageCircle size={16} style={{ color: "var(--accent-blue)" }} />
+                    </button>
+                  )) : <p className="text-sm" style={{ color: "var(--charcoal)" }}>No workspace chats available.</p>}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Fallback</p>
+                <button type="button" onClick={() => void handleCopyLink(sharePitch)} className="btn-outline mt-3"><Copy size={15} /> Copy link</button>
               </div>
             </div>
           </DialogContent>

@@ -48,6 +48,8 @@ function slugify(value: string) {
 
 function seasonPlaceholder(season: number) {
   return {
+    season_key: `season-${season}`,
+    label: `Season ${season}`,
     season,
     source_folder: `Season ${season}`,
     generated_at: null,
@@ -72,6 +74,8 @@ function buildSeasonFromRows(season: number, rows: Doc<"sharkTankPitchesAdmin">[
   const firstRow = orderedRows[0];
 
   return {
+    season_key: `season-${season}`,
+    label: `Season ${season}`,
     season,
     source_folder: `Season ${season}`,
     generated_at: firstRow?.generatedAt ?? null,
@@ -109,18 +113,35 @@ function buildSeasonFromRows(season: number, rows: Doc<"sharkTankPitchesAdmin">[
   };
 }
 
+function buildCustomSeasonGroup(season: number, label: string, rows: Doc<"sharkTankPitchesAdmin">[]) {
+  const group = buildSeasonFromRows(season, rows);
+  return {
+    ...group,
+    season_key: label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
+    label,
+    source_folder: label,
+    extraction_note: `${label} is live from the Convex dataset.`,
+  };
+}
+
 export const getExplorerSeasons = query({
   args: {},
   handler: async (ctx) => {
-    const [seasonThreeRows, seasonFourRows, seasonFiveRows] = await Promise.all([
-      ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 3)).collect(),
-      ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 4)).collect(),
-      ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 5)).collect(),
-    ]);
+    const seasons = [1, 2, 3, 4, 5] as const;
+    const seasonRows = await Promise.all(
+      seasons.map((season) =>
+        ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", season)).collect()
+      )
+    );
+
+    const [seasonOneRows, seasonTwoRows, seasonThreeRows, seasonFourRows, seasonFiveRows] = seasonRows;
+    const seasonOneUnseenRows = seasonOneRows.filter((row) => row.playlistTitle?.toLowerCase().includes("unseen"));
+    const seasonOneMainRows = seasonOneRows.filter((row) => !row.playlistTitle?.toLowerCase().includes("unseen"));
 
     return [
-      seasonPlaceholder(1),
-      seasonPlaceholder(2),
+      seasonOneMainRows.length ? buildSeasonFromRows(1, seasonOneMainRows) : seasonPlaceholder(1),
+      ...(seasonOneUnseenRows.length ? [buildCustomSeasonGroup(1, "Season 1 Unseen", seasonOneUnseenRows)] : []),
+      seasonTwoRows.length ? buildSeasonFromRows(2, seasonTwoRows) : seasonPlaceholder(2),
       seasonThreeRows.length ? buildSeasonFromRows(3, seasonThreeRows) : seasonPlaceholder(3),
       seasonFourRows.length ? buildSeasonFromRows(4, seasonFourRows) : seasonPlaceholder(4),
       seasonFiveRows.length ? buildSeasonFromRows(5, seasonFiveRows) : seasonPlaceholder(5),

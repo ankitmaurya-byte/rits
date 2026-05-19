@@ -26,11 +26,11 @@ import {
 
 import { api } from "@/convex/_generated/api";
 import { useWorkspace } from "@/lib/use-workspace";
-import type { SharkTankPitch } from "@/lib/shark-tank-india";
+import type { SharkTankPitch, SharkTankSeason } from "@/lib/shark-tank-india";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
-const EMPTY_SEASONS: Array<{ season: number; playlist_title?: string; playlist_link?: string; source_folder: string; pitches: SharkTankPitch[]; comingSoon?: boolean }> = [];
+const EMPTY_SEASONS: SharkTankSeason[] = [];
 
 type ExpandableSectionProps = {
   title: string;
@@ -243,7 +243,7 @@ export function SharkTankExplorerPage() {
   const [loadingActionId, setLoadingActionId] = useState<string | null>(null);
   const [analysisPromptOpen, setAnalysisPromptOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [selectedSeason, setSelectedSeason] = useState<"all" | number>(4);
+  const [selectedSeason, setSelectedSeason] = useState<"all" | string>("season-4");
   const [seenPitchIds, setSeenPitchIds] = useState<string[]>([]);
   const [commentInput, setCommentInput] = useState("");
   const [visiblePitchCount, setVisiblePitchCount] = useState(INITIAL_VISIBLE_PITCHES);
@@ -253,7 +253,7 @@ export function SharkTankExplorerPage() {
 
   const activeSeason = useMemo(() => {
     if (selectedSeason === "all") return null;
-    return seasons.find((season) => season.season === selectedSeason) ?? null;
+    return seasons.find((season) => season.season_key === selectedSeason) ?? null;
   }, [selectedSeason, seasons]);
   const commentsQuery = useQuery(api.sharkTankComments.listByPitch, selectedPitch ? { pitchId: selectedPitch.id } : "skip");
   const comments = commentsQuery ?? [];
@@ -509,14 +509,14 @@ export function SharkTankExplorerPage() {
               <select
                 value={selectedSeason}
                 onChange={(event) => {
-                  setSelectedSeason(event.target.value === "all" ? "all" : Number(event.target.value));
+                  setSelectedSeason(event.target.value);
                   setVisiblePitchCount(INITIAL_VISIBLE_PITCHES);
                 }}
                 className="input-field h-11 w-full sm:w-28"
               >
                 <option value="all">All</option>
-                {[1, 2, 3, 4, 5].map((season) => (
-                  <option key={season} value={season}>Season {season}</option>
+                {seasons.map((season) => (
+                  <option key={season.season_key} value={season.season_key}>{season.label}</option>
                 ))}
               </select>
             </div>

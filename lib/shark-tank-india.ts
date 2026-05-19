@@ -28,6 +28,8 @@ export type SharkTankPitch = {
 };
 
 export type SharkTankSeason = {
+  season_key: string;
+  label: string;
   season: number;
   source_folder: string;
   generated_at: string;
@@ -98,6 +100,8 @@ function deriveIntro(transcript: string) {
 
 function seasonPlaceholder(season: number): SharkTankSeason {
   return {
+    season_key: `season-${season}`,
+    label: `Season ${season}`,
     season,
     source_folder: `Season ${season}`,
     generated_at: new Date().toISOString(),
@@ -115,6 +119,8 @@ export async function loadSharkTankSeasons() {
   const playlist = JSON.parse(raw) as SeasonFourPlaylist;
 
   const seasonFour: SharkTankSeason = {
+    season_key: "season-4",
+    label: "Season 4",
     season: 4,
     source_folder: "Season 4",
     generated_at: playlist.generatedAt,

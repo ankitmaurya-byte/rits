@@ -39,6 +39,33 @@ type ExpandableSectionProps = {
   children: React.ReactNode;
 };
 
+function SkeletonBlock({ className }: { className: string }) {
+  return <div className={`skeleton ${className}`} />;
+}
+
+function PitchCardSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-2xl border" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+      <SkeletonBlock className="h-44 w-full" />
+      <div className="space-y-3 p-3">
+        <SkeletonBlock className="h-3 w-16 rounded-full" />
+        <SkeletonBlock className="h-6 w-2/3 rounded-lg" />
+        <SkeletonBlock className="h-4 w-full rounded-lg" />
+        <SkeletonBlock className="h-4 w-5/6 rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
+function ModalSectionSkeleton() {
+  return (
+    <section className="feature-card p-5">
+      <SkeletonBlock className="mb-4 h-4 w-32 rounded-full" />
+      <SkeletonBlock className="h-40 w-full rounded-2xl" />
+    </section>
+  );
+}
+
 const INITIAL_VISIBLE_PITCHES = 12;
 const VISIBLE_PITCHES_STEP = 9;
 
@@ -68,6 +95,16 @@ function getSharkTankDealStatus(pitch: SharkTankPitch) {
     return pitch.company_details.sharkTankDealStatus;
   }
   return "Deal status not detected";
+}
+
+function getDetectedBusinessModel(pitch: SharkTankPitch) {
+  const value = getBusinessModel(pitch);
+  return value === "Business model not detected" ? null : value;
+}
+
+function getDetectedDealStatus(pitch: SharkTankPitch) {
+  const value = getSharkTankDealStatus(pitch);
+  return value === "Deal status not detected" ? null : value;
 }
 
 function randomizeBySeed(value: string) {
@@ -191,7 +228,8 @@ function PitchFrameSlideshow({ images }: { images: string[] }) {
 export function SharkTankExplorerPage() {
   const { workspaceId, isLoading } = useWorkspace();
   const { user } = useUser();
-  const seasons = useQuery(api.sharkTank.getExplorerSeasons, {}) ?? EMPTY_SEASONS;
+  const seasonsQuery = useQuery(api.sharkTank.getExplorerSeasons, {});
+  const seasons = seasonsQuery ?? EMPTY_SEASONS;
   const convexUser = useConvexUserQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
   const createNote = useMutation(api.notes.createNote);
   const createIdea = useMutation(api.ideas.createIdea);
@@ -210,15 +248,19 @@ export function SharkTankExplorerPage() {
   const [commentInput, setCommentInput] = useState("");
   const [visiblePitchCount, setVisiblePitchCount] = useState(INITIAL_VISIBLE_PITCHES);
   const [sharePitch, setSharePitch] = useState<SharkTankPitch | null>(null);
+  const [shuffleSeed] = useState(() => Math.random().toString(36).slice(2));
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const activeSeason = useMemo(() => {
     if (selectedSeason === "all") return null;
     return seasons.find((season) => season.season === selectedSeason) ?? null;
   }, [selectedSeason, seasons]);
-  const comments = useQuery(api.sharkTankComments.listByPitch, selectedPitch ? { pitchId: selectedPitch.id } : "skip") ?? [];
-  const privateRooms = useQuery(api.socialChats.listPrivateRooms, user ? {} : "skip") ?? [];
-  const workspaceRooms = useQuery(api.socialChats.listWorkspaceRooms, workspaceId ? { workspaceId } : "skip") ?? [];
+  const commentsQuery = useQuery(api.sharkTankComments.listByPitch, selectedPitch ? { pitchId: selectedPitch.id } : "skip");
+  const comments = commentsQuery ?? [];
+  const privateRoomsQuery = useQuery(api.socialChats.listPrivateRooms, user ? {} : "skip");
+  const privateRooms = privateRoomsQuery ?? [];
+  const workspaceRoomsQuery = useQuery(api.socialChats.listWorkspaceRooms, workspaceId ? { workspaceId } : "skip");
+  const workspaceRooms = workspaceRoomsQuery ?? [];
 
   const visibleSeasonPitches = useMemo(() => {
     if (selectedSeason === "all") {
@@ -231,13 +273,13 @@ export function SharkTankExplorerPage() {
     if (!visibleSeasonPitches.length) return [];
 
     const sorted = [...visibleSeasonPitches].sort((left, right) => (
-      randomizeBySeed(`${left.season}-${left.id}`) - randomizeBySeed(`${right.season}-${right.id}`)
+      randomizeBySeed(`${shuffleSeed}-${left.season}-${left.id}`) - randomizeBySeed(`${shuffleSeed}-${right.season}-${right.id}`)
     ));
 
     const unseen = sorted.filter((pitch) => !seenPitchIds.includes(pitch.id));
     const seen = sorted.filter((pitch) => seenPitchIds.includes(pitch.id));
     return [...unseen, ...seen];
-  }, [seenPitchIds, visibleSeasonPitches]);
+  }, [seenPitchIds, shuffleSeed, visibleSeasonPitches]);
 
   const filteredPitches = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
@@ -412,12 +454,25 @@ export function SharkTankExplorerPage() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading || seasonsQuery === undefined) {
     return (
-      <div className="page-container animate-fade-in-up">
-        <div className="skeleton mb-8 h-10 w-48" />
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          {[...Array(4)].map((_, index) => <div key={index} className="skeleton h-64 rounded-xl" />)}
+      <div className="page-container animate-fade-in-up relative px-0 py-2 sm:px-0 sm:py-3 lg:px-0">
+        <div className="space-y-5">
+          <section className="pb-8">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-2">
+                <SkeletonBlock className="h-3 w-14 rounded-full" />
+                <SkeletonBlock className="h-7 w-44 rounded-xl" />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:min-w-[560px] lg:max-w-[760px] lg:flex-1 lg:justify-end">
+                <SkeletonBlock className="h-11 flex-1 rounded-2xl" />
+                <SkeletonBlock className="h-11 w-28 rounded-2xl" />
+              </div>
+            </div>
+          </section>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, index) => <PitchCardSkeleton key={index} />)}
+          </div>
         </div>
       </div>
     );
@@ -520,8 +575,22 @@ export function SharkTankExplorerPage() {
                       </div>
                     </div>
                     <div className="space-y-3 text-sm">
-                      <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><Building2 size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-3">{getBusinessModel(pitch)}</span></div>
-                      <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><BadgeDollarSign size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-3">{getSharkTankDealStatus(pitch)}</span></div>
+                      {(() => {
+                        const businessModel = getDetectedBusinessModel(pitch);
+                        const dealStatus = getDetectedDealStatus(pitch);
+                        const summary = pitch.pitch_summary_detected || pitch.intro_excerpt || "Summary not detected";
+
+                        if (!businessModel && !dealStatus) {
+                          return <p className="line-clamp-4 leading-6" style={{ color: "var(--body)" }}>{summary}</p>;
+                        }
+
+                        return (
+                          <>
+                            {businessModel ? <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><Building2 size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-3">{businessModel}</span></div> : null}
+                            {dealStatus ? <div className="flex items-start gap-2" style={{ color: "var(--charcoal)" }}><BadgeDollarSign size={15} className="mt-0.5 shrink-0" /><span className="line-clamp-3">{dealStatus}</span></div> : null}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </button>
@@ -578,6 +647,21 @@ export function SharkTankExplorerPage() {
             </div>
 
             <div className="grid items-start gap-6 p-6 xl:grid-cols-[1.15fr_0.85fr]">
+              {selectedPitch && commentsQuery === undefined ? (
+                <>
+                  <div className="min-w-0 space-y-6">
+                    <ModalSectionSkeleton />
+                    <ModalSectionSkeleton />
+                    <ModalSectionSkeleton />
+                  </div>
+                  <div className="min-w-0 space-y-6">
+                    <ModalSectionSkeleton />
+                    <ModalSectionSkeleton />
+                    <ModalSectionSkeleton />
+                  </div>
+                </>
+              ) : (
+                <>
               <div className="min-w-0 space-y-6">
                 <section className="feature-card p-5">
                   <div className="mb-4 flex items-center gap-2">
@@ -729,6 +813,8 @@ export function SharkTankExplorerPage() {
                   </div>
                 </ExpandableSection>
               </div>
+                </>
+              )}
             </div>
           </DialogContent>
         ) : null}
@@ -749,7 +835,12 @@ export function SharkTankExplorerPage() {
               <div>
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Private chats</p>
                 <div className="grid gap-3">
-                  {privateRooms.length ? privateRooms.map((room) => (
+                  {privateRoomsQuery === undefined ? Array.from({ length: 2 }).map((_, index) => (
+                    <div key={index} className="rounded-2xl border px-4 py-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                      <SkeletonBlock className="h-4 w-32 rounded-lg" />
+                      <SkeletonBlock className="mt-2 h-3 w-40 rounded-lg" />
+                    </div>
+                  )) : privateRooms.length ? privateRooms.map((room) => (
                     <button
                       key={room._id}
                       type="button"
@@ -770,7 +861,12 @@ export function SharkTankExplorerPage() {
               <div>
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Workspace chats</p>
                 <div className="grid gap-3">
-                  {workspaceRooms.length ? workspaceRooms.map((room) => (
+                  {workspaceRoomsQuery === undefined ? Array.from({ length: 2 }).map((_, index) => (
+                    <div key={index} className="rounded-2xl border px-4 py-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                      <SkeletonBlock className="h-4 w-36 rounded-lg" />
+                      <SkeletonBlock className="mt-2 h-3 w-44 rounded-lg" />
+                    </div>
+                  )) : workspaceRooms.length ? workspaceRooms.map((room) => (
                     <button
                       key={room._id}
                       type="button"

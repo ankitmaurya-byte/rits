@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 const rootDir = resolve(new URL("..", import.meta.url).pathname);
 const useProd = process.argv.includes("--prod");
 const datasets = [
+  { season: 3, datasetPath: resolve(rootDir, "lib/shark-tank-india/shark_tank_india_s3_enriched.json") },
   { season: 4, datasetPath: resolve(rootDir, "lib/shark-tank-india/shark_tank_india_s4.json") },
   { season: 5, datasetPath: resolve(rootDir, "lib/shark-tank-india/shark_tank_india_s5.json") },
 ].map((entry) => {
@@ -55,7 +56,11 @@ function normalizeVideo(video) {
     productImages,
     websiteLinks,
     team,
-    transcript: typeof video.transcript === "string" ? video.transcript : "",
+    transcript: typeof video.transcript === "string"
+      ? video.transcript
+      : typeof video[" transcript"] === "string"
+        ? video[" transcript"]
+        : "",
     isTranslatedEnglish: typeof video.isTranslatedEnglish === "boolean"
       ? video.isTranslatedEnglish
       : typeof video.is_translated_english === "boolean"

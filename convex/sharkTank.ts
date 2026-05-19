@@ -56,7 +56,7 @@ function seasonPlaceholder(season: number) {
     detected_pitch_count: 0,
     playlist_title: undefined,
     playlist_link: undefined,
-    comingSoon: season !== 4 && season !== 5,
+    comingSoon: season !== 3 && season !== 4 && season !== 5,
     pitches: [],
   };
 }
@@ -112,7 +112,8 @@ function buildSeasonFromRows(season: number, rows: Doc<"sharkTankPitchesAdmin">[
 export const getExplorerSeasons = query({
   args: {},
   handler: async (ctx) => {
-    const [seasonFourRows, seasonFiveRows] = await Promise.all([
+    const [seasonThreeRows, seasonFourRows, seasonFiveRows] = await Promise.all([
+      ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 3)).collect(),
       ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 4)).collect(),
       ctx.db.query("sharkTankPitchesAdmin").withIndex("by_season", (q) => q.eq("season", 5)).collect(),
     ]);
@@ -120,7 +121,7 @@ export const getExplorerSeasons = query({
     return [
       seasonPlaceholder(1),
       seasonPlaceholder(2),
-      seasonPlaceholder(3),
+      seasonThreeRows.length ? buildSeasonFromRows(3, seasonThreeRows) : seasonPlaceholder(3),
       seasonFourRows.length ? buildSeasonFromRows(4, seasonFourRows) : seasonPlaceholder(4),
       seasonFiveRows.length ? buildSeasonFromRows(5, seasonFiveRows) : seasonPlaceholder(5),
     ];

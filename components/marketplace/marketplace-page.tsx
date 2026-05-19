@@ -8,6 +8,8 @@ import { useUser } from "@clerk/nextjs";
 import { Search, ShoppingCart, Truck, Zap } from "lucide-react";
 import { toast } from "sonner";
 
+import { MarketplaceSellPage } from "./marketplace-sell-page";
+import { MarketplaceOrdersPage } from "./marketplace-orders-page";
 import { api } from "@/convex/_generated/api";
 
 type MarketplaceListItem = {
@@ -32,7 +34,7 @@ function ProductCard({
   onAddToCart: () => void;
 }) {
   return (
-    <article className="overflow-hidden rounded-[24px] border transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+    <article className="overflow-hidden rounded-[12px] border transition-all hover:-translate-y-0.5 hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
       <Link href={`/marketplace/${product.slug}`} className="block">
         <div className="relative h-52 w-full overflow-hidden" style={{ backgroundColor: "var(--surface-deep)" }}>
           {product.coverImageUrl ? <Image src={product.coverImageUrl} alt={product.title} fill className="object-cover" unoptimized /> : null}
@@ -61,6 +63,7 @@ function ProductCard({
 
 export function MarketplacePage() {
   const { user } = useUser();
+  const [activeTab, setActiveTab] = useState<"shop" | "sell" | "orders">("shop");
   const [search, setSearch] = useState("");
   const [quickOnly, setQuickOnly] = useState(false);
   const productsQuery = useQuery(api.marketplace.listProducts, { search: search.trim() || undefined, quickOnly });
@@ -85,40 +88,58 @@ export function MarketplacePage() {
   return (
     <div className="page-container animate-fade-in-up relative">
       <div className="absolute right-0 top-0 h-[360px] w-[560px] pointer-events-none" style={{ background: "radial-gradient(circle at top right, var(--accent-green) 0%, transparent 70%)", opacity: 0.12 }} />
-      <div className="relative z-10 space-y-6">
-        <section className="feature-card p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--mute)" }}>Marketplace</p>
-              <h1 className="text-3xl font-medium" style={{ color: "var(--ink)" }}>Buy and sell tech products with marketplace and quick-commerce support.</h1>
-              <p className="mt-3 text-sm leading-7" style={{ color: "var(--body)" }}>Upload devices, gadgets, creator tools, AI hardware, and tech accessories. Flag instant-delivery inventory for quick commerce.</p>
-            </div>
-            <div className="flex gap-3">
-              <Link href="/marketplace/cart" className="btn-outline"><ShoppingCart size={15} /> Cart</Link>
-              <Link href="/marketplace/sell" className="btn-primary"><Zap size={15} /> Sell product</Link>
-            </div>
+      <div className="relative z-10 space-y-8">
+        
+        {/* Navigation / Header */}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between border-b pb-6" style={{ borderColor: "var(--hairline-strong)" }}>
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--mute)" }}>Amazon Tech Equivalent</p>
+            <h1 className="text-4xl md:text-5xl font-medium" style={{ fontFamily: "Domaine Display", color: "var(--ink)", letterSpacing: "-0.96px", fontFeatureSettings: "'ss01', 'liga'" }}>Marketplace.</h1>
+            <p className="mt-3 text-sm max-w-xl leading-relaxed" style={{ color: "var(--charcoal)", fontFamily: "ABC Favorit" }}>Buy, sell, and manage tech products in one unified interface. Premium hardware and gadgets, delivered fast.</p>
           </div>
-        </section>
-
-        <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="feature-card p-4"><p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Published</p><p className="mt-2 text-2xl font-semibold" style={{ color: "var(--ink)" }}>{products.length}</p></div>
-          <div className="feature-card p-4"><p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Quick commerce</p><p className="mt-2 text-2xl font-semibold" style={{ color: "var(--ink)" }}>{quickCount}</p></div>
-          <div className="feature-card p-4"><p className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Payments</p><p className="mt-2 text-sm font-medium" style={{ color: "var(--ink)" }}>Stripe checkout ready</p></div>
-        </section>
-
-        <section className="flex flex-col gap-3 sm:flex-row">
-          <div className="relative flex h-11 flex-1 items-center rounded-2xl border" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--charcoal)" }} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, categories, tags" className="h-full w-full bg-transparent pl-11 pr-4 text-sm outline-none" style={{ color: "var(--ink)" }} />
+          
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex p-1 rounded-full border" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+              {(["shop", "sell", "orders"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-5 py-1.5 rounded-full text-sm font-medium transition-colors ${activeTab === tab ? "bg-white text-black" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}
+                  style={{ fontFamily: activeTab === tab ? "Inter" : "ABC Favorit" }}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+            {activeTab === "shop" && (
+              <Link href="/marketplace/cart" className="btn-primary flex items-center gap-2">
+                <ShoppingCart size={15} /> Cart
+              </Link>
+            )}
           </div>
-          <button type="button" onClick={() => setQuickOnly((value) => !value)} className="btn-outline h-11 px-4">
-            <Truck size={15} /> {quickOnly ? "Showing quick only" : "All delivery modes"}
-          </button>
-        </section>
+        </div>
 
-        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          {products.length ? products.map((product) => <ProductCard key={product._id} product={product} onAddToCart={() => void handleAddToCart(product._id)} />) : <div className="feature-card col-span-full p-10 text-center text-sm" style={{ color: "var(--charcoal)" }}>No products found yet.</div>}
-        </section>
+        {/* Tab Content */}
+        {activeTab === "shop" && (
+          <div className="space-y-6 animate-fade-in">
+            <section className="flex flex-col gap-3 sm:flex-row">
+              <div className="relative flex h-11 flex-1 items-center rounded-lg border" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--charcoal)" }} />
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search devices, accessories, AI hardware..." className="h-full w-full bg-transparent pl-11 pr-4 text-sm outline-none" style={{ color: "var(--ink)", fontFamily: "Inter" }} />
+              </div>
+              <button type="button" onClick={() => setQuickOnly((value) => !value)} className="btn-outline h-11 px-4">
+                <Truck size={15} /> {quickOnly ? "Quick Commerce Only" : "All Delivery Modes"}
+              </button>
+            </section>
+
+            <section className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+              {products.length ? products.map((product) => <ProductCard key={product._id} product={product} onAddToCart={() => void handleAddToCart(product._id)} />) : <div className="col-span-full py-16 text-center text-sm" style={{ color: "var(--charcoal)" }}>No tech products found yet.</div>}
+            </section>
+          </div>
+        )}
+
+        {activeTab === "sell" && <MarketplaceSellPage />}
+        {activeTab === "orders" && <MarketplaceOrdersPage />}
       </div>
     </div>
   );

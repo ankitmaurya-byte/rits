@@ -8,12 +8,7 @@ export function MarketplaceOrdersPage() {
   const orders = useQuery(api.marketplace.listBuyerOrders, {}) ?? [];
 
   return (
-    <div className="page-container animate-fade-in-up space-y-6">
-      <section className="feature-card p-5">
-        <h1 className="text-2xl font-medium" style={{ color: "var(--ink)" }}>Order history</h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--charcoal)" }}>Track payments, fulfillment, and quick-commerce deliveries for your purchases.</p>
-      </section>
-
+    <div className="space-y-6 animate-fade-in">
       <div className="space-y-4">
         {orders.length ? orders.map((order) => (
           <section key={order._id} className="feature-card p-5">

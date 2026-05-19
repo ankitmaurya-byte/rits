@@ -177,20 +177,7 @@ export function MarketplaceSellPage() {
   };
 
   return (
-    <div className="page-container animate-fade-in-up space-y-6">
-      <section className="feature-card p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--mute)" }}>Seller hub</p>
-            <h1 className="text-3xl font-medium" style={{ color: "var(--ink)" }}>Upload tech products, stock them, and flag quick-commerce inventory.</h1>
-          </div>
-          <div className="rounded-2xl border px-4 py-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
-            <p className="text-xs" style={{ color: "var(--mute)" }}>Published</p>
-            <p className="mt-1 text-2xl font-semibold" style={{ color: "var(--ink)" }}>{publishedCount}</p>
-          </div>
-        </div>
-      </section>
-
+    <div className="space-y-6 animate-fade-in">
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="feature-card p-5 space-y-4">
           <div className="grid gap-4 md:grid-cols-2">

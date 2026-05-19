@@ -74,7 +74,7 @@ export function MarketplaceCartPage() {
         <div className="feature-card p-5 space-y-4 xl:sticky xl:top-4 xl:self-start">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-medium" style={{ color: "var(--ink)" }}>Checkout</h2>
-            <Link href="/marketplace/orders" className="text-sm" style={{ color: "var(--accent-blue)" }}>Order history</Link>
+            <Link href="/marketplace" className="text-sm" style={{ color: "var(--accent-blue)" }}>Order history</Link>
           </div>
           <input value={shippingName} onChange={(event) => setShippingName(event.target.value)} className="input-field" placeholder="Shipping name" />
           <input value={shippingPhone} onChange={(event) => setShippingPhone(event.target.value)} className="input-field" placeholder="Phone number" />

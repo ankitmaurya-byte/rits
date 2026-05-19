@@ -227,7 +227,7 @@ export default function TodosPage() {
               <DragOverlay zIndex={9999} dropAnimation={null}>
                 {activeTask ? (
                   <div className="pointer-events-none w-[320px]">
-                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay />
+                    <TodoCard task={activeTask} statuses={STATUSES} currentScope="workspace" isOverlay />
                   </div>
                 ) : null}
               </DragOverlay>,
@@ -373,6 +373,7 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo }: any) {
       <TodoCard
         task={task}
         statuses={STATUSES}
+        currentScope="workspace"
         dragHandleProps={{ attributes, listeners }}
         onDelete={(id) => deleteTodo({ id })}
         onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}

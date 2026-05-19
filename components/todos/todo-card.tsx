@@ -32,6 +32,11 @@ type TodoGroupOption = {
   label: string;
 };
 
+type TodoWorkspaceOption = {
+  id: string;
+  label: string;
+};
+
 type DragHandleProps = {
   attributes?: DraggableAttributes;
   listeners?: SyntheticListenerMap;
@@ -48,14 +53,25 @@ type TodoUpdate = {
   customFields: TodoCustomField[];
 };
 
+type TodoMoveTarget = {
+  scope: "private" | "workspace";
+  workspaceId?: Id<"workspaces">;
+  status?: string;
+  priority?: string;
+  groupId?: Id<"todoGroups"> | null;
+};
+
 interface TodoCardProps {
   task: TodoDoc;
   statuses: readonly TodoStatus[];
   groupOptions?: TodoGroupOption[];
+  workspaceOptions?: TodoWorkspaceOption[];
+  currentScope: "private" | "workspace";
   isOverlay?: boolean;
   dragHandleProps?: DragHandleProps;
   onDelete?: (id: Id<"todos">) => Promise<void>;
   onUpdateTodo?: (id: Id<"todos">, update: TodoUpdate) => Promise<void>;
+  onMoveTodo?: (id: Id<"todos">, target: TodoMoveTarget) => Promise<void>;
 }
 
 function normalizeFields(fields: TodoDoc["customFields"]): TodoCustomField[] {
@@ -66,10 +82,13 @@ export function TodoCard({
   task,
   statuses,
   groupOptions,
+  workspaceOptions,
+  currentScope,
   isOverlay,
   dragHandleProps,
   onDelete,
   onUpdateTodo,
+  onMoveTodo,
 }: TodoCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSection, setModalSection] = useState<ModalSection>("details");
@@ -83,6 +102,12 @@ export function TodoCard({
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiBusy, setAiBusy] = useState<"describe" | "build" | null>(null);
   const [showAiPrompt, setShowAiPrompt] = useState(false);
+  const [moveScope, setMoveScope] = useState<"private" | "workspace">(task.scope ?? currentScope);
+  const [moveWorkspaceId, setMoveWorkspaceId] = useState("");
+  const [locationValue, setLocationValue] = useState<string>(task.scope === "private" ? "private" : (task.workspaceId ?? ""));
+  const [moveStatus, setMoveStatus] = useState(task.status ?? (task.completed ? "completed" : "todo"));
+  const [movePriority, setMovePriority] = useState(task.priority ?? "medium");
+  const [moveGroupId, setMoveGroupId] = useState(task.groupId ?? "");
   const aiPromptRef = useRef<HTMLTextAreaElement | null>(null);
   const moveStatusRef = useRef<HTMLSelectElement | null>(null);
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -110,6 +135,37 @@ export function TodoCard({
     setStatus(task.status ?? (task.completed ? "completed" : "todo"));
     setGroupId(task.groupId ?? "");
     setCustomFields(normalizeFields(task.customFields));
+    setMoveScope(task.scope ?? currentScope);
+    setMoveWorkspaceId(task.workspaceId ?? "");
+    setLocationValue(task.scope === "private" ? "private" : (task.workspaceId ?? ""));
+    setMoveStatus(task.status ?? (task.completed ? "completed" : "todo"));
+    setMovePriority(task.priority ?? "medium");
+    setMoveGroupId(task.groupId ?? "");
+  };
+
+  const handleMove = async () => {
+    if (!onMoveTodo) return;
+    if (moveScope === "workspace" && !moveWorkspaceId) {
+      toast.error("Select a workspace first.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onMoveTodo(task._id, {
+        scope: moveScope,
+        workspaceId: moveScope === "workspace" ? (moveWorkspaceId as Id<"workspaces">) : undefined,
+        status: moveStatus,
+        priority: movePriority,
+        groupId: moveScope === currentScope ? ((moveGroupId || null) as Id<"todoGroups"> | null) : null,
+      });
+      toast.success(`Task moved to ${moveScope}.`);
+      setModalOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to move task.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -121,16 +177,30 @@ export function TodoCard({
     }
     setSaving(true);
     try {
+      const currentLocationValue = task.scope === "private" ? "private" : (task.workspaceId ?? "");
+      const locationChanged = locationValue !== currentLocationValue;
+
       await onUpdateTodo(task._id, {
         title: trimmedTitle,
         description: description.trim(),
-        priority,
-        status,
-        groupId: groupOptions ? ((groupId || null) as Id<"todoGroups"> | null) : undefined,
+        priority: locationChanged ? (task.priority ?? "medium") : priority,
+        status: locationChanged ? (task.status ?? (task.completed ? "completed" : "todo")) : status,
+        groupId: groupOptions ? ((locationChanged ? (task.groupId ?? null) : (groupId || null)) as Id<"todoGroups"> | null) : undefined,
         customFields: customFields
           .map((field) => ({ key: field.key.trim(), value: field.value.trim() }))
           .filter((field) => field.key || field.value),
       });
+
+      if (locationChanged && onMoveTodo) {
+        await onMoveTodo(task._id, {
+          scope: locationValue === "private" ? "private" : "workspace",
+          workspaceId: locationValue === "private" ? undefined : (locationValue as Id<"workspaces">),
+          status,
+          priority,
+          groupId: null,
+        });
+      }
+
       toast.success("Task updated.");
       setModalOpen(false);
     } catch {
@@ -335,7 +405,90 @@ export function TodoCard({
             </div>
 
               <div className="space-y-4 border-t pt-4" style={{ borderColor: "var(--hairline)" }}>
-               <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
+                {modalSection === "move" ? (
+                  <>
+                    <div>
+                      <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                        Move to
+                      </label>
+                      <select ref={moveStatusRef} value={moveScope} onChange={(event) => setMoveScope(event.target.value as "private" | "workspace")} className="input-field">
+                        <option value="private">Private</option>
+                        <option value="workspace">Workspace</option>
+                      </select>
+                    </div>
+
+                    {moveScope === "workspace" ? (
+                      <div>
+                        <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                          Workspace
+                        </label>
+                        <select value={moveWorkspaceId} onChange={(event) => setMoveWorkspaceId(event.target.value)} className="input-field">
+                          <option value="">Select workspace</option>
+                          {(workspaceOptions ?? []).map((option) => (
+                            <option key={option.id} value={option.id}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                          Status
+                        </label>
+                        <select value={moveStatus} onChange={(event) => setMoveStatus(event.target.value)} className="input-field">
+                          {statuses.map((option) => (
+                            <option key={option.id} value={option.id}>{option.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                          Level
+                        </label>
+                        <select value={movePriority} onChange={(event) => setMovePriority(event.target.value)} className="input-field">
+                          <option value="high">High</option>
+                          <option value="medium">Medium</option>
+                          <option value="low">Low</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                        Group
+                      </label>
+                      {moveScope === currentScope && groupOptions ? (
+                        <select value={moveGroupId} onChange={(event) => setMoveGroupId(event.target.value)} className="input-field">
+                          <option value="">No group</option>
+                          {groupOptions.map((option) => (
+                            <option key={option.id} value={option.id}>{option.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="rounded-xl border p-3 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
+                          Group will reset when moving to a different scope or workspace.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border p-3 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
+                      Move the task to private or any workspace you belong to, and set its next status and level in one step.
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button type="button" onClick={(event) => { event.stopPropagation(); void handleMove(); }} disabled={saving} className="btn-primary">
+                        {saving ? "Moving..." : "Move task"}
+                      </button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); setModalSection("details"); }} className="btn-outline">
+                        Back
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
                  <button type="button" onClick={() => setShowAiPrompt((current) => !current)} className="flex w-full items-center justify-between text-left">
                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--ink)" }}>
                      <Sparkles size={12} /> AI prompt
@@ -439,22 +592,42 @@ export function TodoCard({
               </div>
 
               {groupOptions ? (
-                <div>
-                  <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
-                    Group
-                  </label>
-                  <select
-                    value={groupId}
-                    onChange={(event) => setGroupId(event.target.value)}
-                    className="input-field"
-                  >
-                    <option value="">No group</option>
-                    {groupOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                      Group
+                    </label>
+                    <select
+                      value={groupId}
+                      onChange={(event) => setGroupId(event.target.value)}
+                      disabled={locationValue !== (task.scope === "private" ? "private" : (task.workspaceId ?? ""))}
+                      className="input-field"
+                    >
+                      <option value="">No group</option>
+                      {groupOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    {locationValue !== (task.scope === "private" ? "private" : (task.workspaceId ?? "")) ? (
+                      <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Group resets when moving to a new workspace or private.</p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                      Workspace
+                    </label>
+                    <select value={locationValue} onChange={(event) => setLocationValue(event.target.value)} className="input-field">
+                      <option value="private">Private</option>
+                      {(workspaceOptions ?? []).map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ) : null}
 
@@ -523,8 +696,8 @@ export function TodoCard({
                 {task.sourceUrl ? <p className="mt-1 break-all">Source: {task.sourceUrl}</p> : null}
               </div>
 
-              <div className="flex gap-3">
-                <button
+                <div className="flex gap-3">
+                  <button
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -544,9 +717,11 @@ export function TodoCard({
                   className="btn-outline"
                 >
                   Reset
-                </button>
+                  </button>
+                </div>
+                  </>
+                )}
               </div>
-            </div>
           </div>
         </div>
       ) : null}

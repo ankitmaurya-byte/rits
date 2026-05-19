@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUp, ExternalLink, Star } from "lucide-react";
+import { ArrowLeft, ArrowUp, ExternalLink, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
@@ -88,6 +88,9 @@ export function AiStartupDetailPage({ slug }: { slug: string }) {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           <div className="rounded-[24px] border p-5" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
+            <Link href="/startups" className="mb-4 inline-flex items-center gap-2 text-sm font-medium" style={{ color: "var(--charcoal)" }}>
+              <ArrowLeft size={14} /> Back to startups
+            </Link>
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex gap-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-[20px] border text-lg font-semibold" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--ink)" }}>{startup.logo}</div>

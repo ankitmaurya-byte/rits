@@ -1,5 +1,32 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
+
+async function getUserByClerkId(ctx: MutationCtx, clerkId: string): Promise<Doc<"users">> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+    .first();
+
+  if (!user) {
+    throw new ConvexError("User not found");
+  }
+
+  return user;
+}
+
+async function requireWorkspaceMember(ctx: MutationCtx, workspaceId: Id<"workspaces">, userId: Id<"users">) {
+  const membership = await ctx.db
+    .query("workspaceMembers")
+    .withIndex("by_workspace_and_user", (q) => q.eq("workspaceId", workspaceId).eq("userId", userId))
+    .first();
+
+  if (!membership) {
+    throw new ConvexError("Workspace access required");
+  }
+
+  return membership;
+}
 
 export const createTodo = mutation({
   args: {
@@ -118,5 +145,81 @@ export const deleteTodo = mutation({
   args: { id: v.id("todos") },
   handler: async (ctx, args) => {
     return await ctx.db.delete(args.id);
+  },
+});
+
+export const moveTodo = mutation({
+  args: {
+    id: v.id("todos"),
+    clerkId: v.string(),
+    targetScope: v.union(v.literal("private"), v.literal("workspace")),
+    targetWorkspaceId: v.optional(v.id("workspaces")),
+    targetStatus: v.optional(v.string()),
+    targetPriority: v.optional(v.string()),
+    targetGroupId: v.optional(v.union(v.id("todoGroups"), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const user = await getUserByClerkId(ctx, args.clerkId);
+    const todo = await ctx.db.get(args.id);
+
+    if (!todo) throw new ConvexError("Todo not found");
+
+    if (todo.scope === "private") {
+      if (todo.createdBy !== user._id) {
+        throw new ConvexError("Only the task owner can move this private task");
+      }
+    } else if (todo.workspaceId) {
+      await requireWorkspaceMember(ctx, todo.workspaceId, user._id);
+    }
+
+    if (args.targetScope === "private") {
+      let targetGroupId: Id<"todoGroups"> | null | undefined = null;
+      if (args.targetGroupId) {
+        const group = await ctx.db.get(args.targetGroupId);
+        if (!group || group.createdBy !== user._id || group.workspaceId) {
+          throw new ConvexError("Invalid private group");
+        }
+        targetGroupId = group._id;
+      }
+
+      await ctx.db.patch(args.id, {
+        scope: "private",
+        workspaceId: undefined,
+        groupId: targetGroupId,
+        createdBy: todo.createdBy ?? user._id,
+        status: args.targetStatus ?? todo.status,
+        completed: (args.targetStatus ?? todo.status) === "completed",
+        priority: args.targetPriority ?? todo.priority,
+        updatedAt: Date.now(),
+      });
+      return args.id;
+    }
+
+    if (!args.targetWorkspaceId) {
+      throw new ConvexError("Target workspace is required");
+    }
+
+    await requireWorkspaceMember(ctx, args.targetWorkspaceId, user._id);
+
+    let targetGroupId: Id<"todoGroups"> | null | undefined = null;
+    if (args.targetGroupId) {
+      const group = await ctx.db.get(args.targetGroupId);
+      if (!group || group.workspaceId !== args.targetWorkspaceId) {
+        throw new ConvexError("Invalid workspace group");
+      }
+      targetGroupId = group._id;
+    }
+
+    await ctx.db.patch(args.id, {
+      scope: "workspace",
+      workspaceId: args.targetWorkspaceId,
+      groupId: targetGroupId,
+      status: args.targetStatus ?? todo.status,
+      completed: (args.targetStatus ?? todo.status) === "completed",
+      priority: args.targetPriority ?? todo.priority,
+      updatedAt: Date.now(),
+    });
+
+    return args.id;
   },
 });

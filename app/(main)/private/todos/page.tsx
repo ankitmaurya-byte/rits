@@ -33,9 +33,11 @@ export default function PrivateTodosPage() {
     api.todoGroups.getPrivateGroups,
     convexUser ? { createdBy: convexUser._id } : "skip"
   );
+  const workspaces = useQuery(api.workspaces.getMyWorkspaces, user ? { clerkId: user.id } : "skip");
   const createTodo = useMutation(api.todos.createTodo);
   const updateTodo = useMutation(api.todos.updateTodo);
   const deleteTodo = useMutation(api.todos.deleteTodo);
+  const moveTodo = useMutation(api.todos.moveTodo);
   const createGroup = useMutation(api.todoGroups.createPrivateGroup);
 
   const [creatingInStatus, setCreatingInStatus] = useState<string | null>(null);
@@ -88,6 +90,18 @@ export default function PrivateTodosPage() {
       throw error;
     }
   };
+
+  const handleMoveTodo = async (id: string, target: { scope: "private" | "workspace"; workspaceId?: string }) => {
+    if (!user) throw new Error("User not loaded");
+    await moveTodo({
+      id: id as any,
+      clerkId: user.id,
+      targetScope: target.scope,
+      targetWorkspaceId: target.workspaceId as any,
+    });
+  };
+
+  const workspaceOptions = workspaces?.filter((workspace): workspace is NonNullable<typeof workspace> => Boolean(workspace)).map((workspace) => ({ id: workspace._id, label: workspace.name })) ?? [];
 
   const handleCreateWithAi = async (groupId: string, status: string) => {
     if (!convexUser || !aiPrompt.trim()) {
@@ -236,12 +250,14 @@ export default function PrivateTodosPage() {
                            aiPrompt={aiPrompt}
                            setAiPrompt={setAiPrompt}
                            handleCreateWithAi={handleCreateWithAi}
-                           isAiCreating={isAiCreating}
-                           deleteTodo={deleteTodo}
-                           handleUpdateStatus={handleUpdateStatus}
-                           handleUpdateTodo={handleUpdateTodo}
-                           groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
-                         />
+                            isAiCreating={isAiCreating}
+                            deleteTodo={deleteTodo}
+                            handleUpdateStatus={handleUpdateStatus}
+                            handleUpdateTodo={handleUpdateTodo}
+                            handleMoveTodo={handleMoveTodo}
+                            groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
+                            workspaceOptions={workspaceOptions}
+                          />
                        );
                      })}
                     </div>
@@ -256,7 +272,7 @@ export default function PrivateTodosPage() {
               <DragOverlay zIndex={9999} dropAnimation={null}>
                 {activeTask ? (
                   <div className="pointer-events-none w-[320px]">
-                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} />
+                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="private" />
                   </div>
                 ) : null}
               </DragOverlay>,
@@ -285,7 +301,7 @@ export default function PrivateTodosPage() {
   );
 }
 
-function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, groupOptions }: any) {
+function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
   const droppableId = `${groupId}::${status.id}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const isCreatingHere = creatingInStatus === droppableId;
@@ -339,14 +355,14 @@ function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInS
         )}
 
         {tasks.map((task: any) => (
-          <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateTodo={handleUpdateTodo} groupOptions={groupOptions} />
+          <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateTodo={handleUpdateTodo} handleMoveTodo={handleMoveTodo} groupOptions={groupOptions} workspaceOptions={workspaceOptions} />
         ))}
       </div>
     </div>
   );
 }
 
-function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, groupOptions }: any) {
+function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task._id, data: task });
   const style = isDragging
     ? { opacity: 0 }
@@ -359,9 +375,12 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, groupOptions }:
         task={task}
         statuses={STATUSES_MAP}
         groupOptions={groupOptions?.map((option: { id: string; name: string }) => ({ id: option.id, label: option.name }))}
+        workspaceOptions={workspaceOptions}
+        currentScope="private"
         dragHandleProps={{ attributes, listeners }}
         onDelete={(id) => deleteTodo({ id })}
         onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
+        onMoveTodo={(id, target) => handleMoveTodo(id, target)}
       />
     </div>
   );

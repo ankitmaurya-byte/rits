@@ -28,12 +28,14 @@ export default function WorkspaceTodosPage() {
 
   const convexUser = useQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
   const workspace = useQuery(api.workspaces.getWorkspaceById, selectedWorkspaceId && user ? { workspaceId: selectedWorkspaceId, clerkId: user.id } : "skip");
+  const workspaces = useQuery(api.workspaces.getMyWorkspaces, user ? { clerkId: user.id } : "skip");
   const todos = useQuery(api.todos.getTodos, selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : "skip");
   const groups = useQuery(api.todoGroups.getGroups, selectedWorkspaceId ? { workspaceId: selectedWorkspaceId } : "skip");
   
   const createTodo = useMutation(api.todos.createTodo);
   const updateTodo = useMutation(api.todos.updateTodo);
   const deleteTodo = useMutation(api.todos.deleteTodo);
+  const moveTodo = useMutation(api.todos.moveTodo);
   const createGroup = useMutation(api.todoGroups.createGroup);
 
   const [creatingInStatus, setCreatingInStatus] = useState<string | null>(null); // formatted as "groupId::statusId"
@@ -97,6 +99,18 @@ export default function WorkspaceTodosPage() {
       throw error;
     }
   };
+
+  const handleMoveTodo = async (id: string, target: { scope: "private" | "workspace"; workspaceId?: string }) => {
+    if (!user) throw new Error("User not loaded");
+    await moveTodo({
+      id: id as any,
+      clerkId: user.id,
+      targetScope: target.scope,
+      targetWorkspaceId: target.workspaceId as any,
+    });
+  };
+
+  const workspaceOptions = workspaces?.filter((item): item is NonNullable<typeof item> => Boolean(item)).map((item) => ({ id: item._id, label: item.name })) ?? [];
 
   const handleCreateWithAi = async (groupId: string, status: string) => {
     if (!selectedWorkspaceId || !aiPrompt.trim()) {
@@ -277,7 +291,9 @@ export default function WorkspaceTodosPage() {
                             deleteTodo={deleteTodo} 
                             handleUpdateStatus={handleUpdateStatus} 
                             handleUpdateTodo={handleUpdateTodo}
+                            handleMoveTodo={handleMoveTodo}
                             groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
+                            workspaceOptions={workspaceOptions}
                           />
                         );
                       })}
@@ -293,7 +309,7 @@ export default function WorkspaceTodosPage() {
               <DragOverlay zIndex={9999} dropAnimation={null}>
                 {activeTask ? (
                   <div className="pointer-events-none w-[320px]">
-                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} />
+                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="workspace" />
                   </div>
                 ) : null}
               </DragOverlay>,
@@ -323,7 +339,7 @@ export default function WorkspaceTodosPage() {
   );
 }
 
-function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, groupOptions }: any) {
+function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
   const droppableId = `${groupId}::${status.id}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const isCreatingHere = creatingInStatus === droppableId;
@@ -367,14 +383,14 @@ function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInS
         )}
 
         {tasks.map((task: any) => (
-          <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateTodo={handleUpdateTodo} groupOptions={groupOptions} />
+          <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateTodo={handleUpdateTodo} handleMoveTodo={handleMoveTodo} groupOptions={groupOptions} workspaceOptions={workspaceOptions} />
         ))}
       </div>
     </div>
   );
 }
 
-function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, groupOptions }: any) {
+function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task._id, data: task });
   const style = isDragging
     ? { opacity: 0 }
@@ -387,9 +403,12 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, groupOptions }:
         task={task}
         statuses={STATUSES}
         groupOptions={groupOptions?.map((option: { id: string; name: string }) => ({ id: option.id, label: option.name }))}
+        workspaceOptions={workspaceOptions}
+        currentScope="workspace"
         dragHandleProps={{ attributes, listeners }}
         onDelete={(id) => deleteTodo({ id })}
         onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
+        onMoveTodo={(id, target) => handleMoveTodo(id, target)}
       />
     </div>
   );

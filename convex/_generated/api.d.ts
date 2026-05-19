@@ -17,6 +17,7 @@ import type * as chatActions from "../chatActions.js";
 import type * as chatContext from "../chatContext.js";
 import type * as githubTools from "../githubTools.js";
 import type * as ideas from "../ideas.js";
+import type * as marketplace from "../marketplace.js";
 import type * as notes from "../notes.js";
 import type * as researchOutputs from "../researchOutputs.js";
 import type * as resources from "../resources.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   chatContext: typeof chatContext;
   githubTools: typeof githubTools;
   ideas: typeof ideas;
+  marketplace: typeof marketplace;
   notes: typeof notes;
   researchOutputs: typeof researchOutputs;
   resources: typeof resources;

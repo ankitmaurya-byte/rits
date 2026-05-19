@@ -13,6 +13,7 @@ import {
   FileText,
   Layers3,
   Link2,
+  Package2,
   Rocket,
   Route,
   Users,
@@ -44,6 +45,8 @@ const workspaceLinks = [
 ];
 
 const productLinks = [
+  { href: "/marketplace", label: "Marketplace", icon: Package2 },
+  { href: "/marketplace/sell", label: "Sell Tech", icon: Rocket },
   { href: "/integrations", label: "Integrations", icon: PlugZap },
 ];
 

@@ -136,6 +136,79 @@ export default defineSchema({
     .index("by_dataset_kind", ["datasetKind"])
     .index("by_dataset_kind_and_slug", ["datasetKind", "slug"]),
 
+  marketplaceProducts: defineTable({
+    sellerId: v.id("users"),
+    title: v.string(),
+    slug: v.string(),
+    shortDescription: v.optional(v.string()),
+    description: v.string(),
+    category: v.string(),
+    tags: v.array(v.string()),
+    priceInPaise: v.number(),
+    currency: v.string(),
+    status: v.union(v.literal("draft"), v.literal("published"), v.literal("archived")),
+    condition: v.union(v.literal("new"), v.literal("refurbished"), v.literal("used")),
+    inventoryCount: v.number(),
+    coverImageUrl: v.optional(v.string()),
+    imageUrls: v.array(v.string()),
+    videoUrls: v.array(v.string()),
+    demoUrl: v.optional(v.string()),
+    quickCommerceEnabled: v.boolean(),
+    quickCommerceEtaMinutes: v.optional(v.number()),
+    shippingCity: v.optional(v.string()),
+    shippingNotes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_seller_and_updated_at", ["sellerId", "updatedAt"])
+    .index("by_status_and_updated_at", ["status", "updatedAt"])
+    .index("by_quick_commerce_and_updated_at", ["quickCommerceEnabled", "updatedAt"]),
+
+  marketplaceCartItems: defineTable({
+    userId: v.id("users"),
+    productId: v.id("marketplaceProducts"),
+    quantity: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user_and_updated_at", ["userId", "updatedAt"])
+    .index("by_user_and_product", ["userId", "productId"]),
+
+  marketplaceOrders: defineTable({
+    buyerId: v.id("users"),
+    sellerId: v.id("users"),
+    totalAmountInPaise: v.number(),
+    currency: v.string(),
+    paymentStatus: v.union(v.literal("pending"), v.literal("paid"), v.literal("failed"), v.literal("cancelled")),
+    fulfillmentStatus: v.union(v.literal("pending"), v.literal("processing"), v.literal("shipped"), v.literal("delivered"), v.literal("cancelled")),
+    checkoutProvider: v.optional(v.string()),
+    checkoutSessionId: v.optional(v.string()),
+    shippingName: v.string(),
+    shippingPhone: v.optional(v.string()),
+    shippingAddress: v.string(),
+    quickCommerce: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_buyer_and_created_at", ["buyerId", "createdAt"])
+    .index("by_seller_and_created_at", ["sellerId", "createdAt"]),
+
+  marketplaceOrderItems: defineTable({
+    orderId: v.id("marketplaceOrders"),
+    buyerId: v.id("users"),
+    sellerId: v.id("users"),
+    productId: v.id("marketplaceProducts"),
+    titleSnapshot: v.string(),
+    quantity: v.number(),
+    priceInPaise: v.number(),
+    coverImageUrl: v.optional(v.string()),
+    quickCommerceEnabled: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_order", ["orderId"])
+    .index("by_seller_and_created_at", ["sellerId", "createdAt"]),
+
   integrationConfigs: defineTable({
     slug: v.string(),
     label: v.string(),

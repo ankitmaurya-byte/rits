@@ -44,9 +44,14 @@ const workspaceLinks = [
 ];
 
 const productLinks = [
+  { href: "/integrations", label: "Integrations", icon: PlugZap },
+];
+
+const stickyBottomLinks = [
+  { href: "/private/chats", label: "Private Chats", icon: MessageSquareText },
+  { href: "/private/vaults", label: "Private Vault", icon: FolderKanban },
   { href: "/feed", label: "Tech Feed", icon: Flame },
   { href: "/dashboard", label: "Dashboard", icon: Radar },
-  { href: "/integrations", label: "Integrations", icon: PlugZap },
 ];
 
 const exploreLinks = [
@@ -198,7 +203,6 @@ function CollapsibleNavSection({
 }
 
 export function Sidebar() {
-  const pathname = usePathname();
   useUser();
 
   return (
@@ -269,64 +273,13 @@ export function Sidebar() {
         <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
 
         <CollapsibleNavSection label="Research" links={researchLinks} />
+        <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
+
+        <CollapsibleNavSection label="Product" links={productLinks} />
       </div>
 
-      {/* ── PRODUCT (sticky bottom) ── */}
-      <div className="shrink-0 px-3 py-3 border-t" style={{ borderColor: "var(--hairline)" }}>
-        <nav className="space-y-0.5">
-          <Link
-            href="/private/chats"
-            className="mb-2 flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 relative"
-            style={{
-              color: pathname === "/private/chats" ? "var(--ink)" : "var(--charcoal)",
-              backgroundColor: pathname === "/private/chats" ? "var(--surface-elevated)" : "transparent",
-            }}
-          >
-            {pathname === "/private/chats" ? (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
-            ) : null}
-            <MessageSquareText size={14} className="flex-shrink-0 ml-1" style={{ color: pathname === "/private/chats" ? "var(--ink)" : "var(--stone)" }} />
-            <span className="flex-1">Private Chats</span>
-          </Link>
-          {productLinks.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href || pathname.startsWith(href + "/");
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 relative"
-                style={{
-                  color: isActive ? "var(--ink)" : "var(--charcoal)",
-                  backgroundColor: isActive ? "var(--surface-elevated)" : "transparent",
-                }}
-                onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "var(--surface-elevated)"; }}
-                onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent"; }}
-              >
-                {isActive && (
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
-                )}
-                <Icon size={14} strokeWidth={isActive ? 2 : 1.75} className="flex-shrink-0 ml-1" style={{ color: isActive ? "var(--ink)" : "var(--stone)" }} />
-                <span className="flex-1">{label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="mt-2 border-t pt-2" style={{ borderColor: "var(--hairline)" }}>
-          <Link
-            href="/private/vaults"
-            className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150 relative"
-            style={{
-              color: pathname === "/private/vaults" || pathname.startsWith("/private/vaults/") ? "var(--ink)" : "var(--charcoal)",
-              backgroundColor: pathname === "/private/vaults" || pathname.startsWith("/private/vaults/") ? "var(--surface-elevated)" : "transparent",
-            }}
-          >
-            {(pathname === "/private/vaults" || pathname.startsWith("/private/vaults/")) ? (
-              <div className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full" style={{ backgroundColor: "var(--ink)" }} />
-            ) : null}
-            <FolderKanban size={14} className="ml-1 flex-shrink-0" style={{ color: pathname === "/private/vaults" || pathname.startsWith("/private/vaults/") ? "var(--ink)" : "var(--stone)" }} />
-            <span className="flex-1">Private Vault</span>
-          </Link>
-        </div>
+      <div className="shrink-0 border-t px-3 py-3" style={{ borderColor: "var(--hairline)" }}>
+        <NavSection label="" links={stickyBottomLinks} />
       </div>
     </aside>
   );

@@ -74,6 +74,7 @@ export function MarketplaceDetailPage({ slug }: { slug: string }) {
             <div className="rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
               <p className="text-xs uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Delivery</p>
               <p className="mt-2 text-sm font-medium" style={{ color: "var(--ink)" }}>{product.quickCommerceEnabled ? <span className="inline-flex items-center gap-2"><Truck size={14} /> Quick commerce</span> : "Standard shipping"}</p>
+              {product.quickCommerceEnabled && product.quickCommerceServiceAreas?.length ? <p className="mt-2 text-xs" style={{ color: "var(--charcoal)" }}>{product.quickCommerceServiceAreas.join(", ")}</p> : null}
             </div>
           </div>
           {product.videoUrls.length ? (

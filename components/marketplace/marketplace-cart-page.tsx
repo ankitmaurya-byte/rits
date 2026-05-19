@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Minus, Plus, ShoppingCart } from "lucide-react";
@@ -14,12 +15,13 @@ export function MarketplaceCartPage() {
   const removeCartItem = useMutation(api.marketplace.removeCartItem);
   const [shippingName, setShippingName] = useState("");
   const [shippingPhone, setShippingPhone] = useState("");
+  const [shippingCity, setShippingCity] = useState("");
   const [shippingAddress, setShippingAddress] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
 
   const handleCheckout = async () => {
-    if (!shippingName.trim() || !shippingAddress.trim()) {
-      toast.error("Shipping name and address are required.");
+    if (!shippingName.trim() || !shippingCity.trim() || !shippingAddress.trim()) {
+      toast.error("Shipping name, city, and address are required.");
       return;
     }
     setCheckingOut(true);
@@ -27,7 +29,7 @@ export function MarketplaceCartPage() {
       const response = await fetch("/api/commerce/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shippingName, shippingPhone, shippingAddress }),
+        body: JSON.stringify({ shippingName, shippingPhone, shippingCity, shippingAddress }),
       });
       const data = await response.json() as { url?: string; error?: string };
       if (!response.ok || !data.url) throw new Error(data.error ?? "Checkout failed.");
@@ -70,9 +72,13 @@ export function MarketplaceCartPage() {
         </div>
 
         <div className="feature-card p-5 space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <h2 className="text-lg font-medium" style={{ color: "var(--ink)" }}>Checkout</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-medium" style={{ color: "var(--ink)" }}>Checkout</h2>
+            <Link href="/marketplace/orders" className="text-sm" style={{ color: "var(--accent-blue)" }}>Order history</Link>
+          </div>
           <input value={shippingName} onChange={(event) => setShippingName(event.target.value)} className="input-field" placeholder="Shipping name" />
           <input value={shippingPhone} onChange={(event) => setShippingPhone(event.target.value)} className="input-field" placeholder="Phone number" />
+          <input value={shippingCity} onChange={(event) => setShippingCity(event.target.value)} className="input-field" placeholder="City for delivery validation" />
           <textarea value={shippingAddress} onChange={(event) => setShippingAddress(event.target.value)} className="input-field min-h-[120px] resize-y" placeholder="Shipping address" />
           <div className="rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
             <p className="text-xs uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Subtotal</p>

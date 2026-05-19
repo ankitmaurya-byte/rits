@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
       shippingName: string;
       shippingPhone?: string;
       shippingAddress: string;
+      shippingCity: string;
     };
 
     const convex = new ConvexHttpClient(convexUrl!);
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       shippingName: body.shippingName,
       shippingPhone: body.shippingPhone,
       shippingAddress: body.shippingAddress,
+      shippingCity: body.shippingCity,
       checkoutProvider: "stripe",
       checkoutSessionId: session.id,
     });

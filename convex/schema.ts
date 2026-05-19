@@ -155,6 +155,8 @@ export default defineSchema({
     demoUrl: v.optional(v.string()),
     quickCommerceEnabled: v.boolean(),
     quickCommerceEtaMinutes: v.optional(v.number()),
+    quickCommerceServiceAreas: v.array(v.string()),
+    quickCommerceInventoryReserve: v.optional(v.number()),
     shippingCity: v.optional(v.string()),
     shippingNotes: v.optional(v.string()),
     createdAt: v.number(),
@@ -182,17 +184,24 @@ export default defineSchema({
     currency: v.string(),
     paymentStatus: v.union(v.literal("pending"), v.literal("paid"), v.literal("failed"), v.literal("cancelled")),
     fulfillmentStatus: v.union(v.literal("pending"), v.literal("processing"), v.literal("shipped"), v.literal("delivered"), v.literal("cancelled")),
+    settlementStatus: v.union(v.literal("pending"), v.literal("available"), v.literal("processing"), v.literal("paid")),
     checkoutProvider: v.optional(v.string()),
     checkoutSessionId: v.optional(v.string()),
+    paymentIntentId: v.optional(v.string()),
     shippingName: v.string(),
     shippingPhone: v.optional(v.string()),
     shippingAddress: v.string(),
+    shippingCity: v.string(),
     quickCommerce: v.boolean(),
+    paidAt: v.optional(v.number()),
+    deliveredAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_buyer_and_created_at", ["buyerId", "createdAt"])
-    .index("by_seller_and_created_at", ["sellerId", "createdAt"]),
+    .index("by_seller_and_created_at", ["sellerId", "createdAt"])
+    .index("by_checkout_session_id", ["checkoutSessionId"])
+    .index("by_seller_and_settlement_status", ["sellerId", "settlementStatus"]),
 
   marketplaceOrderItems: defineTable({
     orderId: v.id("marketplaceOrders"),
@@ -208,6 +217,20 @@ export default defineSchema({
   })
     .index("by_order", ["orderId"])
     .index("by_seller_and_created_at", ["sellerId", "createdAt"]),
+
+  marketplacePayouts: defineTable({
+    sellerId: v.id("users"),
+    orderIds: v.array(v.id("marketplaceOrders")),
+    amountInPaise: v.number(),
+    currency: v.string(),
+    status: v.union(v.literal("pending"), v.literal("processing"), v.literal("paid")),
+    reference: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    paidAt: v.optional(v.number()),
+  })
+    .index("by_seller_and_created_at", ["sellerId", "createdAt"])
+    .index("by_seller_and_status", ["sellerId", "status"]),
 
   integrationConfigs: defineTable({
     slug: v.string(),

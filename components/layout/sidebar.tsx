@@ -21,6 +21,7 @@ import {
   MessageSquareText,
   PlugZap,
   Radar,
+  Receipt,
   SearchCode,
   Telescope,
   MessageSquare,
@@ -47,6 +48,7 @@ const workspaceLinks = [
 const productLinks = [
   { href: "/marketplace", label: "Marketplace", icon: Package2 },
   { href: "/marketplace/sell", label: "Sell Tech", icon: Rocket },
+  { href: "/marketplace/orders", label: "Orders", icon: Receipt },
   { href: "/integrations", label: "Integrations", icon: PlugZap },
 ];
 

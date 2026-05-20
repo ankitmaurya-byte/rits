@@ -626,3 +626,216 @@ export const createPayoutRequest = mutation({
     return payoutId;
   },
 });
+
+export const addReview = mutation({
+  args: {
+    productId: v.id("marketplaceProducts"),
+    parentId: v.optional(v.id("marketplaceReviews")),
+    comment: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    
+    const now = Date.now();
+    return await ctx.db.insert("marketplaceReviews", {
+      productId: args.productId,
+      userId: user._id,
+      parentId: args.parentId,
+      comment: args.comment.trim(),
+      createdAt: now,
+    });
+  },
+});
+
+export const listReviews = query({
+  args: { productId: v.id("marketplaceProducts") },
+  handler: async (ctx, args) => {
+    const reviews = await ctx.db
+      .query("marketplaceReviews")
+      .withIndex("by_product_and_created_at", (q) => q.eq("productId", args.productId))
+      .order("desc")
+      .take(100);
+
+    return await Promise.all(
+      reviews.map(async (review) => {
+        const user = await ctx.db.get(review.userId);
+        return {
+          ...review,
+          user: user ? { _id: user._id, name: user.name, image: user.image } : null,
+        };
+      })
+    );
+  },
+});
+
+export const registerSeller = mutation({
+  args: {
+    companyName: v.string(),
+    storeDescription: v.string(),
+    registrationDetails: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    const existing = await ctx.db
+      .query("marketplaceSellers")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .unique();
+
+    const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        companyName: args.companyName.trim(),
+        storeDescription: args.storeDescription.trim(),
+        registrationDetails: args.registrationDetails?.trim(),
+        updatedAt: now,
+      });
+      return existing._id;
+    }
+
+    return await ctx.db.insert("marketplaceSellers", {
+      userId: user._id,
+      companyName: args.companyName.trim(),
+      storeDescription: args.storeDescription.trim(),
+      registrationDetails: args.registrationDetails?.trim(),
+      kycStatus: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const getSellerProfile = query({
+  args: { sellerId: v.id("users") },
+  handler: async (ctx, args) => {
+    const seller = await ctx.db.get(args.sellerId);
+    if (!seller) return null;
+
+    const kyc = await ctx.db
+      .query("marketplaceSellers")
+      .withIndex("by_user", (q) => q.eq("userId", args.sellerId))
+      .unique();
+
+    const products = await ctx.db
+      .query("marketplaceProducts")
+      .withIndex("by_seller_and_updated_at", (q) => q.eq("sellerId", args.sellerId))
+      .order("desc")
+      .take(20);
+
+    return {
+      user: {
+        _id: seller._id,
+        name: seller.name,
+        image: seller.image,
+        currentCompany: seller.currentCompany,
+        bio: seller.bio,
+      },
+      kyc: kyc ? {
+        companyName: kyc.companyName,
+        storeDescription: kyc.storeDescription,
+        registrationDetails: kyc.registrationDetails,
+        kycStatus: kyc.kycStatus,
+      } : null,
+      products: products.map((p) => shapeProduct(p, seller)),
+    };
+  },
+});
+
+export const getMySellerProfile = query({
+  args: {},
+  handler: async (ctx) => {
+    try {
+      const { user } = await requireCurrentUser(ctx);
+      const kyc = await ctx.db
+        .query("marketplaceSellers")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .unique();
+
+      const products = await ctx.db
+        .query("marketplaceProducts")
+        .withIndex("by_seller_and_updated_at", (q) => q.eq("sellerId", user._id))
+        .order("desc")
+        .take(20);
+
+      return {
+        user: {
+          _id: user._id,
+          name: user.name,
+          image: user.image,
+          currentCompany: user.currentCompany,
+          bio: user.bio,
+        },
+        kyc: kyc ? {
+          companyName: kyc.companyName,
+          storeDescription: kyc.storeDescription,
+          registrationDetails: kyc.registrationDetails,
+          kycStatus: kyc.kycStatus,
+        } : null,
+        products: products.map((p) => shapeProduct(p, user)),
+      };
+    } catch {
+      return null;
+    }
+  },
+});
+
+export const getUpsellProducts = query({
+  args: { productId: v.optional(v.id("marketplaceProducts")) },
+  handler: async (ctx, args) => {
+    // If productId is provided, find other products in the same category or from the same seller
+    // For now, just return random published products
+    const products = await ctx.db
+      .query("marketplaceProducts")
+      .withIndex("by_status_and_updated_at", (q) => q.eq("status", "published"))
+      .order("desc")
+      .take(4);
+
+    const sellerMap = await getSellerMap(ctx, products);
+    return products.map((product) => shapeProduct(product, sellerMap.get(product.sellerId)));
+  },
+});
+
+export const listContacts = query({
+  args: {},
+  handler: async (ctx) => {
+    const { user } = await requireCurrentUser(ctx);
+    return await ctx.db
+      .query("marketplaceContacts")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .order("desc")
+      .collect();
+  },
+});
+
+export const addContact = mutation({
+  args: {
+    name: v.string(),
+    phone: v.optional(v.string()),
+    address: v.string(),
+    city: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    const now = Date.now();
+    return await ctx.db.insert("marketplaceContacts", {
+      userId: user._id,
+      name: args.name.trim(),
+      phone: args.phone?.trim(),
+      address: args.address.trim(),
+      city: args.city.trim(),
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+export const deleteContact = mutation({
+  args: { contactId: v.id("marketplaceContacts") },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+    const contact = await ctx.db.get(args.contactId);
+    if (!contact || contact.userId !== user._id) {
+      throw new ConvexError("Contact not found");
+    }
+    await ctx.db.delete(args.contactId);
+  },
+});

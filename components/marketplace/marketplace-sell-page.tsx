@@ -31,20 +31,52 @@ export function MarketplaceSellPage() {
   const productsQuery = useQuery(api.marketplace.listSellerProducts, user ? {} : "skip");
   const products = productsQuery ?? [];
   const orders = useQuery(api.marketplace.listSellerOrders, user ? {} : "skip") ?? [];
+  const buyerOrders = useQuery(api.marketplace.listBuyerOrders, user ? {} : "skip") ?? [];
   const settlements = useQuery(api.marketplace.getSellerSettlementSummary, user ? {} : "skip");
   const createProduct = useMutation(api.marketplace.createProduct);
   const updateProduct = useMutation(api.marketplace.updateProduct);
   const updateProductStatus = useMutation(api.marketplace.updateProductStatus);
   const updateOrderFulfillmentStatus = useMutation(api.marketplace.updateOrderFulfillmentStatus);
   const createPayoutRequest = useMutation(api.marketplace.createPayoutRequest);
+  const sellerProfile = useQuery(api.marketplace.getMySellerProfile, user ? {} : "skip");
+  const registerSeller = useMutation(api.marketplace.registerSeller);
+
   const [form, setForm] = useState(emptyForm);
+  const [kycForm, setKycForm] = useState({ companyName: "", storeDescription: "", registrationDetails: "" });
+  const [kycInitialized, setKycInitialized] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [videoUrls, setVideoUrls] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"images" | "videos" | null>(null);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [savingKyc, setSavingKyc] = useState(false);
 
   const publishedCount = useMemo(() => products.filter((product) => product.status === "published").length, [products]);
+
+  if (sellerProfile?.kyc && !kycInitialized) {
+    setKycForm({
+      companyName: sellerProfile.kyc.companyName,
+      storeDescription: sellerProfile.kyc.storeDescription,
+      registrationDetails: sellerProfile.kyc.registrationDetails || "",
+    });
+    setKycInitialized(true);
+  }
+
+  const handleSaveKyc = async () => {
+    if (!kycForm.companyName.trim() || !kycForm.storeDescription.trim()) {
+      toast.error("Company name and description are required.");
+      return;
+    }
+    setSavingKyc(true);
+    try {
+      await registerSeller(kycForm);
+      toast.success("Store details saved.");
+    } catch (e) {
+      toast.error("Failed to save store details.");
+    } finally {
+      setSavingKyc(false);
+    }
+  };
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -178,6 +210,59 @@ export function MarketplaceSellPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* KYC / Store Settings */}
+      <section className="feature-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium" style={{ color: "var(--ink)" }}>Store Registration & KYC</h2>
+          {sellerProfile?.kyc && (
+            <span className={`text-xs px-2 py-1 rounded-full border ${sellerProfile.kyc.kycStatus === 'approved' ? 'bg-[rgba(17,255,153,0.1)] text-[var(--accent-green)] border-[rgba(17,255,153,0.22)]' : 'bg-transparent text-[var(--charcoal)] border-[var(--hairline)]'}`}>
+              Status: {sellerProfile.kyc.kycStatus}
+            </span>
+          )}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <input value={kycForm.companyName} onChange={(e) => setKycForm(c => ({...c, companyName: e.target.value}))} className="input-field" placeholder="Company / Store Name" />
+          <input value={kycForm.registrationDetails} onChange={(e) => setKycForm(c => ({...c, registrationDetails: e.target.value}))} className="input-field" placeholder="Registration ID / GST / Tax Info" />
+        </div>
+        <textarea value={kycForm.storeDescription} onChange={(e) => setKycForm(c => ({...c, storeDescription: e.target.value}))} className="input-field min-h-[80px]" placeholder="Store Description & Return Policy" />
+        <button type="button" onClick={() => void handleSaveKyc()} disabled={savingKyc} className="btn-primary">
+          {savingKyc ? "Saving..." : "Save Store Details"}
+        </button>
+      </section>
+
+      {buyerOrders.length > 0 && (
+        <section className="feature-card p-5 space-y-4">
+          <h2 className="text-lg font-medium" style={{ color: "var(--ink)" }}>Resell Purchased Items</h2>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {buyerOrders.flatMap(order => order.items).map(item => (
+              <div key={item._id} className="rounded-2xl border p-4 flex flex-col justify-between" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
+                <div>
+                  <p className="text-sm font-medium line-clamp-2" style={{ color: "var(--ink)" }}>{item.titleSnapshot}</p>
+                  <p className="mt-1 text-xs" style={{ color: "var(--charcoal)" }}>Purchased for INR {(item.priceInPaise / 100).toLocaleString("en-IN")}</p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setForm({
+                      ...emptyForm,
+                      title: item.titleSnapshot,
+                      description: `Selling my used ${item.titleSnapshot}.`,
+                      price: String(Math.floor((item.priceInPaise / 100) * 0.7)),
+                      condition: "used",
+                    });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    toast.success("Listing pre-filled! Add images to continue.");
+                  }}
+                  className="btn-outline mt-3 w-full text-xs py-1.5"
+                >
+                  Resell item
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="feature-card p-5 space-y-4">
           <div className="grid gap-4 md:grid-cols-2">

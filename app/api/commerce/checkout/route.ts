@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     const params = new URLSearchParams();
     params.append("mode", "payment");
-    params.append("success_url", `${request.nextUrl.origin}/marketplace/cart?checkout=success`);
+    params.append("success_url", `${request.nextUrl.origin}/marketplace?tab=orders&checkout=success`);
     params.append("cancel_url", `${request.nextUrl.origin}/marketplace/cart?checkout=cancelled`);
 
     snapshot.items.forEach((item, index) => {
@@ -80,7 +80,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Checkout failed.";
+    let message = error instanceof Error ? error.message : "Checkout failed.";
+    const convexMatch = message.match(/ConvexError:\s*(.*?)(?:\n|\s+at handler)/);
+    if (convexMatch && convexMatch[1]) {
+      message = convexMatch[1].trim();
+    } else if (message.includes("ConvexError: ")) {
+      message = message.split("ConvexError: ")[1].trim();
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

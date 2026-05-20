@@ -656,4 +656,36 @@ export default defineSchema({
     ),
     createdAt: v.number(),
   }).index("by_conversation_and_created_at", ["conversationId", "createdAt"]),
+
+  marketplaceReviews: defineTable({
+    productId: v.id("marketplaceProducts"),
+    userId: v.id("users"),
+    parentId: v.optional(v.id("marketplaceReviews")),
+    comment: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_product_and_created_at", ["productId", "createdAt"])
+    .index("by_parent_id", ["parentId"])
+    .index("by_user", ["userId"]),
+
+  marketplaceSellers: defineTable({
+    userId: v.id("users"),
+    companyName: v.string(),
+    storeDescription: v.string(),
+    kycStatus: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    registrationDetails: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
+  marketplaceContacts: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    phone: v.optional(v.string()),
+    address: v.string(),
+    city: v.string(),
+    isDefault: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 });

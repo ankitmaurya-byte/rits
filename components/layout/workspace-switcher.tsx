@@ -26,15 +26,23 @@ export function WorkspaceSwitcher() {
   const workspacesQuery = useQuery(api.workspaces.getMyWorkspaces, user ? { clerkId: user.id } : "skip");
   const workspaces = useMemo(() => workspacesQuery ?? [], [workspacesQuery]);
   const { selectedWorkspaceId, setSelectedWorkspace } = useWorkspaceStore();
+  const hasSelectedWorkspace = workspaces.some((workspace) => workspace?._id === selectedWorkspaceId);
 
   const selected = workspaces.find((w) => w?._id === selectedWorkspaceId) ?? workspaces[0] ?? null;
 
-  // Auto-select first workspace if none selected
+  // Reset stale persisted selections when the user no longer has access.
   useEffect(() => {
-    if (!selectedWorkspaceId && workspaces.length > 0 && workspaces[0]) {
+    if (workspaces.length === 0) {
+      if (selectedWorkspaceId !== null) {
+        setSelectedWorkspace(null);
+      }
+      return;
+    }
+
+    if (!hasSelectedWorkspace && workspaces[0]) {
       setSelectedWorkspace(workspaces[0]._id);
     }
-  }, [workspaces, selectedWorkspaceId, setSelectedWorkspace]);
+  }, [workspaces, selectedWorkspaceId, hasSelectedWorkspace, setSelectedWorkspace]);
 
   // Close on outside click
   useEffect(() => {

@@ -1,8 +1,21 @@
+import { v } from "convex/values";
+
 import { mutation } from "./_generated/server";
 
 export const all = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    confirmProduction: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const deployment = process.env.CONVEX_DEPLOYMENT ?? "";
+    const isProductionDeployment = deployment.startsWith("prod:");
+
+    if (isProductionDeployment && args.confirmProduction !== true) {
+      throw new Error(
+        "Refusing to seed production without confirmProduction: true.",
+      );
+    }
+
     // 1. Find a real user to assign most data to, so they can see it.
     // Try to find the first user that has a clerkId and isn't one of our fake ones.
     const realUsers = await ctx.db.query("users").collect();

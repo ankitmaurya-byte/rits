@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import {
+  Bell,
   LogOut,
   MessageSquare,
   Settings,
@@ -31,7 +32,7 @@ function getInitials(name: string) {
   return parts.map((part) => part[0]?.toUpperCase() ?? "").join("") || "U";
 }
 
-export function ProfileMenu() {
+export function ProfileMenu({ variant }: { variant?: "sidebar" }) {
   const router = useRouter();
   const { signOut } = useClerk();
   const { user: clerkUser } = useUser();
@@ -47,33 +48,56 @@ export function ProfileMenu() {
   const status = currentUser?.status?.trim();
   const image = currentUser?.image || clerkUser?.imageUrl || undefined;
 
+  const triggerContent =
+    variant === "sidebar" ? (
+      <button
+        type="button"
+        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--surface-elevated)] focus-visible:outline-none"
+        style={{ backgroundColor: "transparent" }}
+      >
+        <Avatar className="size-7 shrink-0" size="sm">
+          <AvatarImage src={image} alt={name} />
+          <AvatarFallback>{getInitials(name)}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium leading-tight truncate" style={{ color: "var(--ink)" }}>
+            {name}
+          </p>
+          <p className="text-[10px] leading-tight mt-0.5 truncate" style={{ color: "var(--mute)" }}>
+            {status || email}
+          </p>
+        </div>
+      </button>
+    ) : (
+      <button
+        type="button"
+        className="flex items-center gap-3 rounded-full px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)] focus-visible:outline-none"
+        style={{ backgroundColor: "transparent" }}
+      >
+        <div className="hidden md:block">
+          <p className="text-sm font-medium leading-tight" style={{ color: "var(--ink)" }}>
+            {name}
+          </p>
+          <p className="text-xs leading-tight mt-0.5" style={{ color: "var(--mute)" }}>
+            {status || email}
+          </p>
+        </div>
+        <Avatar className="size-9" size="default">
+          <AvatarImage src={image} alt={name} />
+          <AvatarFallback>{getInitials(name)}</AvatarFallback>
+        </Avatar>
+      </button>
+    );
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex items-center gap-3 rounded-full px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--surface-elevated)] focus-visible:outline-none"
-          style={{
-            backgroundColor: "transparent",
-          }}
-        >
-          <div className="hidden md:block">
-            <p className="text-sm font-medium leading-tight" style={{ color: "var(--ink)" }}>
-              {name}
-            </p>
-            <p className="text-xs leading-tight mt-0.5" style={{ color: "var(--mute)" }}>
-              {status || email}
-            </p>
-          </div>
-          <Avatar className="size-9" size="default">
-            <AvatarImage src={image} alt={name} />
-            <AvatarFallback>{getInitials(name)}</AvatarFallback>
-          </Avatar>
-        </button>
+        {triggerContent}
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        align="end"
+        align={variant === "sidebar" ? "start" : "end"}
+        side={variant === "sidebar" ? "top" : "bottom"}
         className="w-64 rounded-2xl p-1.5 shadow-2xl ring-0"
         style={{
           backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)",
@@ -108,6 +132,18 @@ export function ProfileMenu() {
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
+
+        <DropdownMenuSeparator className="bg-[var(--hairline)] opacity-50" />
+
+        {/* Notifications */}
+        <DropdownMenuItem className="relative">
+          <Bell size={14} />
+          Notifications
+          <span
+            className="ml-auto w-1.5 h-1.5 rounded-full shrink-0"
+            style={{ backgroundColor: "var(--accent-red)" }}
+          />
+        </DropdownMenuItem>
 
         <DropdownMenuSeparator className="bg-[var(--hairline)] opacity-50" />
 

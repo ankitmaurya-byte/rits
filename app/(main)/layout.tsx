@@ -2,109 +2,14 @@
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
-import { ProfileMenu } from "@/components/profile/profile-menu";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Search, Command, Menu, X, Home, Flame, Layers3 } from "lucide-react";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useEffect, useState } from "react";
+import { Menu, X, Home, Flame, Layers3, Bell } from "lucide-react";
 import { ChatSheet } from "@/components/ai/chat-sheet";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
 
-const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/explore": "Explore",
-  "/explore/yc": "Explore · YC",
-  "/explore/sharktank": "Explore · Shark Tank",
-  "/explore/open-source": "Explore · Tech Feed",
-  "/explore/github-tools": "Explore · GitHub Tools",
-  "/explore/ai-startups": "Explore · Startups",
-  "/research": "Research",
-  "/research/analysis": "Research · Analysis",
-  "/research/link-analysis": "Research · Analysis",
-  "/research/files": "Research · Analysis",
-  "/research/competitors": "Research · Competitors",
-  "/research/newsletters": "Research · Newsletters",
-  "/research/reports": "Research · AI Reports",
-  "/research/mvp-lab": "Research · MVP Lab",
-  "/vaults": "Vaults",
-  "/vaults/startups": "Vaults · Startups",
-  "/vaults/ai-tools": "Vaults · AI Tools",
-  "/vaults/markets": "Vaults · Markets",
-  "/integrations": "Integrations",
-  "/feed": "Tech Feed",
-  "/chats": "Chats",
-  "/roadmap": "Roadmap",
-  "/ideas": "Ideas",
-  "/todos": "Todos",
-  "/notes": "Notes",
-  "/startups": "Startup Hunt",
-  "/private/ideas": "Private · Ideas",
-  "/private/chats": "Private · Chats",
-  "/private/todos": "Private · Kanban",
-  "/private/notes": "Private · Confluence",
-  "/private/resources": "Private · Resources",
-  "/private/vaults": "Private · Vaults",
-  "/workspace/chats": "Workspace · Chats",
-  "/workspace/todos": "Workspace · Kanban",
-  "/workspace/notes": "Workspace · Confluence",
-  "/workspace/resources": "Workspace · Resources",
-  "/workspace/vaults": "Workspace · Vaults",
-  "/workspace/members": "Workspace · Members",
-  "/workspace/settings": "Workspace · Settings",
-  "/workspace/settings/members": "Workspace · Settings · Members",
-  "/workspace/join": "Join Workspace",
-  "/profile": "Profile",
-  "/settings": "Settings",
-  "/feedback": "Feedback",
-};
 
-const searchEntries = [
-  { href: "/dashboard", title: "Dashboard", keywords: ["home", "overview", "summary"] },
-  { href: "/explore", title: "Explore", keywords: ["discover", "directory", "startups"] },
-  { href: "/explore/yc", title: "YC Explorer", keywords: ["y combinator", "batches", "founders"] },
-  { href: "/explore/sharktank", title: "Shark Tank", keywords: ["pitches", "investors", "tv"] },
-  { href: "/explore/open-source", title: "Tech Feed", keywords: ["tech social", "network", "feed", "builders"] },
-  { href: "/explore/github-tools", title: "GitHub Tools", keywords: ["github", "frameworks", "tools"] },
-  { href: "/explore/ai-startups", title: "Startups", keywords: ["startups", "companies", "founders"] },
-  { href: "/research", title: "Research", keywords: ["analysis", "reports", "intelligence"] },
-  { href: "/research/analysis", title: "Analysis", keywords: ["analysis", "workspace", "research"] },
-  { href: "/research/link-analysis", title: "Analysis", keywords: ["url", "website", "summary", "analysis"] },
-  { href: "/research/files", title: "Analysis", keywords: ["drive", "docs", "folders", "analysis"] },
-  { href: "/research/competitors", title: "Competitors", keywords: ["market map", "rivals", "alternatives"] },
-  { href: "/research/newsletters", title: "Newsletters", keywords: ["newsletter", "research inbox", "subscriptions"] },
-  { href: "/research/reports", title: "AI Reports", keywords: ["reports", "filters", "search", "research"] },
-  { href: "/research/mvp-lab", title: "MVP Lab", keywords: ["builder", "landing page", "spec"] },
-  { href: "/vaults", title: "Vaults", keywords: ["collections", "knowledge", "curation"] },
-  { href: "/vaults/startups", title: "Startup Vaults", keywords: ["companies", "founders", "watchlist"] },
-  { href: "/vaults/ai-tools", title: "AI Tools Vault", keywords: ["repos", "ai tools", "frameworks"] },
-  { href: "/vaults/markets", title: "Market Vaults", keywords: ["industry", "trends", "sectors"] },
-  { href: "/integrations", title: "Integrations", keywords: ["gmail", "calendar", "github"] },
-  { href: "/feed", title: "Tech Feed", keywords: ["feed", "tech network", "builders", "social"] },
-  { href: "/chats", title: "Chats", keywords: ["ai", "threads", "workspace chat"] },
-  { href: "/roadmap", title: "Roadmap", keywords: ["learning path", "roadmap", "templates"] },
-  { href: "/ideas", title: "Ideas", keywords: ["brainstorm", "concepts"] },
-  { href: "/todos", title: "Todos", keywords: ["tasks", "kanban"] },
-  { href: "/notes", title: "Notes", keywords: ["documents", "writing"] },
-  { href: "/startups", title: "Startup Hunt", keywords: ["startups", "product hunt", "launches", "founders"] },
-  { href: "/private/ideas", title: "Private Ideas", keywords: ["personal ideas"] },
-  { href: "/private/chats", title: "Private Chats", keywords: ["friends", "direct messages"] },
-  { href: "/private/todos", title: "Private Kanban", keywords: ["personal tasks", "kanban"] },
-  { href: "/private/notes", title: "Private Confluence", keywords: ["personal docs", "confluence"] },
-  { href: "/private/resources", title: "Private Resources", keywords: ["personal links"] },
-  { href: "/private/vaults", title: "Private Vaults", keywords: ["personal vaults", "assets", "images"] },
-  { href: "/workspace/chats", title: "Workspace Chats", keywords: ["team chat", "workspace rooms"] },
-  { href: "/workspace/todos", title: "Workspace Kanban", keywords: ["team tasks", "kanban"] },
-  { href: "/workspace/notes", title: "Workspace Confluence", keywords: ["team docs", "confluence", "knowledge base"] },
-  { href: "/workspace/resources", title: "Workspace Resources", keywords: ["team resources"] },
-  { href: "/workspace/vaults", title: "Workspace Vaults", keywords: ["team vaults", "shared assets"] },
-  { href: "/workspace/settings", title: "Workspace Settings", keywords: ["workspace", "settings", "team"] },
-  { href: "/workspace/settings/members", title: "Workspace Members", keywords: ["team", "people"] },
-  { href: "/workspace/join", title: "Join Workspace", keywords: ["invite", "join"] },
-  { href: "/profile", title: "Profile", keywords: ["account", "me"] },
-  { href: "/settings", title: "Settings", keywords: ["preferences", "config"] },
-  { href: "/feedback", title: "Feedback", keywords: ["support", "message"] },
-];
 
 export default function MainLayout({
   children,
@@ -115,10 +20,7 @@ export default function MainLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isAiOpen, setIsAiOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
 
   const mobileNavItems = [
     { href: "/dashboard", label: "Home", icon: Home },
@@ -128,32 +30,9 @@ export default function MainLayout({
     { href: "/chats", label: "Chats", icon: Bell },
   ];
 
-  const matches = useMemo(() => {
-    const query = searchValue.trim().toLowerCase();
-    if (!query) return searchEntries.slice(0, 6);
-
-    return searchEntries
-      .filter((entry) => {
-        const haystack = [entry.title, entry.href, ...entry.keywords].join(" ").toLowerCase();
-        return haystack.includes(query);
-      })
-      .slice(0, 6);
-  }, [searchValue]);
-
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/");
   }, [isLoaded, isSignedIn, router]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (!searchRef.current?.contains(event.target as Node)) {
-        setSearchOpen(false);
-      }
-    }
-
-    window.addEventListener("mousedown", handleClickOutside);
-    return () => window.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   if (!isLoaded || !isSignedIn) {
     return (
@@ -168,23 +47,10 @@ export default function MainLayout({
     );
   }
 
-  const title =
-    pageTitles[pathname] ??
-    (pathname.startsWith("/private/vaults/")
-      ? "Private · Vault"
-      : pathname.startsWith("/workspace/vaults/")
-        ? "Workspace · Vault"
-        : "Rits");
   const hideFloatingAiButton =
     pathname === "/chats" ||
     pathname === "/private/chats" ||
     pathname === "/workspace/chats";
-
-  const openSearchResult = (href: string) => {
-    setSearchValue("");
-    setSearchOpen(false);
-    router.push(href);
-  };
 
   return (
     <ConfirmProvider>
@@ -206,158 +72,12 @@ export default function MainLayout({
         ) : null}
 
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-        {/* Top header */}
-        <header className="layout-header shrink-0">
-          <div className="flex items-center gap-4">
-            <button type="button" onClick={() => setMobileNavOpen((current) => !current)} className="inline-flex md:hidden items-center justify-center h-9 w-9 rounded-md border" style={{ borderColor: "var(--hairline)", color: "var(--ink)", backgroundColor: "var(--surface-card)" }}>
-              {mobileNavOpen ? <X size={16} /> : <Menu size={16} />}
-            </button>
-            <h1
-              className="text-base sm:text-lg font-medium tracking-tight"
-              style={{ color: "var(--ink)" }}
-            >
-              {title}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-2">
-  {/* Rits AI button */}
-  <button
-    type="button"
-    onClick={() => setIsAiOpen(true)}
-    className="hidden sm:inline-flex items-center gap-2 h-[36px] px-3 rounded-md transition-colors"
-    style={{
-      background: "var(--surface-elevated)",
-      border: "1px solid var(--hairline-strong)",
-      color: "var(--charcoal)",
-      fontSize: "13px",
-      fontWeight: 500,
-    }}
-    onMouseEnter={e => {
-      (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)";
-      (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(255,255,255,0.24)";
-    }}
-    onMouseLeave={e => {
-      (e.currentTarget as HTMLButtonElement).style.color = "var(--charcoal)";
-      (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--hairline-strong)";
-    }}
-  >
-    <RitsAiLogo size={15} />
-    <span>Rits AI</span>
-    <span
-      className="flex items-center gap-0.5 text-[10px] px-1 py-0.5 rounded"
-      style={{
-        background: "var(--surface-deep)",
-        border: "1px solid var(--hairline)",
-        color: "var(--mute)",
-      }}
-    >
-      <Command size={9} />K
-    </span>
-  </button>
-
-  <div className="hidden sm:block w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
-
-  {/* Search */}
-  <div ref={searchRef} className="relative hidden lg:block">
-    <Search
-      size={13}
-      className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-      style={{ color: "var(--mute)" }}
-    />
-    <input
-      type="text"
-      placeholder="Search..."
-      value={searchValue}
-      onChange={(e) => {
-        setSearchValue(e.target.value);
-        setSearchOpen(true);
-      }}
-      onFocus={(e) => {
-        setSearchOpen(true);
-        e.currentTarget.style.borderColor = "rgba(255,255,255,0.3)";
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && matches[0]) {
-          e.preventDefault();
-          openSearchResult(matches[0].href);
-        }
-        if (e.key === "Escape") {
-          setSearchOpen(false);
-        }
-      }}
-      className="h-[36px] rounded-md text-sm transition-colors"
-      style={{
-        width: "200px",
-        padding: "0 12px 0 32px",
-        background: "var(--surface-card)",
-        border: "1px solid var(--hairline-strong)",
-        color: "var(--ink)",
-        outline: "none",
-      }}
-      onBlur={e => (e.currentTarget.style.borderColor = "var(--hairline-strong)")}
-    />
-    {searchOpen && matches.length > 0 && (
-      <div
-        className="absolute right-0 top-[calc(100%+8px)] z-50 w-[280px] overflow-hidden rounded-xl border"
-        style={{
-          borderColor: "var(--hairline-strong)",
-          backgroundColor: "var(--surface-card)",
-          boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-        }}
-      >
-        <div className="border-b px-3 py-2 text-[10px] uppercase tracking-[0.16em]" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
-          Jump to
+        {/* Mobile-only top bar for hamburger */}
+        <div className="flex items-center h-[52px] px-4 border-b md:hidden shrink-0" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
+          <button type="button" onClick={() => setMobileNavOpen((current) => !current)} className="inline-flex items-center justify-center h-9 w-9 rounded-md border" style={{ borderColor: "var(--hairline)", color: "var(--ink)", backgroundColor: "var(--surface-card)" }}>
+            {mobileNavOpen ? <X size={16} /> : <Menu size={16} />}
+          </button>
         </div>
-        <div className="p-1.5">
-          {matches.map((entry) => (
-            <button
-              key={entry.href}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => openSearchResult(entry.href)}
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/6"
-            >
-              <span className="text-sm" style={{ color: "var(--ink)" }}>{entry.title}</span>
-              <span className="text-[11px]" style={{ color: "var(--mute)" }}>{entry.href}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    )}
-  </div>
-
-  <div className="hidden sm:block w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
-
-  <div className="hidden sm:block">
-    <ThemeToggle />
-  </div>
-
-  {/* Notifications */}
-  <button
-    className="relative flex items-center justify-center w-[36px] h-[36px] rounded-md transition-colors"
-    style={{ color: "var(--charcoal)" }}
-    onMouseEnter={e => {
-      (e.currentTarget as HTMLButtonElement).style.background = "var(--surface-elevated)";
-      (e.currentTarget as HTMLButtonElement).style.color = "var(--ink)";
-    }}
-    onMouseLeave={e => {
-      (e.currentTarget as HTMLButtonElement).style.background = "transparent";
-      (e.currentTarget as HTMLButtonElement).style.color = "var(--charcoal)";
-    }}
-  >
-    <Bell size={17} />
-    <span
-      className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
-      style={{ backgroundColor: "var(--accent-red)" }}
-    />
-  </button>
-
-  <div className="hidden sm:block w-px h-5" style={{ backgroundColor: "var(--hairline)" }} />
-
-  <ProfileMenu />
-</div>
-        </header>
 
         {/* Main scrollable content area */}
         <main

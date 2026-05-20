@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import {
   Bot,
@@ -22,6 +22,7 @@ import {
   PlugZap,
   Radar,
   Receipt,
+  Search,
   SearchCode,
   Telescope,
   MessageSquare,
@@ -29,6 +30,7 @@ import {
   Flame,
 } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
+import { ProfileMenu } from "@/components/profile/profile-menu";
 
 const privateLinks = [
   { href: "/roadmap", label: "Roadmap", icon: Route },
@@ -55,6 +57,32 @@ const stickyBottomLinks = [
   { href: "/private/vaults", label: "Private Vault", icon: FolderKanban },
   { href: "/feed", label: "Tech Feed", icon: Flame },
   { href: "/dashboard", label: "Dashboard", icon: Radar },
+];
+
+const searchEntries = [
+  { href: "/dashboard", title: "Dashboard", keywords: ["home", "overview"] },
+  { href: "/explore", title: "Explore", keywords: ["discover", "startups"] },
+  { href: "/explore/yc", title: "YC Explorer", keywords: ["y combinator"] },
+  { href: "/explore/sharktank", title: "Shark Tank", keywords: ["pitches"] },
+  { href: "/explore/github-tools", title: "GitHub Tools", keywords: ["github"] },
+  { href: "/explore/ai-startups", title: "Startups", keywords: ["startups"] },
+  { href: "/research", title: "Research", keywords: ["analysis"] },
+  { href: "/research/analysis", title: "Analysis", keywords: ["workspace"] },
+  { href: "/research/competitors", title: "Competitors", keywords: ["rivals"] },
+  { href: "/research/newsletters", title: "Newsletters", keywords: ["inbox"] },
+  { href: "/research/reports", title: "AI Reports", keywords: ["reports"] },
+  { href: "/research/mvp-lab", title: "MVP Lab", keywords: ["builder"] },
+  { href: "/vaults", title: "Vaults", keywords: ["collections"] },
+  { href: "/feed", title: "Tech Feed", keywords: ["feed", "social"] },
+  { href: "/chats", title: "Chats", keywords: ["ai", "threads"] },
+  { href: "/roadmap", title: "Roadmap", keywords: ["learning"] },
+  { href: "/ideas", title: "Ideas", keywords: ["brainstorm"] },
+  { href: "/todos", title: "Todos", keywords: ["tasks"] },
+  { href: "/notes", title: "Notes", keywords: ["documents"] },
+  { href: "/marketplace", title: "Marketplace", keywords: ["products"] },
+  { href: "/integrations", title: "Integrations", keywords: ["gmail"] },
+  { href: "/profile", title: "Profile", keywords: ["account"] },
+  { href: "/settings", title: "Settings", keywords: ["preferences"] },
 ];
 
 const exploreLinks = [
@@ -207,6 +235,37 @@ function CollapsibleNavSection({
 
 export function Sidebar() {
   useUser();
+  const router = useRouter();
+  const [searchValue, setSearchValue] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const matches = useMemo(() => {
+    const query = searchValue.trim().toLowerCase();
+    if (!query) return [];
+    return searchEntries
+      .filter((entry) => {
+        const haystack = [entry.title, entry.href, ...entry.keywords].join(" ").toLowerCase();
+        return haystack.includes(query);
+      })
+      .slice(0, 6);
+  }, [searchValue]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!searchRef.current?.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const openSearchResult = (href: string) => {
+    setSearchValue("");
+    setSearchOpen(false);
+    router.push(href);
+  };
 
   return (
     <aside
@@ -219,34 +278,100 @@ export function Sidebar() {
       }}
       aria-label="Sidebar navigation"
     >
-      {/* Brand Header */}
-      <div className="flex items-center gap-3 px-5 h-[60px] border-b shrink-0" style={{ borderColor: "var(--hairline)" }}>
-        <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white overflow-hidden shrink-0">
+      {/* Brand Header with search */}
+      <div className="flex items-center gap-2 px-3 h-[60px] border-b shrink-0" style={{ borderColor: "var(--hairline)" }}>
+        {/* Logo */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white overflow-hidden shrink-0">
+            <Image
+              src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png"
+              alt="Rits Icon"
+              width={32}
+              height={32}
+              className="object-contain scale-[1.7]"
+              priority
+            />
+          </div>
           <Image
-            src="/rits_brand_logo_assets/rits_only_logo_transparent_background_text_dark.png"
-            alt="Rits Icon"
-            width={32}
-            height={32}
-            className="object-contain scale-[1.7]"
+            src="/rits_brand_logo_assets/rits_name_only_complete_transpaent_background_withou_dot_com_text_white.png"
+            alt="Rits Name"
+            width={48}
+            height={20}
+            className="object-contain show-in-dark"
+            priority
+          />
+          <Image
+            src="/rits_brand_logo_assets/rits_name_only_without_dot_com_transparent_but_light_white_background_text_dark.png"
+            alt="Rits Name"
+            width={48}
+            height={20}
+            className="object-contain show-in-light"
             priority
           />
         </div>
-        <Image
-          src="/rits_brand_logo_assets/rits_name_only_complete_transpaent_background_withou_dot_com_text_white.png"
-          alt="Rits Name"
-          width={60}
-          height={24}
-          className="object-contain show-in-dark"
-          priority
-        />
-        <Image
-          src="/rits_brand_logo_assets/rits_name_only_without_dot_com_transparent_but_light_white_background_text_dark.png"
-          alt="Rits Name"
-          width={60}
-          height={24}
-          className="object-contain show-in-light"
-          priority
-        />
+
+        {/* Search input */}
+        <div ref={searchRef} className="relative flex-1">
+          <Search
+            size={11}
+            className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: "var(--mute)" }}
+          />
+          <input
+            type="text"
+            placeholder="Search..."
+            value={searchValue}
+            onChange={(e) => {
+              setSearchValue(e.target.value);
+              setSearchOpen(true);
+            }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && matches[0]) {
+                e.preventDefault();
+                openSearchResult(matches[0].href);
+              }
+              if (e.key === "Escape") setSearchOpen(false);
+            }}
+            className="w-full h-[28px] rounded-md text-xs transition-colors"
+            style={{
+              padding: "0 8px 0 24px",
+              background: "var(--surface-card)",
+              border: "1px solid var(--hairline)",
+              color: "var(--ink)",
+              outline: "none",
+            }}
+            onBlur={(e) => (e.currentTarget.style.borderColor = "var(--hairline)")}
+          />
+          {searchOpen && matches.length > 0 && (
+            <div
+              className="absolute left-0 top-[calc(100%+6px)] z-50 w-[220px] overflow-hidden rounded-xl border"
+              style={{
+                borderColor: "var(--hairline-strong)",
+                backgroundColor: "var(--surface-card)",
+                boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
+              }}
+            >
+              <div className="border-b px-3 py-1.5 text-[9px] uppercase tracking-[0.16em]" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
+                Jump to
+              </div>
+              <div className="p-1">
+                {matches.map((entry) => (
+                  <button
+                    key={entry.href}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => openSearchResult(entry.href)}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-white/6"
+                  >
+                    <span className="text-xs" style={{ color: "var(--ink)" }}>{entry.title}</span>
+                    <span className="text-[10px]" style={{ color: "var(--mute)" }}>{entry.href}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Scrollable nav area */}
@@ -281,8 +406,15 @@ export function Sidebar() {
         <CollapsibleNavSection label="Product" links={productLinks} />
       </div>
 
-      <div className="shrink-0 border-t px-3 py-3" style={{ borderColor: "var(--hairline)" }}>
-        <NavSection label="" links={stickyBottomLinks} />
+      {/* Sticky bottom: nav links + Profile */}
+      <div className="shrink-0 border-t" style={{ borderColor: "var(--hairline)" }}>
+        <div className="px-3 pt-2 pb-1">
+          <NavSection label="" links={stickyBottomLinks} />
+        </div>
+        <div className="h-px mx-3" style={{ backgroundColor: "var(--hairline)" }} />
+        <div className="px-3 py-2">
+          <ProfileMenu variant="sidebar" />
+        </div>
       </div>
     </aside>
   );

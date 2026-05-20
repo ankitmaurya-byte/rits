@@ -191,6 +191,26 @@ export const updateAiFields = mutation({
   },
 });
 
+export const updateAttachments = mutation({
+  args: {
+    id: v.id("githubTools"),
+    postCaption: v.optional(v.string()),
+    videoUrls: v.optional(v.array(v.string())),
+    imageUrls: v.optional(v.array(v.string())),
+    attachedLinks: v.optional(v.array(v.object({ url: v.string(), label: v.optional(v.string()) }))),
+  },
+  handler: async (ctx, args) => {
+    await requireIdentity(ctx);
+    await ctx.db.patch(args.id, {
+      postCaption: args.postCaption?.trim() || undefined,
+      videoUrls: args.videoUrls?.filter(Boolean),
+      imageUrls: args.imageUrls?.filter(Boolean),
+      attachedLinks: args.attachedLinks?.filter((l) => l.url.trim()),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const upsertFetchedBatch = internalMutation({
   args: {
     createdBy: v.id("users"),

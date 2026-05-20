@@ -398,6 +398,11 @@ export default defineSchema({
     aiAnalysis: v.optional(v.string()),
     fetchMode: v.optional(v.union(v.literal("trending"), v.literal("stars"))),
     searchQuery: v.optional(v.string()),
+    // Social-feed attachment fields
+    postCaption: v.optional(v.string()),
+    videoUrls: v.optional(v.array(v.string())),
+    imageUrls: v.optional(v.array(v.string())),
+    attachedLinks: v.optional(v.array(v.object({ url: v.string(), label: v.optional(v.string()) }))),
     createdBy: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),

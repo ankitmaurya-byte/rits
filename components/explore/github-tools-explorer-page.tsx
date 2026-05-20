@@ -22,7 +22,6 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
-  Cpu,
   ExternalLink,
   FilePlus2,
   FileText,
@@ -484,29 +483,7 @@ export function GithubToolsExplorerPage() {
         style={{ background: "radial-gradient(ellipse at top, var(--accent-blue) 0%, transparent 70%)", opacity: 0.14 }}
       />
 
-      <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--mute)" }}>
-              Explore / GitHub Tools
-            </p>
-            <h2 className="text-4xl font-medium tracking-tight mb-4" style={{ color: "var(--ink)" }}>
-              GitHub tools and agent framework feed
-            </h2>
-            <p className="text-base leading-7" style={{ color: "var(--body)" }}>
-              Fetch a limited batch of trending or high-star GitHub repos into Convex, manually post tools with AI-generated descriptions, and turn any repo into notes, ideas, todos, or resources.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button onClick={() => setShowManualDialog(true)} className="btn-primary">
-              <FilePlus2 size={16} /> Manual post
-            </button>
-            <a href="/vaults/ai-tools" className="btn-outline">
-              <Cpu size={16} /> AI tools vault
-            </a>
-          </div>
-        </div>
-      </div>
+
 
       <div className="feature-card mb-8 relative z-10 p-4">
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.15fr_0.85fr]">
@@ -520,6 +497,9 @@ export function GithubToolsExplorerPage() {
                 className="input-field pl-9"
               />
             </div>
+            <button onClick={() => setShowManualDialog(true)} className="btn-outline shrink-0">
+              <FilePlus2 size={15} /> Manual post
+            </button>
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">

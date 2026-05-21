@@ -8,6 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { Plus, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
+import { SheetView } from "@/components/todos/sheet-view";
 import { TodoSheetView } from "@/components/todos/todo-sheet-view";
 import {
   DndContext, closestCorners, PointerSensor, useSensor, useSensors,
@@ -50,7 +51,7 @@ export default function PrivateTodosPage() {
   const [creatingAiInStatus, setCreatingAiInStatus] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiCreating, setIsAiCreating] = useState(false);
-  const [viewMode, setViewMode] = useState<"board" | "sheet">("board");
+  const [viewMode, setViewMode] = useState<"board" | "table" | "sheet">("board");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -213,10 +214,13 @@ export default function PrivateTodosPage() {
         <div className="flex items-center gap-3">
           <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
             <button onClick={() => setViewMode("board")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "board" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "board" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
-              Board
+              Kanban View
+            </button>
+            <button onClick={() => setViewMode("table")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "table" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "table" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
+              Table View
             </button>
             <button onClick={() => setViewMode("sheet")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "sheet" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "sheet" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
-              Sheet
+              Sheet View
             </button>
           </div>
           <button onClick={() => setShowCreateGroup(true)} className="btn-primary text-sm flex items-center gap-2 px-3">
@@ -225,12 +229,35 @@ export default function PrivateTodosPage() {
         </div>
       </div>
 
-      {viewMode === "sheet" ? (
+      {viewMode === "table" ? (
         <TodoSheetView
           todos={todos}
           statuses={STATUSES}
           groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []}
           onCreateTodo={async (input) => { await handleCreateFromSheet(input); }}
+          onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
+          onDeleteTodo={async (id) => { await deleteTodo({ id }); }}
+        />
+      ) : viewMode === "sheet" ? (
+        <SheetView
+          todos={todos}
+          statuses={STATUSES}
+          groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []}
+          onCreateTodo={async (input) => {
+            if (!convexUser) throw new Error("User not loaded");
+            const createdId = await createTodo({
+              scope: "private",
+              title: input.title,
+              description: input.description,
+              customFields: input.customFields,
+              priority: input.priority,
+              status: input.status,
+              groupId: (input.groupId ?? null) as any,
+              createdBy: convexUser._id,
+            });
+            toast.success("Task added.");
+            return createdId;
+          }}
           onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
           onDeleteTodo={async (id) => { await deleteTodo({ id }); }}
         />

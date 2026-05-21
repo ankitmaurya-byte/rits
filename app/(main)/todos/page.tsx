@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Plus, Sparkles, CheckCircle2, Circle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
+import { TodoSheetView } from "@/components/todos/todo-sheet-view";
 
 import {
   DndContext,
@@ -42,6 +43,7 @@ export default function TodosPage() {
   const [creatingAiInStatus, setCreatingAiInStatus] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiCreating, setIsAiCreating] = useState(false);
+  const [viewMode, setViewMode] = useState<"board" | "sheet">("board");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -177,64 +179,86 @@ export default function TodosPage() {
       
       {/* Header */}
       <div className="page-header border-b pb-8 mb-8 relative z-10 shrink-0" style={{ borderColor: "var(--hairline-strong)" }}>
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-md" style={{ backgroundColor: "var(--accent-orange)", color: "var(--canvas)" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-              <line x1="9" y1="3" x2="9" y2="21"/>
-            </svg>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md" style={{ backgroundColor: "var(--accent-orange)", color: "var(--canvas)" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>
+              Kanban board
+            </h2>
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>
-            Kanban board
-          </h2>
+          <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
+            <button onClick={() => setViewMode("board")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "board" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "board" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
+              Board
+            </button>
+            <button onClick={() => setViewMode("sheet")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "sheet" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "sheet" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
+              Sheet
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Kanban Board Grid */}
-      <DndContext 
-        sensors={sensors} 
-        collisionDetection={closestCorners} 
-        onDragStart={handleDragStart}
-        onDragCancel={() => setActiveTask(null)}
-        onDragEnd={handleDragEnd}
-      >
-        <div className="flex gap-6 overflow-x-auto pb-8 flex-1 items-start relative z-10 min-h-[500px]">
-          {STATUSES.map((status) => (
-            <KanbanColumn 
-              key={status.id}
-              status={status}
-              tasks={tasksByStatus[status.id as keyof typeof tasksByStatus]}
-              creatingInStatus={creatingInStatus}
-              setCreatingInStatus={setCreatingInStatus}
-              newTitle={newTitle}
-              setNewTitle={setNewTitle}
-              handleCreate={handleCreate}
-              creatingAiInStatus={creatingAiInStatus}
-              setCreatingAiInStatus={setCreatingAiInStatus}
-              aiPrompt={aiPrompt}
-              setAiPrompt={setAiPrompt}
-              handleCreateWithAi={handleCreateWithAi}
-              isAiCreating={isAiCreating}
-              deleteTodo={deleteTodo}
-              handleUpdateStatus={handleUpdateStatus}
-              handleUpdateTodo={handleUpdateTodo}
-            />
-          ))}
-        </div>
+      {viewMode === "sheet" ? (
+        <TodoSheetView
+          todos={todos}
+          statuses={STATUSES}
+          onCreateTodo={async (input) => {
+            if (!workspaceId) return;
+            await createTodo({ workspaceId, scope: "workspace", title: input.title, description: input.description, priority: input.priority, status: input.status });
+          }}
+          onUpdateTodo={async (id, updates) => handleUpdateTodo(id, updates as Record<string, unknown>)}
+          onDeleteTodo={async (id) => { await deleteTodo({ id }); }}
+        />
+      ) : (
+        <DndContext 
+          sensors={sensors} 
+          collisionDetection={closestCorners} 
+          onDragStart={handleDragStart}
+          onDragCancel={() => setActiveTask(null)}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="flex gap-6 overflow-x-auto pb-8 flex-1 items-start relative z-10 min-h-[500px]">
+            {STATUSES.map((status) => (
+              <KanbanColumn 
+                key={status.id}
+                status={status}
+                tasks={tasksByStatus[status.id as keyof typeof tasksByStatus]}
+                creatingInStatus={creatingInStatus}
+                setCreatingInStatus={setCreatingInStatus}
+                newTitle={newTitle}
+                setNewTitle={setNewTitle}
+                handleCreate={handleCreate}
+                creatingAiInStatus={creatingAiInStatus}
+                setCreatingAiInStatus={setCreatingAiInStatus}
+                aiPrompt={aiPrompt}
+                setAiPrompt={setAiPrompt}
+                handleCreateWithAi={handleCreateWithAi}
+                isAiCreating={isAiCreating}
+                deleteTodo={deleteTodo}
+                handleUpdateStatus={handleUpdateStatus}
+                handleUpdateTodo={handleUpdateTodo}
+              />
+            ))}
+          </div>
 
-        {typeof document !== "undefined"
-          ? createPortal(
-              <DragOverlay zIndex={9999} dropAnimation={null}>
-                {activeTask ? (
-                  <div className="pointer-events-none w-[320px]">
-                    <TodoCard task={activeTask} statuses={STATUSES} currentScope="workspace" isOverlay />
-                  </div>
-                ) : null}
-              </DragOverlay>,
-              document.body
-            )
-          : null}
-      </DndContext>
+          {typeof document !== "undefined"
+            ? createPortal(
+                <DragOverlay zIndex={9999} dropAnimation={null}>
+                  {activeTask ? (
+                    <div className="pointer-events-none w-[320px]">
+                      <TodoCard task={activeTask} statuses={STATUSES} currentScope="workspace" isOverlay />
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body
+              )
+            : null}
+        </DndContext>
+      )}
     </div>
   );
 }

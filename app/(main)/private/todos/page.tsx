@@ -8,6 +8,7 @@ import { useUser } from "@clerk/nextjs";
 import { Plus, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
+import { TodoSheetView } from "@/components/todos/todo-sheet-view";
 import {
   DndContext, closestCorners, PointerSensor, useSensor, useSensors,
   DragEndEvent, DragOverlay, useDroppable,
@@ -49,6 +50,7 @@ export default function PrivateTodosPage() {
   const [creatingAiInStatus, setCreatingAiInStatus] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiCreating, setIsAiCreating] = useState(false);
+  const [viewMode, setViewMode] = useState<"board" | "sheet">("board");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -76,6 +78,26 @@ export default function PrivateTodosPage() {
       await createTodo({ scope: "private", title: newTitle.trim(), priority: "medium", status, groupId: groupId === "no-group" ? null : (groupId as any), createdBy: convexUser._id });
       setNewTitle(""); setCreatingInStatus(null); toast.success("Task added.");
     } catch { toast.error("Failed to add task."); }
+  };
+
+  const handleCreateFromSheet = async (input: {
+    title: string;
+    description?: string;
+    priority: string;
+    status: string;
+    groupId?: string | null;
+  }) => {
+    if (!convexUser) return;
+    await createTodo({
+      scope: "private",
+      title: input.title,
+      description: input.description,
+      priority: input.priority,
+      status: input.status,
+      groupId: (input.groupId ?? null) as any,
+      createdBy: convexUser._id,
+    });
+    toast.success("Task added.");
   };
 
   const handleUpdateStatus = async (id: string, newStatus: string, newGroupId?: string | null) => {
@@ -188,98 +210,119 @@ export default function PrivateTodosPage() {
         <div>
           <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>Kanban board</h2>
         </div>
-        <button onClick={() => setShowCreateGroup(true)} className="btn-primary text-sm flex items-center gap-2 px-3">
-          <Plus size={16} /> Add group
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
+            <button onClick={() => setViewMode("board")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "board" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "board" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
+              Board
+            </button>
+            <button onClick={() => setViewMode("sheet")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "sheet" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "sheet" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
+              Sheet
+            </button>
+          </div>
+          <button onClick={() => setShowCreateGroup(true)} className="btn-primary text-sm flex items-center gap-2 px-3">
+            <Plus size={16} /> Add group
+          </button>
+        </div>
       </div>
 
-      <DndContext sensors={sensors} collisionDetection={closestCorners}
-        onDragStart={(e) => { const task = todos?.find((t) => t._id === e.active.id); if (task) setActiveTask(task); }}
-        onDragCancel={() => setActiveTask(null)}
-        onDragEnd={handleDragEnd}>
-        <div className="flex flex-col gap-4 overflow-y-auto overflow-x-auto pb-6 flex-1 relative z-10">
-          <div className="flex gap-6 pl-4 min-w-max">
-            {STATUSES.map((status) => {
-              const StatusIcon = status.icon;
-              return (
-                <div key={status.id} className="w-[320px] flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: "var(--surface-deep)", border: "1px solid var(--hairline)" }}>
-                  <StatusIcon size={16} style={{ color: status.color }} />
-                  <span className="font-medium text-sm" style={{ color: "var(--ink)" }}>{status.label}</span>
-                  <span className="text-sm font-medium ml-1" style={{ color: "var(--mute)" }}>{totalsByStatus[status.id as keyof typeof totalsByStatus]}</span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-col gap-6 min-w-max">
-            {swimlanes.map((lane) => {
-              const laneTasks = todos?.filter((task) => (task.groupId || "no-group") === lane.id) || [];
-              const isCollapsed = collapsedGroups.has(lane.id);
-
-              return (
-                <div key={lane.id} className="flex flex-col">
-                  <div className="flex items-center gap-2 pl-4 mb-3 cursor-pointer select-none group w-fit" onClick={() => toggleCollapse(lane.id)}>
-                    <div className="p-0.5 rounded transition-colors group-hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }}>
-                      {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                    </div>
-                    <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{lane.name}</span>
-                    <span className="text-sm font-medium" style={{ color: "var(--mute)" }}>{laneTasks.length}</span>
+      {viewMode === "sheet" ? (
+        <TodoSheetView
+          todos={todos}
+          statuses={STATUSES}
+          groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []}
+          onCreateTodo={async (input) => { await handleCreateFromSheet(input); }}
+          onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
+          onDeleteTodo={async (id) => { await deleteTodo({ id }); }}
+        />
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCorners}
+          onDragStart={(e) => { const task = todos?.find((t) => t._id === e.active.id); if (task) setActiveTask(task); }}
+          onDragCancel={() => setActiveTask(null)}
+          onDragEnd={handleDragEnd}>
+          <div className="flex flex-col gap-4 overflow-y-auto overflow-x-auto pb-6 flex-1 relative z-10">
+            <div className="flex gap-6 pl-4 min-w-max">
+              {STATUSES.map((status) => {
+                const StatusIcon = status.icon;
+                return (
+                  <div key={status.id} className="w-[320px] flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: "var(--surface-deep)", border: "1px solid var(--hairline)" }}>
+                    <StatusIcon size={16} style={{ color: status.color }} />
+                    <span className="font-medium text-sm" style={{ color: "var(--ink)" }}>{status.label}</span>
+                    <span className="text-sm font-medium ml-1" style={{ color: "var(--mute)" }}>{totalsByStatus[status.id as keyof typeof totalsByStatus]}</span>
                   </div>
+                );
+              })}
+            </div>
 
-                  {!isCollapsed && (
-                    <div className="flex gap-6 pl-4">
-                      {STATUSES.map((status) => {
-                        const statusTasks = laneTasks.filter((task) => {
-                          if (status.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
-                          if (status.id === "in-progress") return task.status === "in-progress";
-                          return task.status === "completed" || task.completed;
-                        });
-                        return (
-                          <KanbanColumn
-                            key={`${lane.id}::${status.id}`}
-                            groupId={lane.id}
-                            status={status}
-                            tasks={statusTasks}
-                            creatingInStatus={creatingInStatus}
-                            setCreatingInStatus={setCreatingInStatus}
-                           newTitle={newTitle}
-                           setNewTitle={setNewTitle}
-                           handleCreate={handleCreate}
-                           creatingAiInStatus={creatingAiInStatus}
-                           setCreatingAiInStatus={setCreatingAiInStatus}
-                           aiPrompt={aiPrompt}
-                           setAiPrompt={setAiPrompt}
-                           handleCreateWithAi={handleCreateWithAi}
-                            isAiCreating={isAiCreating}
-                            deleteTodo={deleteTodo}
-                            handleUpdateStatus={handleUpdateStatus}
-                            handleUpdateTodo={handleUpdateTodo}
-                            handleMoveTodo={handleMoveTodo}
-                            groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
-                            workspaceOptions={workspaceOptions}
-                          />
-                       );
-                     })}
+            <div className="flex flex-col gap-6 min-w-max">
+              {swimlanes.map((lane) => {
+                const laneTasks = todos?.filter((task) => (task.groupId || "no-group") === lane.id) || [];
+                const isCollapsed = collapsedGroups.has(lane.id);
+
+                return (
+                  <div key={lane.id} className="flex flex-col">
+                    <div className="flex items-center gap-2 pl-4 mb-3 cursor-pointer select-none group w-fit" onClick={() => toggleCollapse(lane.id)}>
+                      <div className="p-0.5 rounded transition-colors group-hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }}>
+                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                      </div>
+                      <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{lane.name}</span>
+                      <span className="text-sm font-medium" style={{ color: "var(--mute)" }}>{laneTasks.length}</span>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        {typeof document !== "undefined"
-          ? createPortal(
-              <DragOverlay zIndex={9999} dropAnimation={null}>
-                {activeTask ? (
-                  <div className="pointer-events-none w-[320px]">
-                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="private" />
+
+                    {!isCollapsed && (
+                      <div className="flex gap-6 pl-4">
+                        {STATUSES.map((status) => {
+                          const statusTasks = laneTasks.filter((task) => {
+                            if (status.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
+                            if (status.id === "in-progress") return task.status === "in-progress";
+                            return task.status === "completed" || task.completed;
+                          });
+                          return (
+                            <KanbanColumn
+                              key={`${lane.id}::${status.id}`}
+                              groupId={lane.id}
+                              status={status}
+                              tasks={statusTasks}
+                              creatingInStatus={creatingInStatus}
+                              setCreatingInStatus={setCreatingInStatus}
+                              newTitle={newTitle}
+                              setNewTitle={setNewTitle}
+                              handleCreate={handleCreate}
+                              creatingAiInStatus={creatingAiInStatus}
+                              setCreatingAiInStatus={setCreatingAiInStatus}
+                              aiPrompt={aiPrompt}
+                              setAiPrompt={setAiPrompt}
+                              handleCreateWithAi={handleCreateWithAi}
+                              isAiCreating={isAiCreating}
+                              deleteTodo={deleteTodo}
+                              handleUpdateStatus={handleUpdateStatus}
+                              handleUpdateTodo={handleUpdateTodo}
+                              handleMoveTodo={handleMoveTodo}
+                              groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
+                              workspaceOptions={workspaceOptions}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ) : null}
-              </DragOverlay>,
-              document.body
-            )
-          : null}
-      </DndContext>
+                );
+              })}
+            </div>
+          </div>
+          {typeof document !== "undefined"
+            ? createPortal(
+                <DragOverlay zIndex={9999} dropAnimation={null}>
+                  {activeTask ? (
+                    <div className="pointer-events-none w-[320px]">
+                      <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="private" />
+                    </div>
+                  ) : null}
+                </DragOverlay>,
+                document.body
+              )
+            : null}
+        </DndContext>
+      )}
 
       {showCreateGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowCreateGroup(false)}>

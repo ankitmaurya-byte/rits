@@ -594,6 +594,25 @@ export const resolveModerationReport = mutation({
   },
 });
 
+export const deleteModerationReport = mutation({
+  args: { sessionToken: v.string(), reportId: v.id("moderationReports") },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "moderation.manage");
+    const report = await ctx.db.get(args.reportId);
+    if (!report) throw new ConvexError("Moderation report not found");
+    await ctx.db.delete(report._id);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "delete_moderation_report",
+      entityType: "moderationReports",
+      entityId: report._id,
+      summary: `Deleted moderation report ${report.entityType}:${report.entityId}`,
+      before: JSON.stringify(report),
+    });
+    return null;
+  },
+});
+
 export const listModerationActions = query({
   args: { sessionToken: v.string(), reportId: v.optional(v.id("moderationReports")) },
   handler: async (ctx, args) => {
@@ -886,7 +905,7 @@ export const upsertFeatureFlag = mutation({
 export const deleteFeatureFlag = mutation({
   args: { sessionToken: v.string(), featureFlagId: v.id("adminFeatureFlags") },
   handler: async (ctx, args) => {
-    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "integrations.manage");
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "admins.manage");
     const flag = await ctx.db.get(args.featureFlagId);
     if (!flag) throw new ConvexError("Feature flag not found");
     await ctx.db.delete(flag._id);
@@ -1022,6 +1041,48 @@ export const deleteContentItem = mutation({
   },
 });
 
+export const patchContentItem = mutation({
+  args: {
+    sessionToken: v.string(),
+    entityType: v.string(),
+    entityId: v.string(),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    content: v.optional(v.string()),
+    url: v.optional(v.string()),
+    tags: v.optional(v.string()),
+    status: v.optional(v.string()),
+    priority: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "content.manage");
+    const before = await ctx.db.get(args.entityId as Id<any>);
+    if (!before) throw new ConvexError("Content item not found");
+
+    const patch: Record<string, unknown> = {};
+    if (args.title !== undefined) patch.title = args.title.trim();
+    if (args.description !== undefined) patch.description = args.description.trim();
+    if (args.content !== undefined) patch.content = args.content;
+    if (args.url !== undefined) patch.url = args.url.trim();
+    if (args.tags !== undefined) patch.tags = parseAdminTags(args.tags);
+    if (args.status !== undefined) patch.status = args.status.trim();
+    if (args.priority !== undefined) patch.priority = args.priority.trim();
+    if ("updatedAt" in before) patch.updatedAt = Date.now();
+
+    await ctx.db.patch(args.entityId as Id<any>, patch);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "patch_content_item",
+      entityType: args.entityType,
+      entityId: args.entityId,
+      summary: `Updated ${args.entityType} ${args.entityId}`,
+      before: JSON.stringify(before),
+      after: JSON.stringify({ ...before, ...patch }),
+    });
+    return args.entityId;
+  },
+});
+
 export const revokeFolderShare = mutation({
   args: { sessionToken: v.string(), shareId: v.id("resourceFolderShares") },
   handler: async (ctx, args) => {
@@ -1054,11 +1115,60 @@ export const listResourcesAdmin = query({
     ]);
     return {
       resourceCount: resources.length,
+      resources: resources.map((resource) => ({
+        ...resource,
+        ownerEmail: users.find((user) => user._id === resource.createdBy)?.email ?? "Unknown",
+      })),
       shares: shares.map((share) => ({
         ...share,
         ownerEmail: users.find((user) => user._id === share.createdBy)?.email ?? "Unknown",
       })),
     };
+  },
+});
+
+export const patchResourceAdmin = mutation({
+  args: {
+    sessionToken: v.string(),
+    resourceId: v.id("resources"),
+    url: v.string(),
+    description: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "resources.manage");
+    const resource = await ctx.db.get(args.resourceId);
+    if (!resource) throw new ConvexError("Resource not found");
+    const patch = { url: args.url.trim(), description: args.description.trim() };
+    await ctx.db.patch(resource._id, patch);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "patch_resource",
+      entityType: "resources",
+      entityId: resource._id,
+      summary: `Updated resource ${resource._id}`,
+      before: JSON.stringify(resource),
+      after: JSON.stringify({ ...resource, ...patch }),
+    });
+    return resource._id;
+  },
+});
+
+export const deleteResourceAdmin = mutation({
+  args: { sessionToken: v.string(), resourceId: v.id("resources") },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "resources.manage");
+    const resource = await ctx.db.get(args.resourceId);
+    if (!resource) throw new ConvexError("Resource not found");
+    await ctx.db.delete(resource._id);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "delete_resource",
+      entityType: "resources",
+      entityId: resource._id,
+      summary: `Deleted resource ${resource.url}`,
+      before: JSON.stringify(resource),
+    });
+    return null;
   },
 });
 
@@ -1337,6 +1447,203 @@ export const importExploreRecords = mutation({
   },
 });
 
+function parseAdminTags(value: string | undefined | null) {
+  return trimOptional(value)
+    ?.split(/[|,]/)
+    .map((item) => item.trim())
+    .filter(Boolean) ?? [];
+}
+
+function seasonFromCategory(value: string | undefined | null) {
+  const parsed = Number(trimOptional(value)?.replace(/[^0-9]/g, "") || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export const upsertExploreRecord = mutation({
+  args: {
+    sessionToken: v.string(),
+    datasetKind: exploreDatasetValidator,
+    recordId: v.optional(v.string()),
+    name: v.string(),
+    slug: v.optional(v.string()),
+    website: v.optional(v.string()),
+    description: v.optional(v.string()),
+    category: v.optional(v.string()),
+    logoUrl: v.optional(v.string()),
+    tags: v.optional(v.string()),
+    metadata: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "explore.manage");
+    const now = Date.now();
+    const name = args.name.trim();
+    if (!name) throw new ConvexError("Name is required");
+    const slug = trimOptional(args.slug) || slugify(name);
+    const tags = parseAdminTags(args.tags);
+
+    if (args.datasetKind === "yc") {
+      const existing = args.recordId
+        ? await ctx.db.get(args.recordId as Id<"ycStartupsAdmin">)
+        : await ctx.db.query("ycStartupsAdmin").withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
+      const payload = {
+        sourceId: trimOptional(args.metadata) || slug,
+        name,
+        slug,
+        batch: trimOptional(args.metadata) || "Unknown",
+        industry: trimOptional(args.category) || "General",
+        description: trimOptional(args.description) || "",
+        founders: tags,
+        website: trimOptional(args.website) || "",
+        updatedAt: now,
+      };
+      if (existing) {
+        await ctx.db.patch(existing._id, payload);
+        await logAdminAction(ctx, { adminUserId: adminUser._id, action: "update_explore_record", entityType: "ycStartupsAdmin", entityId: existing._id, summary: `Updated YC startup ${name}` });
+        return existing._id;
+      }
+      const createdId = await ctx.db.insert("ycStartupsAdmin", { ...payload, createdAt: now });
+      await logAdminAction(ctx, { adminUserId: adminUser._id, action: "create_explore_record", entityType: "ycStartupsAdmin", entityId: createdId, summary: `Created YC startup ${name}` });
+      return createdId;
+    }
+
+    if (args.datasetKind === "shark_tank") {
+      const existing = args.recordId
+        ? await ctx.db.get(args.recordId as Id<"sharkTankPitchesAdmin">)
+        : await ctx.db.query("sharkTankPitchesAdmin").withIndex("by_slug", (q) => q.eq("slug", slug)).unique();
+      const payload = {
+        sourceId: trimOptional(args.metadata) || slug,
+        slug,
+        season: seasonFromCategory(args.category),
+        companyName: name,
+        founders: tags,
+        pitchSummary: trimOptional(args.description),
+        sourceFile: trimOptional(args.metadata) || "admin_manual",
+        updatedAt: now,
+      };
+      if (existing) {
+        await ctx.db.patch(existing._id, payload as any);
+        await logAdminAction(ctx, { adminUserId: adminUser._id, action: "update_explore_record", entityType: "sharkTankPitchesAdmin", entityId: existing._id, summary: `Updated Shark Tank pitch ${name}` });
+        return existing._id;
+      }
+      const createdId = await ctx.db.insert("sharkTankPitchesAdmin", { ...payload, createdAt: now } as any);
+      await logAdminAction(ctx, { adminUserId: adminUser._id, action: "create_explore_record", entityType: "sharkTankPitchesAdmin", entityId: createdId, summary: `Created Shark Tank pitch ${name}` });
+      return createdId;
+    }
+
+    if (args.datasetKind === "github_tools") {
+      const repoFullName = trimOptional(args.metadata) || name;
+      const owner = repoFullName.includes("/") ? repoFullName.split("/")[0] : "manual";
+      const repoName = repoFullName.includes("/") ? repoFullName.split("/").slice(1).join("/") : name;
+      const existing = args.recordId
+        ? await ctx.db.get(args.recordId as Id<"githubTools">)
+        : await ctx.db.query("githubTools").withIndex("by_repo_full_name", (q) => q.eq("repoFullName", repoFullName)).unique();
+      const patchPayload = {
+        name,
+        repoFullName,
+        owner,
+        htmlUrl: trimOptional(args.website) || `https://github.com/${repoFullName}`,
+        description: trimOptional(args.description) || "",
+        language: trimOptional(args.category),
+        topics: tags,
+        aiSummary: trimOptional(args.logoUrl),
+        updatedAt: now,
+      };
+      if (existing) {
+        await ctx.db.patch(existing._id, patchPayload);
+        await logAdminAction(ctx, { adminUserId: adminUser._id, action: "update_explore_record", entityType: "githubTools", entityId: existing._id, summary: `Updated GitHub tool ${repoFullName}` });
+        return existing._id;
+      }
+      const createdId = await ctx.db.insert("githubTools", {
+        sourceType: "manual",
+        repoFullName,
+        owner,
+        name: repoName,
+        htmlUrl: trimOptional(args.website) || `https://github.com/${repoFullName}`,
+        description: trimOptional(args.description) || "",
+        homepageUrl: undefined,
+        language: trimOptional(args.category),
+        stars: 0,
+        forks: 0,
+        openIssues: 0,
+        topics: tags,
+        license: undefined,
+        defaultBranch: undefined,
+        isArchived: false,
+        readme: undefined,
+        readmeFetchedAt: undefined,
+        aiSummary: trimOptional(args.logoUrl),
+        aiUseCases: undefined,
+        aiOpportunity: undefined,
+        aiAnalysis: undefined,
+        fetchMode: undefined,
+        searchQuery: "admin_manual",
+        postCaption: undefined,
+        videoUrls: undefined,
+        imageUrls: undefined,
+        attachedLinks: undefined,
+        createdBy: undefined,
+        createdAt: now,
+        updatedAt: now,
+        lastSyncedAt: now,
+      });
+      await logAdminAction(ctx, { adminUserId: adminUser._id, action: "create_explore_record", entityType: "githubTools", entityId: createdId, summary: `Created GitHub tool ${repoFullName}` });
+      return createdId;
+    }
+
+    const existing = args.recordId
+      ? await ctx.db.get(args.recordId as Id<"exploreEntries">)
+      : await ctx.db
+        .query("exploreEntries")
+        .withIndex("by_dataset_kind_and_slug", (q) => q.eq("datasetKind", args.datasetKind as any).eq("slug", slug))
+        .unique();
+    const payload = {
+      datasetKind: args.datasetKind as any,
+      slug,
+      name,
+      website: trimOptional(args.website),
+      description: trimOptional(args.description),
+      category: trimOptional(args.category),
+      logoUrl: trimOptional(args.logoUrl),
+      tags,
+      metadata: trimOptional(args.metadata),
+      createdBy: adminUser._id,
+      updatedAt: now,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, payload);
+      await logAdminAction(ctx, { adminUserId: adminUser._id, action: "update_explore_record", entityType: "exploreEntries", entityId: existing._id, summary: `Updated ${args.datasetKind} record ${name}` });
+      return existing._id;
+    }
+    const createdId = await ctx.db.insert("exploreEntries", { ...payload, createdAt: now });
+    await logAdminAction(ctx, { adminUserId: adminUser._id, action: "create_explore_record", entityType: "exploreEntries", entityId: createdId, summary: `Created ${args.datasetKind} record ${name}` });
+    return createdId;
+  },
+});
+
+export const deleteExploreRecord = mutation({
+  args: {
+    sessionToken: v.string(),
+    datasetKind: exploreDatasetValidator,
+    recordId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "explore.manage");
+    const existing = await ctx.db.get(args.recordId as Id<any>);
+    if (!existing) throw new ConvexError("Explore record not found");
+    await ctx.db.delete(args.recordId as Id<any>);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "delete_explore_record",
+      entityType: args.datasetKind,
+      entityId: args.recordId,
+      summary: `Deleted ${args.datasetKind} explore record ${summarizeRecord(existing as Record<string, unknown>)}`,
+      before: JSON.stringify(existing),
+    });
+    return null;
+  },
+});
+
 export const listIntegrationConfigs = query({
   args: { sessionToken: v.string() },
   handler: async (ctx, args) => {
@@ -1371,6 +1678,25 @@ export const upsertIntegrationConfig = mutation({
       return existing._id;
     }
     return await ctx.db.insert("integrationConfigs", payload);
+  },
+});
+
+export const deleteIntegrationConfig = mutation({
+  args: { sessionToken: v.string(), integrationConfigId: v.id("integrationConfigs") },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "integrations.manage");
+    const config = await ctx.db.get(args.integrationConfigId);
+    if (!config) throw new ConvexError("Integration config not found");
+    await ctx.db.delete(config._id);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "delete_integration_config",
+      entityType: "integrationConfigs",
+      entityId: config._id,
+      summary: `Deleted integration config ${config.slug}`,
+      before: JSON.stringify(config),
+    });
+    return null;
   },
 });
 
@@ -1410,6 +1736,25 @@ export const upsertNewsletterIssue = mutation({
       return args.issueId;
     }
     return await ctx.db.insert("newsletterIssues", { ...payload, createdAt: Date.now() });
+  },
+});
+
+export const deleteNewsletterIssue = mutation({
+  args: { sessionToken: v.string(), issueId: v.id("newsletterIssues") },
+  handler: async (ctx, args) => {
+    const { adminUser } = await requireAdminPermission(ctx, args.sessionToken, "reports.manage");
+    const issue = await ctx.db.get(args.issueId);
+    if (!issue) throw new ConvexError("Newsletter issue not found");
+    await ctx.db.delete(issue._id);
+    await logAdminAction(ctx, {
+      adminUserId: adminUser._id,
+      action: "delete_newsletter_issue",
+      entityType: "newsletterIssues",
+      entityId: issue._id,
+      summary: `Deleted newsletter issue ${issue.title}`,
+      before: JSON.stringify(issue),
+    });
+    return null;
   },
 });
 

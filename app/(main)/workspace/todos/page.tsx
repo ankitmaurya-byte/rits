@@ -243,8 +243,13 @@ export default function WorkspaceTodosPage() {
 
       top.sort((a, b) => a.offset - b.offset);
       bottom.sort((a, b) => a.offset - b.offset);
+      const firstLane = swimlanes[0];
+      const topGroups = top.map(({ id, name }) => ({ id, name }));
+      if (firstLane && !topGroups.some((group) => group.id === firstLane.id)) {
+        topGroups.unshift({ id: firstLane.id, name: firstLane.name });
+      }
       setOffscreenGroups({
-        top: top.map(({ id, name }) => ({ id, name })),
+        top: topGroups,
         bottom: bottom.map(({ id, name }) => ({ id, name })),
       });
     };
@@ -296,10 +301,7 @@ export default function WorkspaceTodosPage() {
     <div className="page-container animate-fade-in-up relative h-full flex flex-col max-w-none overflow-hidden">
       <div className="page-header border-b pb-8 mb-8 relative z-10 shrink-0 flex items-center justify-between" style={{ borderColor: "var(--hairline-strong)" }}>
         <div>
-          <span className="text-xs uppercase tracking-widest font-medium px-2 py-0.5 rounded" style={{ color: "var(--mute)", backgroundColor: "var(--surface-deep)", border: "1px solid var(--hairline)" }}>
-            {workspace?.name ?? "Workspace"}
-          </span>
-          <h2 className="text-2xl font-semibold tracking-tight mt-2" style={{ color: "var(--ink)" }}>Kanban board</h2>
+          <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>Kanban board</h2>
         </div>
         <div className="flex items-center gap-3">
           <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
@@ -365,15 +367,18 @@ export default function WorkspaceTodosPage() {
           onDragCancel={() => setActiveTask(null)}
           onDragEnd={handleDragEnd}>
           <div className="flex min-h-0 flex-1 flex-col gap-3 relative z-10">
-            {offscreenGroups.top.length ? (
-              <div className="flex gap-2 overflow-x-auto rounded-xl border px-3 py-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-                {offscreenGroups.top.map((group) => (
-                  <button key={`top-${group.id}`} onClick={() => scrollLaneToCenter(group.id)} className="shrink-0 rounded-full border px-3 py-1 text-xs font-medium" style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)", backgroundColor: "var(--surface-elevated)" }}>
-                    {group.name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <div className={`flex items-center gap-0 overflow-x-auto pl-4 py-1 transition-all duration-200 ${offscreenGroups.top.length ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1 pointer-events-none"}`} style={{ minHeight: 32 }}>
+              {offscreenGroups.top.length
+                ? [...offscreenGroups.top].reverse().map((group, index, groups) => (
+                  <div key={`top-${group.id}`} className="flex shrink-0 items-center">
+                    <button onClick={() => scrollLaneToCenter(group.id)} className="py-1 text-sm font-semibold transition-colors hover:opacity-100" style={{ color: "var(--ink)", opacity: 0.9 }}>
+                      {group.name}
+                    </button>
+                    {index < groups.length - 1 ? <span className="px-2 text-sm" style={{ color: "var(--mute)" }}>|</span> : null}
+                  </div>
+                ))
+                : null}
+            </div>
 
             <div ref={boardScrollRef} className="flex flex-col gap-8 overflow-y-auto overflow-x-auto pb-2 flex-1 min-h-0">
             <div className="flex flex-col gap-6 min-w-max">
@@ -383,11 +388,10 @@ export default function WorkspaceTodosPage() {
 
                 return (
                   <div key={lane.id} className="flex flex-col" ref={(element) => { laneRefs.current[lane.id] = element; }}>
-                    <div ref={(element) => { laneHeaderRefs.current[lane.id] = element; }} className="sticky top-0 z-20 mb-3" style={{ backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)" }}>
-                      <div className="mb-3 flex items-center gap-2">
-                        <button className="p-0.5 rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} onClick={() => toggleCollapse(lane.id)}>
-                          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                        </button>
+                    <div ref={(element) => { laneHeaderRefs.current[lane.id] = element; }} className="mb-3 flex items-center gap-2">
+                      <button className="p-0.5 rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} onClick={() => toggleCollapse(lane.id)}>
+                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                      </button>
                         {lane.id === "no-team" || !isOwner ? (
                           <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{lane.name}</span>
                         ) : (
@@ -401,8 +405,8 @@ export default function WorkspaceTodosPage() {
                             style={{ color: "var(--ink)" }}
                           />
                         )}
-                        <span className="text-sm font-medium" style={{ color: "var(--mute)" }}>{laneTasks.length}</span>
                       </div>
+                    <div className="sticky top-0 z-20 mb-3 transition-all duration-200" style={{ backgroundColor: "transparent" }}>
                       <div className="flex gap-6 pl-7 min-w-max">
                         {STATUSES.map((status) => {
                           const StatusIcon = status.icon;
@@ -412,24 +416,42 @@ export default function WorkspaceTodosPage() {
                             return task.status === "completed" || task.completed;
                           }).length;
                           return (
-                            <div key={`${lane.id}-${status.id}-sticky`} className="w-[320px] flex items-center gap-2">
+                            <div key={`${lane.id}-${status.id}-sticky`} className="w-[320px] flex items-center justify-between gap-3 px-3 py-2" style={{ backgroundColor: "var(--surface-deep)" }}>
+                              <div className="flex min-w-0 items-center gap-2">
                               <StatusIcon size={16} style={{ color: status.color }} />
-                              {lane.id === "no-team" || !isOwner ? (
-                                <span className="font-medium text-sm" style={{ color: "var(--ink)" }}>{lane.statusLabels?.[status.id] ?? status.label}</span>
-                              ) : (
-                                <input
-                                  defaultValue={lane.statusLabels?.[status.id] ?? status.label}
-                                  onBlur={(event) => {
-                                    const next = event.target.value.trim();
-                                    if (next && next !== (lane.statusLabels?.[status.id] ?? status.label)) {
-                                      void updateLaneStatusLabel(lane, status.id, next);
-                                    }
+                              <div className="flex min-w-0 items-center gap-0">
+                                {lane.id === "no-team" || !isOwner ? (
+                                  <span className="font-medium text-sm" style={{ color: "var(--ink)" }}>{lane.statusLabels?.[status.id] ?? status.label}</span>
+                                ) : (
+                                  <input
+                                    defaultValue={lane.statusLabels?.[status.id] ?? status.label}
+                                    onBlur={(event) => {
+                                      const next = event.target.value.trim();
+                                      if (next && next !== (lane.statusLabels?.[status.id] ?? status.label)) {
+                                        void updateLaneStatusLabel(lane, status.id, next);
+                                      }
+                                    }}
+                                    className="w-full bg-transparent text-sm font-medium outline-none"
+                                    style={{ color: "var(--ink)" }}
+                                  />
+                                )}
+                                <span className="text-sm font-medium tabular-nums" style={{ color: "var(--mute)", minWidth: count >= 100 ? "2.25rem" : count >= 10 ? "1.5rem" : undefined }}>
+                                  {count}
+                                </span>
+                              </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={() => {
+                                    setCreatingAiInStatus(null);
+                                    setCreatingInStatus(`${lane.id}::${status.id}`);
                                   }}
-                                  className="w-full bg-transparent text-sm font-medium outline-none"
-                                  style={{ color: "var(--ink)" }}
-                                />
-                              )}
-                              <span className="text-sm font-medium" style={{ color: "var(--mute)" }}>{count}</span>
+                                  className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
+                                  style={{ color: "var(--mute)" }}
+                                >
+                                  <Plus size={16} />
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -479,15 +501,18 @@ export default function WorkspaceTodosPage() {
             </div>
             </div>
 
-            {offscreenGroups.bottom.length ? (
-              <div className="flex gap-2 overflow-x-auto rounded-xl border px-3 py-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-                {offscreenGroups.bottom.map((group) => (
-                  <button key={`bottom-${group.id}`} onClick={() => scrollLaneToCenter(group.id)} className="shrink-0 rounded-full border px-3 py-1 text-xs font-medium" style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)", backgroundColor: "var(--surface-elevated)" }}>
-                    {group.name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            <div className={`flex items-center gap-0 overflow-x-auto pl-4 py-1 transition-all duration-200 ${offscreenGroups.bottom.length ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"}`} style={{ minHeight: 32 }}>
+              {offscreenGroups.bottom.length
+                ? offscreenGroups.bottom.map((group, index, groups) => (
+                  <div key={`bottom-${group.id}`} className="flex shrink-0 items-center">
+                    <button onClick={() => scrollLaneToCenter(group.id)} className="py-1 text-sm font-semibold transition-colors hover:opacity-100" style={{ color: "var(--ink)", opacity: 0.9 }}>
+                      {group.name}
+                    </button>
+                    {index < groups.length - 1 ? <span className="px-2 text-sm" style={{ color: "var(--mute)" }}>|</span> : null}
+                  </div>
+                ))
+                : null}
+            </div>
           </div>
           {typeof document !== "undefined"
             ? createPortal(
@@ -553,20 +578,18 @@ function KanbanColumn({ groupId, status, statusLabel, tasks, creatingInStatus, s
               <button onClick={() => setCreatingAiInStatus(null)} className="btn-outline text-xs">Cancel</button>
             </div>
           </div>
-        ) : (
-          <div className="flex gap-2">
-            <button onClick={() => { setCreatingAiInStatus(null); setCreatingInStatus(droppableId); }}
-              className="flex items-center gap-2 p-2 w-full rounded-md text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-              style={{ color: "var(--mute)" }}>
-              <Plus size={16} /> New {statusLabel}
-            </button>
-            <button onClick={() => { setCreatingInStatus(null); setCreatingAiInStatus(droppableId); }}
-              className="flex items-center gap-2 rounded-md px-3 text-sm transition-colors hover:bg-[var(--surface-elevated)]"
-              style={{ color: "var(--mute)" }}>
-              <Sparkles size={14} /> AI
-            </button>
-          </div>
-        )}
+        ) : tasks.length === 0 ? (
+          <button
+            onClick={() => {
+              setCreatingAiInStatus(null);
+              setCreatingInStatus(droppableId);
+            }}
+            className="flex items-center gap-2 self-start rounded-md px-3 py-2 text-sm transition-colors hover:bg-[var(--surface-elevated)]"
+            style={{ color: "var(--mute)" }}
+          >
+            <Plus size={16} /> Add new {statusLabel}
+          </button>
+        ) : null}
 
         {tasks.map((task: any) => (
           <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateTodo={handleUpdateTodo} handleMoveTodo={handleMoveTodo} groupOptions={groupOptions} workspaceOptions={workspaceOptions} />

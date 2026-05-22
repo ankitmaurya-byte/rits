@@ -91,7 +91,6 @@ export default function WorkspaceNotesPage() {
         style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", width: sidebarOpen ? "288px" : "0px", opacity: sidebarOpen ? 1 : 0, borderRightWidth: sidebarOpen ? "1px" : "0px" }}>
         <div className="flex items-center justify-between px-5 py-4 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded" style={{ color: "var(--mute)", backgroundColor: "var(--surface-deep)", border: "1px solid var(--hairline)" }}>{workspace?.name}</span>
             <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>Confluence ({notes?.length ?? 0})</span>
           </div>
           <button onClick={() => setShowCreate(true)} className="p-1.5 rounded-md transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--body)" }}>

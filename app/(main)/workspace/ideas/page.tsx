@@ -81,11 +81,6 @@ export default function WorkspaceIdeasPage() {
 
       <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs uppercase tracking-widest font-medium px-2 py-0.5 rounded" style={{ color: "var(--mute)", backgroundColor: "var(--surface-deep)", border: "1px solid var(--hairline)" }}>
-              {workspace?.name ?? "Workspace"}
-            </span>
-          </div>
           <h2 className="text-3xl font-medium tracking-tight mb-1" style={{ color: "var(--ink)" }}>Ideas</h2>
           <p className="text-sm font-medium" style={{ color: "var(--charcoal)" }}>{ideas?.length ?? 0} ideas</p>
         </div>

@@ -5,12 +5,22 @@ import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
-import { Plus, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles } from "lucide-react";
+import { Plus, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, X, Sparkles, AlertCircle, ListTodo, CheckSquare, XCircle, AlertTriangle, PlayCircle, Palette, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
 import { TodoExcelSheetsView } from "@/components/todos/todo-excel-sheets-view";
 import { SheetView } from "@/components/todos/sheet-view";
 import { TodoSheetView } from "@/components/todos/todo-sheet-view";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
+} from "@/components/ui/dropdown-menu";
 import {
   DndContext, closestCorners, PointerSensor, useSensor, useSensors,
   DragEndEvent, DragOverlay, useDroppable,
@@ -43,6 +53,7 @@ export default function PrivateTodosPage() {
   const moveTodo = useMutation(api.todos.moveTodo);
   const createGroup = useMutation(api.todoGroups.createPrivateGroup);
   const updatePrivateGroup = useMutation(api.todoGroups.updatePrivateGroup);
+  const deletePrivateGroup = useMutation(api.todoGroups.deletePrivateGroup);
 
   const [creatingInStatus, setCreatingInStatus] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -50,6 +61,8 @@ export default function PrivateTodosPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [statusOrder, setStatusOrder] = useState<string[]>(STATUSES.map(s => s.id));
+  const orderedStatuses = useMemo(() => statusOrder.map(id => STATUSES.find(s => s.id === id)!), [statusOrder]);
   const [creatingAiInStatus, setCreatingAiInStatus] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiCreating, setIsAiCreating] = useState(false);
@@ -62,11 +75,25 @@ export default function PrivateTodosPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const swimlanes = useMemo(() => {
-    const lanes = [] as Array<{ id: string; name: string; statusLabels?: Record<string, string> }>;
+    const lanes: Array<{ id: string; name: string; columns: any[] }> = [];
     if (groups) {
-      lanes.push(...groups.map((group) => ({ id: group._id, name: group.name, statusLabels: group.statusLabels })));
+      lanes.push(...groups.map(g => {
+        let cols = g.columns;
+        if (!cols || cols.length === 0) {
+          cols = STATUSES.map(s => ({
+            id: s.id,
+            label: g.statusLabels?.[s.id] ?? s.label,
+            color: s.color,
+          }));
+        }
+        return { id: g._id, name: g.name, columns: cols };
+      }));
     }
-    lanes.push({ id: "no-group", name: "No Group", statusLabels: { todo: "To-do", "in-progress": "In progress", completed: "Complete" } });
+    lanes.push({
+      id: "no-group",
+      name: "No Group",
+      columns: STATUSES.map(s => ({ id: s.id, label: s.label, color: s.color }))
+    });
     return lanes;
   }, [groups]);
 
@@ -262,14 +289,46 @@ export default function PrivateTodosPage() {
     toast.success("Group renamed.");
   };
 
-  const updateLaneStatusLabel = async (lane: { id: string; statusLabels?: Record<string, string> }, statusId: string, label: string) => {
+  const updateLaneColumnLabel = async (lane: any, statusId: string, label: string) => {
     if (!convexUser || lane.id === "no-group") return;
+    const updatedColumns = lane.columns.map((c: any) => c.id === statusId ? { ...c, label } : c);
     await updatePrivateGroup({
       groupId: lane.id as any,
       createdBy: convexUser._id,
-      statusLabels: { ...(lane.statusLabels ?? {}), [statusId]: label.trim() || statusId },
+      columns: updatedColumns,
     });
     toast.success("Column renamed.");
+  };
+
+  const updateLaneColumnAppearance = async (lane: any, statusId: string, updates: { color?: string; icon?: string }) => {
+    if (!convexUser || lane.id === "no-group") return;
+    const updatedColumns = lane.columns.map((c: any) => c.id === statusId ? { ...c, ...updates } : c);
+    await updatePrivateGroup({
+      groupId: lane.id as any,
+      createdBy: convexUser._id,
+      columns: updatedColumns,
+    });
+  };
+
+  const addLaneColumn = async (lane: any) => {
+    if (!convexUser || lane.id === "no-group") return;
+    const next = window.prompt("New column name")?.trim();
+    if (!next) return;
+    const newId = next.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const updatedColumns = [...lane.columns, { id: newId, label: next, color: "var(--mute)" }];
+    await updatePrivateGroup({
+      groupId: lane.id as any,
+      createdBy: convexUser._id,
+      columns: updatedColumns,
+    });
+    toast.success("Column added.");
+  };
+
+  const deleteLane = async (lane: { id: string; name: string }) => {
+    if (!convexUser || lane.id === "no-group") return;
+    if (!window.confirm(`Delete group "${lane.name}"? Tasks will move to No Group.`)) return;
+    await deletePrivateGroup({ groupId: lane.id as any, createdBy: convexUser._id });
+    toast.success("Group deleted.");
   };
 
   return (
@@ -353,125 +412,275 @@ export default function PrivateTodosPage() {
                 : null}
             </div>
 
-            <div ref={boardScrollRef} className="flex flex-col gap-4 overflow-y-auto overflow-x-auto pb-2 flex-1 min-h-0">
-            <div className="flex flex-col gap-6 min-w-max">
-              {swimlanes.map((lane) => {
-                const laneTasks = todos?.filter((task) => (task.groupId || "no-group") === lane.id) || [];
-                const isCollapsed = collapsedGroups.has(lane.id);
+            <div ref={boardScrollRef} className="flex flex-col gap-4 overflow-y-auto pb-2 flex-1 min-h-0">
+              <div className="flex flex-col gap-6">
+                {swimlanes.map((lane) => {
+                  const laneTasks = todos?.filter((task) => (task.groupId || "no-group") === lane.id) || [];
+                  const isCollapsed = collapsedGroups.has(lane.id);
 
-                return (
-                  <div key={lane.id} className="flex flex-col" ref={(element) => { laneRefs.current[lane.id] = element; }}>
-                    <div ref={(element) => { laneHeaderRefs.current[lane.id] = element; }} className="mb-3 flex items-center gap-2">
-                      <button className="p-0.5 rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} onClick={() => toggleCollapse(lane.id)}>
-                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                      </button>
-                        {lane.id === "no-group" ? (
-                          <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{lane.name}</span>
-                        ) : (
-                          <input
-                            defaultValue={lane.name}
-                            onBlur={(event) => {
-                              const next = event.target.value.trim();
-                              if (next && next !== lane.name) void updateLaneName(lane.id, next);
-                            }}
-                            className="bg-transparent text-sm font-semibold outline-none"
-                            style={{ color: "var(--ink)" }}
-                          />
+                  return (
+                    <div key={lane.id} className="flex flex-col" ref={(element) => { laneRefs.current[lane.id] = element; }}>
+                      <div ref={(element) => { laneHeaderRefs.current[lane.id] = element; }} className="mb-3 flex items-center gap-2">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="flex items-center gap-1 rounded px-1 py-0.5 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)", cursor: "pointer" }}>
+                              <GripVertical size={14} style={{ color: "var(--mute)" }} />
+                              <span className="text-sm font-semibold">{lane.name}</span>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            {lane.id !== "no-group" ? (
+                              <DropdownMenuItem onClick={() => {
+                                const next = window.prompt("Edit group name", lane.name)?.trim();
+                                if (next && next !== lane.name) void updateLaneName(lane.id, next);
+                              }}>
+                                Edit name
+                              </DropdownMenuItem>
+                            ) : null}
+                            <DropdownMenuItem onClick={() => void navigator.clipboard.writeText(lane.name).then(() => toast.success("Group name copied."))}>
+                              Share
+                            </DropdownMenuItem>
+                            {lane.id !== "no-group" ? (
+                              <DropdownMenuItem variant="destructive" onClick={() => void deleteLane(lane)}>
+                                Delete
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <button className="p-0.5 rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} onClick={() => toggleCollapse(lane.id)}>
+                          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto pb-4 custom-scrollbar">
+                        <div className="sticky top-0 z-20 mb-3 transition-all duration-200" style={{ backgroundColor: "transparent" }}>
+                          <div className="flex gap-6 min-w-max">
+                            {lane.columns.map((column: any) => {
+                              const IconMap: Record<string, any> = {
+                                circle: Circle, clock: Clock, check: CheckCircle2, alert: AlertCircle,
+                                list: ListTodo, square: CheckSquare, x: XCircle, triangle: AlertTriangle, play: PlayCircle
+                              };
+                              const StatusIcon = (column.icon && IconMap[column.icon]) ? IconMap[column.icon] : (STATUSES.find(s => s.id === column.id)?.icon || Circle);
+                              const count = laneTasks.filter((task) => {
+                                if (column.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
+                                if (column.id === "in-progress") return task.status === "in-progress";
+                                if (column.id === "completed") return task.status === "completed" || task.completed;
+                                return task.status === column.id;
+                              }).length;
+                              return (
+                                <div
+                                  key={`${lane.id}-${column.id}-sticky`}
+                                  className="w-[320px] flex items-center justify-between gap-3 px-3 py-2"
+                                  style={{ backgroundColor: "var(--surface-deep)", cursor: "grab" }}
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData("text/plain", column.id);
+                                    e.dataTransfer.effectAllowed = "move";
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = "move";
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    const draggedStatusId = e.dataTransfer.getData("text/plain");
+                                    if (draggedStatusId && draggedStatusId !== column.id) {
+                                      // Reorder columns
+                                      const updatedColumns = [...lane.columns];
+                                      const fromIndex = updatedColumns.findIndex(c => c.id === draggedStatusId);
+                                      const toIndex = updatedColumns.findIndex(c => c.id === column.id);
+                                      if (fromIndex > -1 && toIndex > -1) {
+                                        const [moved] = updatedColumns.splice(fromIndex, 1);
+                                        updatedColumns.splice(toIndex, 0, moved);
+                                        updatePrivateGroup({ groupId: lane.id as any, createdBy: convexUser!._id, columns: updatedColumns });
+                                      }
+                                    }
+                                  }}
+                                  onDoubleClick={() => {
+                                    if (lane.id !== "no-group") {
+                                      const currentLabel = column.label;
+                                      const next = window.prompt("Edit column name", currentLabel)?.trim();
+                                      if (next && next !== currentLabel) void updateLaneColumnLabel(lane, column.id, next);
+                                    }
+                                  }}
+                                >
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button className="flex min-w-0 items-center gap-2 rounded px-1 py-0.5 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)", cursor: "pointer" }}>
+                                        <GripVertical size={14} style={{ color: "var(--mute)" }} />
+                                        <StatusIcon size={16} style={{ color: column.color || "var(--mute)" }} />
+                                        <div className="flex min-w-0 items-center gap-1.5">
+                                          <span className="font-medium text-sm">{column.label}</span>
+                                          <span className="text-sm font-medium tabular-nums" style={{ color: "var(--mute)", minWidth: count >= 100 ? "2.25rem" : count >= 10 ? "1.5rem" : undefined }}>
+                                            {count}
+                                          </span>
+                                        </div>
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start">
+                                      {lane.id !== "no-group" ? (
+                                        <>
+                                          <DropdownMenuItem onClick={() => {
+                                            const currentLabel = column.label;
+                                            const next = window.prompt("Edit column name", currentLabel)?.trim();
+                                            if (next && next !== currentLabel) void updateLaneColumnLabel(lane, column.id, next);
+                                          }}>
+                                            Edit name
+                                          </DropdownMenuItem>
+
+                                          <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger>
+                                              <Palette size={14} className="mr-2" style={{ color: "var(--mute)" }} />
+                                              Color
+                                            </DropdownMenuSubTrigger>
+                                            <DropdownMenuPortal>
+                                              <DropdownMenuSubContent alignOffset={-5}>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--charcoal)" })}>
+                                                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--charcoal)" }} /> Gray
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-blue)" })}>
+                                                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-blue)" }} /> Blue
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-green)" })}>
+                                                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-green)" }} /> Green
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-red)" })}>
+                                                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-red)" }} /> Red
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-orange)" })}>
+                                                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-orange)" }} /> Orange
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-purple)" })}>
+                                                  <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-purple)" }} /> Purple
+                                                </DropdownMenuItem>
+                                              </DropdownMenuSubContent>
+                                            </DropdownMenuPortal>
+                                          </DropdownMenuSub>
+
+                                          <DropdownMenuSub>
+                                            <DropdownMenuSubTrigger>
+                                              <Activity size={14} className="mr-2" style={{ color: "var(--mute)" }} />
+                                              Icon
+                                            </DropdownMenuSubTrigger>
+                                            <DropdownMenuPortal>
+                                              <DropdownMenuSubContent alignOffset={-5}>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "circle" })}>
+                                                  <Circle size={14} className="mr-2" /> Circle
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "clock" })}>
+                                                  <Clock size={14} className="mr-2" /> Clock
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "check" })}>
+                                                  <CheckCircle2 size={14} className="mr-2" /> Check
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "list" })}>
+                                                  <ListTodo size={14} className="mr-2" /> List
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "alert" })}>
+                                                  <AlertCircle size={14} className="mr-2" /> Alert
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "square" })}>
+                                                  <CheckSquare size={14} className="mr-2" /> Square
+                                                </DropdownMenuItem>
+                                              </DropdownMenuSubContent>
+                                            </DropdownMenuPortal>
+                                          </DropdownMenuSub>
+                                        </>
+                                      ) : null}
+                                      <DropdownMenuItem onClick={() => void navigator.clipboard.writeText(column.label).then(() => toast.success("Column name copied."))}>
+                                        Share
+                                      </DropdownMenuItem>
+                                      {lane.id !== "no-group" ? (
+                                        <DropdownMenuItem variant="destructive" onClick={() => {
+                                          if (window.confirm("Delete column? Tasks will be orphaned.")) {
+                                            const updatedColumns = lane.columns.filter((c: any) => c.id !== column.id);
+                                            updatePrivateGroup({ groupId: lane.id as any, createdBy: convexUser!._id, columns: updatedColumns });
+                                          }
+                                        }}>
+                                          Delete
+                                        </DropdownMenuItem>
+                                      ) : null}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      onClick={() => {
+                                        setCreatingAiInStatus(null);
+                                        setCreatingInStatus(`${lane.id}::${column.id}`);
+                                      }}
+                                      className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
+                                      style={{ color: "var(--mute)" }}
+                                    >
+                                      <Plus size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setCreatingInStatus(null);
+                                        setCreatingAiInStatus(`${lane.id}::${column.id}`);
+                                      }}
+                                      className="flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-[var(--surface-elevated)] transition-colors"
+                                      style={{ color: "var(--mute)" }}
+                                    >
+                                      <Sparkles size={13} /> AI
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            <div className="w-8 shrink-0" />
+                          </div>
+                        </div>
+
+                        {!isCollapsed && (
+                          <div className="flex gap-6 pl-4">
+                            {lane.columns.map((column: any) => {
+                              const statusTasks = laneTasks.filter((task) => {
+                                if (column.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
+                                if (column.id === "in-progress") return task.status === "in-progress";
+                                if (column.id === "completed") return task.status === "completed" || task.completed;
+                                return task.status === column.id;
+                              });
+                              return (
+                                <KanbanColumn
+                                  key={`${lane.id}::${column.id}`}
+                                  groupId={lane.id}
+                                  status={column}
+                                  tasks={statusTasks}
+                                  statusLabel={column.label}
+                                  creatingInStatus={creatingInStatus}
+                                  setCreatingInStatus={setCreatingInStatus}
+                                  newTitle={newTitle}
+                                  setNewTitle={setNewTitle}
+                                  handleCreate={handleCreate}
+                                  creatingAiInStatus={creatingAiInStatus}
+                                  setCreatingAiInStatus={setCreatingAiInStatus}
+                                  aiPrompt={aiPrompt}
+                                  setAiPrompt={setAiPrompt}
+                                  handleCreateWithAi={handleCreateWithAi}
+                                  isAiCreating={isAiCreating}
+                                  deleteTodo={deleteTodo}
+                                  handleUpdateStatus={handleUpdateStatus}
+                                  handleUpdateTodo={handleUpdateTodo}
+                                  handleMoveTodo={handleMoveTodo}
+                                  groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
+                                  workspaceOptions={workspaceOptions}
+                                />
+                              );
+                            })}
+                            <button
+                              onClick={() => addLaneColumn(lane)}
+                              className="flex shrink-0 w-8 items-center justify-center rounded-xl border border-dashed border-[var(--hairline-strong)] bg-transparent hover:bg-[var(--surface-elevated)] transition-colors text-[var(--mute)] hover:text-[var(--ink)] cursor-pointer"
+                            >
+                              <span className="text-xs font-semibold uppercase tracking-widest whitespace-nowrap flex items-center gap-2" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                                <Plus size={14} className="inline-block" /> Add Column
+                              </span>
+                            </button>
+                          </div>
                         )}
                       </div>
-                    <div className="sticky top-0 z-20 mb-3 transition-all duration-200" style={{ backgroundColor: "transparent" }}>
-                      <div className="flex gap-6 pl-7 min-w-max">
-                        {STATUSES.map((status) => {
-                          const StatusIcon = status.icon;
-                          const count = laneTasks.filter((task) => {
-                            if (status.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
-                            if (status.id === "in-progress") return task.status === "in-progress";
-                            return task.status === "completed" || task.completed;
-                          }).length;
-                          return (
-                            <div key={`${lane.id}-${status.id}-sticky`} className="w-[320px] flex items-center justify-between gap-3 px-3 py-2" style={{ backgroundColor: "var(--surface-deep)" }}>
-                              <div className="flex min-w-0 items-center gap-2">
-                              <StatusIcon size={16} style={{ color: status.color }} />
-                              <div className="flex min-w-0 items-center gap-0">
-                                {lane.id === "no-group" ? (
-                                  <span className="font-medium text-sm" style={{ color: "var(--ink)" }}>{lane.statusLabels?.[status.id] ?? status.label}</span>
-                                ) : (
-                                  <input
-                                    defaultValue={lane.statusLabels?.[status.id] ?? status.label}
-                                    onBlur={(event) => {
-                                      const next = event.target.value.trim();
-                                      if (next && next !== (lane.statusLabels?.[status.id] ?? status.label)) {
-                                        void updateLaneStatusLabel(lane, status.id, next);
-                                      }
-                                    }}
-                                    className="w-full bg-transparent text-sm font-medium outline-none"
-                                    style={{ color: "var(--ink)" }}
-                                  />
-                                )}
-                                <span className="text-sm font-medium tabular-nums" style={{ color: "var(--mute)", minWidth: count >= 100 ? "2.25rem" : count >= 10 ? "1.5rem" : undefined }}>
-                                  {count}
-                                </span>
-                              </div>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  onClick={() => {
-                                    setCreatingAiInStatus(null);
-                                    setCreatingInStatus(`${lane.id}::${status.id}`);
-                                  }}
-                                  className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-                                  style={{ color: "var(--mute)" }}
-                                >
-                                  <Plus size={16} />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
-
-                    {!isCollapsed && (
-                      <div className="flex gap-6 pl-4">
-                        {STATUSES.map((status) => {
-                          const statusTasks = laneTasks.filter((task) => {
-                            if (status.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
-                            if (status.id === "in-progress") return task.status === "in-progress";
-                            return task.status === "completed" || task.completed;
-                          });
-                          return (
-                            <KanbanColumn
-                              key={`${lane.id}::${status.id}`}
-                              groupId={lane.id}
-                              status={status}
-                              tasks={statusTasks}
-                              statusLabel={lane.statusLabels?.[status.id] ?? status.label}
-                              creatingInStatus={creatingInStatus}
-                              setCreatingInStatus={setCreatingInStatus}
-                              newTitle={newTitle}
-                              setNewTitle={setNewTitle}
-                              handleCreate={handleCreate}
-                              creatingAiInStatus={creatingAiInStatus}
-                              setCreatingAiInStatus={setCreatingAiInStatus}
-                              aiPrompt={aiPrompt}
-                              setAiPrompt={setAiPrompt}
-                              handleCreateWithAi={handleCreateWithAi}
-                              isAiCreating={isAiCreating}
-                              deleteTodo={deleteTodo}
-                              handleUpdateStatus={handleUpdateStatus}
-                              handleUpdateTodo={handleUpdateTodo}
-                              handleMoveTodo={handleMoveTodo}
-                              groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
-                              workspaceOptions={workspaceOptions}
-                            />
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className={`flex items-center gap-0 overflow-x-auto pl-4 py-1 transition-all duration-200 ${offscreenGroups.bottom.length ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"}`} style={{ minHeight: 32 }}>
@@ -489,15 +698,15 @@ export default function PrivateTodosPage() {
           </div>
           {typeof document !== "undefined"
             ? createPortal(
-                <DragOverlay zIndex={9999} dropAnimation={null}>
-                  {activeTask ? (
-                    <div className="pointer-events-none w-[320px]">
-                      <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="private" />
-                    </div>
-                  ) : null}
-                </DragOverlay>,
-                document.body
-              )
+              <DragOverlay zIndex={9999} dropAnimation={null}>
+                {activeTask ? (
+                  <div className="pointer-events-none w-[320px]">
+                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="private" />
+                  </div>
+                ) : null}
+              </DragOverlay>,
+              document.body
+            )
             : null}
         </DndContext>
       )}

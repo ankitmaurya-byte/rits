@@ -24,11 +24,12 @@ export const getGroups = query({
 export const getPrivateGroups = query({
   args: { createdBy: v.id("users") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const groups = await ctx.db
       .query("todoGroups")
       .withIndex("by_user", (q) => q.eq("createdBy", args.createdBy))
       .order("asc")
       .collect();
+    return groups.filter((g) => !g.workspaceId);
   },
 });
 
@@ -61,6 +62,11 @@ export const createGroup = mutation({
         "in-progress": "In progress",
         completed: "Complete",
       },
+      columns: [
+        { id: "todo", label: "To-do", color: "var(--charcoal)" },
+        { id: "in-progress", label: "In progress", color: "var(--accent-blue)" },
+        { id: "completed", label: "Complete", color: "var(--accent-green)" },
+      ],
       createdAt: Date.now(),
     });
   },
@@ -80,6 +86,11 @@ export const createPrivateGroup = mutation({
         "in-progress": "In progress",
         completed: "Complete",
       },
+      columns: [
+        { id: "todo", label: "To-do", color: "var(--charcoal)" },
+        { id: "in-progress", label: "In progress", color: "var(--accent-blue)" },
+        { id: "completed", label: "Complete", color: "var(--accent-green)" },
+      ],
       createdAt: Date.now(),
     });
   },
@@ -91,15 +102,23 @@ export const updatePrivateGroup = mutation({
     createdBy: v.id("users"),
     name: v.optional(v.string()),
     statusLabels: v.optional(v.record(v.string(), v.string())),
+    columns: v.optional(v.array(v.object({
+      id: v.string(),
+      label: v.string(),
+      color: v.optional(v.string()),
+      icon: v.optional(v.string()),
+    }))),
   },
   handler: async (ctx, args) => {
     const group = await ctx.db.get(args.groupId);
     if (!group || group.createdBy !== args.createdBy || group.workspaceId) {
+      console.log("updatePrivateGroup failed:", { group, args });
       throw new ConvexError("Private group not found");
     }
     await ctx.db.patch(args.groupId, {
       name: args.name?.trim() || group.name,
       statusLabels: args.statusLabels ?? group.statusLabels,
+      columns: args.columns ?? group.columns,
     });
   },
 });
@@ -110,6 +129,12 @@ export const updateWorkspaceGroup = mutation({
     clerkId: v.string(),
     name: v.optional(v.string()),
     statusLabels: v.optional(v.record(v.string(), v.string())),
+    columns: v.optional(v.array(v.object({
+      id: v.string(),
+      label: v.string(),
+      color: v.optional(v.string()),
+      icon: v.optional(v.string()),
+    }))),
   },
   handler: async (ctx, args) => {
     const user = await getUserByClerkId(ctx, args.clerkId);
@@ -124,6 +149,7 @@ export const updateWorkspaceGroup = mutation({
     await ctx.db.patch(args.groupId, {
       name: args.name?.trim() || group.name,
       statusLabels: args.statusLabels ?? group.statusLabels,
+      columns: args.columns ?? group.columns,
     });
   },
 });

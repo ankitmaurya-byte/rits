@@ -191,11 +191,7 @@ export function AnalysisPage() {
       <div className="page-header border-b pb-12 mb-10 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-4xl">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--mute)" }}>Research / Analysis</p>
-            <h2 className="text-4xl font-medium tracking-tight mb-4" style={{ color: "var(--ink)" }}>Build analysis from uploaded context, deployed context maps, and imported market sources</h2>
-            <p className="text-base leading-7" style={{ color: "var(--body)" }}>
-              Upload context, pull in your deployed workspace map, import filtered YC, SharkTank, GitHub, Tech Feed, or Startup records, then generate, save, publish, and share analyses people can explore like blog posts.
-            </p>
+            <h2 className="text-4xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>Analysis</h2>
           </div>
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={() => setScope("private")} className="btn-outline" style={{ backgroundColor: scope === "private" ? "var(--surface-elevated)" : undefined }}>Private</button>

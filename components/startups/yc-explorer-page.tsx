@@ -221,12 +221,9 @@ export function YcExplorerPage() {
             <Rocket size={24} style={{ color: "var(--accent-purple)" }} />
           </div>
           <div>
-            <h2 className="text-3xl font-medium tracking-tight mb-2" style={{ color: "var(--ink)" }}>
+            <h2 className="text-3xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>
               YC Startup Directory
             </h2>
-            <p className="text-sm font-medium" style={{ color: "var(--charcoal)" }}>
-              Explore all YC companies with search, filters, and infinite scroll. Save any company into notes, ideas, or research tasks.
-            </p>
           </div>
         </div>
       </div>

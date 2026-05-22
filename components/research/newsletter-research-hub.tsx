@@ -274,11 +274,7 @@ export function NewsletterResearchHub() {
 
       <div className="page-header mb-8 flex-col items-start gap-6 border-b pb-8 xl:flex-row xl:items-end xl:justify-between" style={{ borderColor: "var(--hairline-strong)" }}>
         <div className="max-w-4xl">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--mute)" }}>Research / Newsletters</p>
           <h1 className="text-3xl font-medium tracking-tight sm:text-4xl" style={{ color: "var(--ink)" }}>Newsletter Research Hub</h1>
-          <p className="mt-4 text-sm leading-7 sm:text-base" style={{ color: "var(--body)" }}>
-            Follow newsletters without cluttering your personal inbox. RITS subscribes with a dedicated newsletter address, reads incoming issues, keeps source credits intact, and gives you a research-native reading and discussion layer.
-          </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[

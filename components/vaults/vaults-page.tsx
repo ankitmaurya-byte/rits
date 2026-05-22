@@ -353,13 +353,10 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
                   </>
                 )}
               </div>
-              <h2 className="text-3xl font-medium tracking-tight mb-3" style={{ color: "var(--ink)" }}>
+              <h2 className="text-3xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>
                 {scope === "workspace" ? "Workspace Vaults" : "Private Vaults"}
               </h2>
-               <p className="max-w-2xl text-sm font-medium" style={{ color: "var(--charcoal)" }}>
-                 Create your first vault here. After that, the vault nav opens straight into the explorer and lets you switch vaults from the top bar.
-               </p>
-            </div>
+             </div>
             <button onClick={() => setShowCreateVault((current) => !current)} className="btn-primary">
               <Plus size={16} /> {showCreateVault ? "Close" : "Add New Vault"}
             </button>

@@ -343,11 +343,7 @@ export function CompetitorAnalysisPage() {
 
       <div className="page-header mb-8 flex-col items-start gap-6 border-b pb-8 xl:flex-row xl:items-end xl:justify-between" style={{ borderColor: "var(--hairline-strong)" }}>
         <div className="max-w-4xl">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--mute)" }}>Research / Competitors</p>
           <h1 className="text-3xl font-medium tracking-tight sm:text-4xl" style={{ color: "var(--ink)" }}>Competitor Market Map</h1>
-          <p className="mt-4 text-sm leading-7 sm:text-base" style={{ color: "var(--body)" }}>
-            Visualize crowded sectors as overlapping organic areas. Blob area tracks one business metric, blob border tracks another, and clusters reveal where companies really collide.
-          </p>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[

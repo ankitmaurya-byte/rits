@@ -18,9 +18,7 @@ type HubPanel = {
 };
 
 export function HardcodedHubPage({
-  eyebrow,
   title,
-  description,
   accent,
   primaryActions,
   panels,
@@ -43,17 +41,11 @@ export function HardcodedHubPage({
       />
 
       <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--mute)" }}>
-          {eyebrow}
-        </p>
         <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <h2 className="text-4xl font-medium tracking-tight mb-4" style={{ color: "var(--ink)" }}>
+            <h2 className="text-4xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>
               {title}
             </h2>
-            <p className="text-base leading-7" style={{ color: "var(--body)" }}>
-              {description}
-            </p>
           </div>
           <div className="grid w-full max-w-xl grid-cols-1 gap-3 sm:grid-cols-2">
             {primaryActions.map((action) => {

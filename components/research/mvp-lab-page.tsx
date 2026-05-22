@@ -123,11 +123,7 @@ export function MvpLabBuilderPage() {
       <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.24em]" style={{ color: "var(--mute)" }}>Research / MVP Lab</p>
-            <h2 className="text-4xl font-medium tracking-tight mb-4" style={{ color: "var(--ink)" }}>Prompt to landing page, then share it with a link</h2>
-            <p className="text-base leading-7" style={{ color: "var(--body)" }}>
-              Give the builder one product prompt and it generates a working landing-page layout, saves it, and creates a public share link.
-            </p>
+            <h2 className="text-4xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>MVP Lab</h2>
           </div>
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={() => setScope("private")} className="btn-outline" style={{ backgroundColor: scope === "private" ? "var(--surface-elevated)" : undefined }}>Private</button>

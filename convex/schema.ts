@@ -342,6 +342,7 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     createdBy: v.optional(v.id("users")),
     name: v.string(),
+    statusLabels: v.optional(v.record(v.string(), v.string())),
     createdAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])

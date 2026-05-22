@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -40,6 +40,7 @@ export default function WorkspaceTodosPage() {
   const deleteTodo = useMutation(api.todos.deleteTodo);
   const moveTodo = useMutation(api.todos.moveTodo);
   const createGroup = useMutation(api.todoGroups.createGroup);
+  const updateWorkspaceGroup = useMutation(api.todoGroups.updateWorkspaceGroup);
 
   const [creatingInStatus, setCreatingInStatus] = useState<string | null>(null); // formatted as "groupId::statusId"
   const [newTitle, setNewTitle] = useState("");
@@ -52,17 +53,21 @@ export default function WorkspaceTodosPage() {
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"board" | "table" | "sheet" | "excelSheets">("board");
+  const boardScrollRef = useRef<HTMLDivElement | null>(null);
+  const laneRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const laneHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [offscreenGroups, setOffscreenGroups] = useState<{ top: Array<{ id: string; name: string }>; bottom: Array<{ id: string; name: string }> }>({ top: [], bottom: [] });
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const isOwner = workspace?.ownerId === convexUser?._id;
 
   const swimlanes = useMemo(() => {
-    const lanes = [];
+    const lanes: Array<{ id: string; name: string; statusLabels?: Record<string, string> }> = [];
     if (groups) {
-      lanes.push(...groups.map(g => ({ id: g._id, name: g.name })));
+      lanes.push(...groups.map(g => ({ id: g._id, name: g.name, statusLabels: g.statusLabels })));
     }
-    lanes.push({ id: "no-team", name: "No Team" });
+    lanes.push({ id: "no-team", name: "No Team", statusLabels: { todo: "To-do", "in-progress": "In progress", completed: "Complete" } });
     return lanes;
   }, [groups]);
 
@@ -214,6 +219,69 @@ export default function WorkspaceTodosPage() {
     }
   };
 
+  useEffect(() => {
+    if (viewMode !== "board") return;
+
+    const container = boardScrollRef.current;
+    if (!container) return;
+
+    const measure = () => {
+      const containerRect = container.getBoundingClientRect();
+      const top: Array<{ id: string; name: string; offset: number }> = [];
+      const bottom: Array<{ id: string; name: string; offset: number }> = [];
+
+      for (const lane of swimlanes) {
+        const element = laneHeaderRefs.current[lane.id] ?? laneRefs.current[lane.id];
+        if (!element) continue;
+        const rect = element.getBoundingClientRect();
+        if (rect.bottom < containerRect.top + 12) {
+          top.push({ id: lane.id, name: lane.name, offset: rect.top });
+        } else if (rect.top > containerRect.bottom - 12) {
+          bottom.push({ id: lane.id, name: lane.name, offset: rect.top });
+        }
+      }
+
+      top.sort((a, b) => a.offset - b.offset);
+      bottom.sort((a, b) => a.offset - b.offset);
+      setOffscreenGroups({
+        top: top.map(({ id, name }) => ({ id, name })),
+        bottom: bottom.map(({ id, name }) => ({ id, name })),
+      });
+    };
+
+    measure();
+    container.addEventListener("scroll", measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      container.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, [swimlanes, collapsedGroups, todos, viewMode]);
+
+  const scrollLaneToCenter = (laneId: string) => {
+    const container = boardScrollRef.current;
+    const element = laneRefs.current[laneId];
+    if (!container || !element) return;
+    const targetTop = element.offsetTop - container.clientHeight / 2 + element.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, targetTop), behavior: "smooth" });
+  };
+
+  const updateLaneName = async (laneId: string, name: string) => {
+    if (!user || laneId === "no-team" || !isOwner) return;
+    await updateWorkspaceGroup({ groupId: laneId as any, clerkId: user.id, name });
+    toast.success("Group renamed.");
+  };
+
+  const updateLaneStatusLabel = async (lane: { id: string; statusLabels?: Record<string, string> }, statusId: string, label: string) => {
+    if (!user || lane.id === "no-team" || !isOwner) return;
+    await updateWorkspaceGroup({
+      groupId: lane.id as any,
+      clerkId: user.id,
+      statusLabels: { ...(lane.statusLabels ?? {}), [statusId]: label.trim() || statusId },
+    });
+    toast.success("Column renamed.");
+  };
+
   if (!selectedWorkspaceId) {
     return (
       <div className="page-container animate-fade-in-up flex flex-col items-center justify-center py-40 text-center">
@@ -223,13 +291,6 @@ export default function WorkspaceTodosPage() {
       </div>
     );
   }
-
-  // Calculate totals for column headers across all groups
-  const totalsByStatus = {
-    todo: todos?.filter((t) => t.status === "todo" || (!t.status && !t.completed)).length || 0,
-    "in-progress": todos?.filter((t) => t.status === "in-progress").length || 0,
-    completed: todos?.filter((t) => t.status === "completed" || t.completed).length || 0,
-  };
 
   return (
     <div className="page-container animate-fade-in-up relative h-full flex flex-col max-w-none overflow-hidden">
@@ -303,36 +364,76 @@ export default function WorkspaceTodosPage() {
           onDragStart={(e) => { const task = todos?.find((t) => t._id === e.active.id); if (task) setActiveTask(task); }}
           onDragCancel={() => setActiveTask(null)}
           onDragEnd={handleDragEnd}>
-          <div className="flex flex-col gap-8 overflow-y-auto overflow-x-auto pb-12 flex-1 relative z-10">
-            <div className="flex gap-6 pl-4 min-w-max">
-              {STATUSES.map(status => {
-                const StatusIcon = status.icon;
-                return (
-                  <div key={status.id} className="w-[320px] flex items-center gap-2 p-2 rounded-xl" style={{ backgroundColor: "var(--surface-deep)", border: "1px solid var(--hairline)" }}>
-                    <StatusIcon size={16} style={{ color: status.color }} />
-                    <span className="font-medium text-sm" style={{ color: "var(--ink)" }}>{status.label}</span>
-                    <span className="text-sm font-medium ml-1" style={{ color: "var(--mute)" }}>{totalsByStatus[status.id as keyof typeof totalsByStatus]}</span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 relative z-10">
+            {offscreenGroups.top.length ? (
+              <div className="flex gap-2 overflow-x-auto rounded-xl border px-3 py-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                {offscreenGroups.top.map((group) => (
+                  <button key={`top-${group.id}`} onClick={() => scrollLaneToCenter(group.id)} className="shrink-0 rounded-full border px-3 py-1 text-xs font-medium" style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)", backgroundColor: "var(--surface-elevated)" }}>
+                    {group.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
+            <div ref={boardScrollRef} className="flex flex-col gap-8 overflow-y-auto overflow-x-auto pb-2 flex-1 min-h-0">
             <div className="flex flex-col gap-6 min-w-max">
               {swimlanes.map(lane => {
                 const laneTasks = todos?.filter(t => (t.groupId || "no-team") === lane.id) || [];
                 const isCollapsed = collapsedGroups.has(lane.id);
 
                 return (
-                  <div key={lane.id} className="flex flex-col">
-                    <div 
-                      className="flex items-center gap-2 pl-4 mb-3 cursor-pointer select-none group w-fit"
-                      onClick={() => toggleCollapse(lane.id)}
-                    >
-                      <div className="p-0.5 rounded transition-colors group-hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }}>
-                        {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                  <div key={lane.id} className="flex flex-col" ref={(element) => { laneRefs.current[lane.id] = element; }}>
+                    <div ref={(element) => { laneHeaderRefs.current[lane.id] = element; }} className="sticky top-0 z-20 mb-3" style={{ backgroundColor: "color-mix(in srgb, var(--surface-card) 92%, transparent)" }}>
+                      <div className="mb-3 flex items-center gap-2">
+                        <button className="p-0.5 rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} onClick={() => toggleCollapse(lane.id)}>
+                          {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                        {lane.id === "no-team" || !isOwner ? (
+                          <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{lane.name}</span>
+                        ) : (
+                          <input
+                            defaultValue={lane.name}
+                            onBlur={(event) => {
+                              const next = event.target.value.trim();
+                              if (next && next !== lane.name) void updateLaneName(lane.id, next);
+                            }}
+                            className="bg-transparent text-sm font-semibold outline-none"
+                            style={{ color: "var(--ink)" }}
+                          />
+                        )}
+                        <span className="text-sm font-medium" style={{ color: "var(--mute)" }}>{laneTasks.length}</span>
                       </div>
-                      <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{lane.name}</span>
-                      <span className="text-sm font-medium" style={{ color: "var(--mute)" }}>{laneTasks.length}</span>
+                      <div className="flex gap-6 pl-7 min-w-max">
+                        {STATUSES.map((status) => {
+                          const StatusIcon = status.icon;
+                          const count = laneTasks.filter((task) => {
+                            if (status.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
+                            if (status.id === "in-progress") return task.status === "in-progress";
+                            return task.status === "completed" || task.completed;
+                          }).length;
+                          return (
+                            <div key={`${lane.id}-${status.id}-sticky`} className="w-[320px] flex items-center gap-2">
+                              <StatusIcon size={16} style={{ color: status.color }} />
+                              {lane.id === "no-team" || !isOwner ? (
+                                <span className="font-medium text-sm" style={{ color: "var(--ink)" }}>{lane.statusLabels?.[status.id] ?? status.label}</span>
+                              ) : (
+                                <input
+                                  defaultValue={lane.statusLabels?.[status.id] ?? status.label}
+                                  onBlur={(event) => {
+                                    const next = event.target.value.trim();
+                                    if (next && next !== (lane.statusLabels?.[status.id] ?? status.label)) {
+                                      void updateLaneStatusLabel(lane, status.id, next);
+                                    }
+                                  }}
+                                  className="w-full bg-transparent text-sm font-medium outline-none"
+                                  style={{ color: "var(--ink)" }}
+                                />
+                              )}
+                              <span className="text-sm font-medium" style={{ color: "var(--mute)" }}>{count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {!isCollapsed && (
@@ -349,6 +450,7 @@ export default function WorkspaceTodosPage() {
                               groupId={lane.id}
                               status={status} 
                               tasks={statusTasks}
+                              statusLabel={lane.statusLabels?.[status.id] ?? status.label}
                               creatingInStatus={creatingInStatus} 
                               setCreatingInStatus={setCreatingInStatus}
                               newTitle={newTitle} 
@@ -375,6 +477,17 @@ export default function WorkspaceTodosPage() {
                 );
               })}
             </div>
+            </div>
+
+            {offscreenGroups.bottom.length ? (
+              <div className="flex gap-2 overflow-x-auto rounded-xl border px-3 py-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                {offscreenGroups.bottom.map((group) => (
+                  <button key={`bottom-${group.id}`} onClick={() => scrollLaneToCenter(group.id)} className="shrink-0 rounded-full border px-3 py-1 text-xs font-medium" style={{ borderColor: "var(--hairline-strong)", color: "var(--ink)", backgroundColor: "var(--surface-elevated)" }}>
+                    {group.name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
           {typeof document !== "undefined"
             ? createPortal(
@@ -412,7 +525,7 @@ export default function WorkspaceTodosPage() {
   );
 }
 
-function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
+function KanbanColumn({ groupId, status, statusLabel, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
   const droppableId = `${groupId}::${status.id}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const isCreatingHere = creatingInStatus === droppableId;
@@ -445,7 +558,7 @@ function KanbanColumn({ groupId, status, tasks, creatingInStatus, setCreatingInS
             <button onClick={() => { setCreatingAiInStatus(null); setCreatingInStatus(droppableId); }}
               className="flex items-center gap-2 p-2 w-full rounded-md text-sm transition-colors hover:bg-[var(--surface-elevated)]"
               style={{ color: "var(--mute)" }}>
-              <Plus size={16} /> New task
+              <Plus size={16} /> New {statusLabel}
             </button>
             <button onClick={() => { setCreatingInStatus(null); setCreatingAiInStatus(droppableId); }}
               className="flex items-center gap-2 rounded-md px-3 text-sm transition-colors hover:bg-[var(--surface-elevated)]"

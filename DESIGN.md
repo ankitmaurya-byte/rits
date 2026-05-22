@@ -1,7 +1,7 @@
 ---
 version: alpha
 name: Resend-design-analysis
-description: |
+description: |tal
   Resend's marketing surfaces sit on a near-pure black canvas with off-white
   text and a single signature color  the deep editorial-serif Domaine
   Display headline mark  that gives an otherwise utilitarian developer-tool

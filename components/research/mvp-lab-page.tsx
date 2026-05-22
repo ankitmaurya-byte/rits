@@ -120,10 +120,10 @@ export function MvpLabBuilderPage() {
     <div className="page-container animate-fade-in-up relative">
       <div className="absolute top-0 right-1/4 w-[600px] h-[400px] pointer-events-none" style={{ background: "radial-gradient(ellipse at top, var(--accent-orange-glow) 0%, transparent 70%)", opacity: 0.16 }} />
 
-      <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
+      <div className="page-header border-b pb-8 mb-8 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <h2 className="text-4xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>MVP Lab</h2>
+            <h2 className="text-3xl font-medium tracking-tight sm:text-4xl" style={{ color: "var(--ink)" }}>MVP Lab</h2>
           </div>
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={() => setScope("private")} className="btn-outline" style={{ backgroundColor: scope === "private" ? "var(--surface-elevated)" : undefined }}>Private</button>

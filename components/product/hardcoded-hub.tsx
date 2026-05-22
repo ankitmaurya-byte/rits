@@ -40,10 +40,10 @@ export function HardcodedHubPage({
         }}
       />
 
-      <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
+      <div className="page-header border-b pb-8 mb-8 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
         <div className="flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <h2 className="text-4xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>
+            <h2 className="text-3xl font-medium tracking-tight sm:text-4xl" style={{ color: "var(--ink)" }}>
               {title}
             </h2>
           </div>

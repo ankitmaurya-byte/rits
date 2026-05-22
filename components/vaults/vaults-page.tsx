@@ -337,7 +337,7 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
           style={{ background: "radial-gradient(ellipse at top, var(--accent-green) 0%, transparent 70%)", opacity: 0.14 }}
         />
 
-        <div className="page-header border-b pb-12 mb-12 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
+        <div className="page-header border-b pb-8 mb-8 relative z-10" style={{ borderColor: "var(--hairline-strong)" }}>
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -353,7 +353,7 @@ export function VaultsPage({ scope, vaultId }: { scope: VaultScope; vaultId?: st
                   </>
                 )}
               </div>
-              <h2 className="text-3xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>
+              <h2 className="text-3xl font-medium tracking-tight sm:text-4xl" style={{ color: "var(--ink)" }}>
                 {scope === "workspace" ? "Workspace Vaults" : "Private Vaults"}
               </h2>
              </div>

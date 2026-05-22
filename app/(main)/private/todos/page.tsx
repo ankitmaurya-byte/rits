@@ -60,6 +60,7 @@ export default function PrivateTodosPage() {
   const [activeTask, setActiveTask] = useState<any | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [groupLimits, setGroupLimits] = useState<Record<string, number>>({});
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [statusOrder, setStatusOrder] = useState<string[]>(STATUSES.map(s => s.id));
   const orderedStatuses = useMemo(() => statusOrder.map(id => STATUSES.find(s => s.id === id)!), [statusOrder]);
@@ -516,12 +517,15 @@ export default function PrivateTodosPage() {
                                 return task.status === column.id;
                               }).length;
 
-                              const statusTasks = laneTasks.filter((task) => {
+                              const allStatusTasks = laneTasks.filter((task) => {
                                 if (column.id === "todo") return task.status === "todo" || (!task.status && !task.completed);
                                 if (column.id === "in-progress") return task.status === "in-progress";
                                 if (column.id === "completed") return task.status === "completed" || task.completed;
                                 return task.status === column.id;
                               });
+                              const currentLimit = groupLimits[lane.id] || 5;
+                              const statusTasks = allStatusTasks.slice(0, currentLimit);
+                              const hasMore = allStatusTasks.length > currentLimit;
 
                               if (!isExpanded) {
                                 return (
@@ -740,6 +744,8 @@ export default function PrivateTodosPage() {
                                     handleMoveTodo={handleMoveTodo}
                                     groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
                                     workspaceOptions={workspaceOptions}
+                                    hasMore={hasMore}
+                                    onLoadMore={() => setGroupLimits(prev => ({ ...prev, [lane.id]: (prev[lane.id] || 5) + 5 }))}
                                   />
                                 </div>
                               );
@@ -812,7 +818,7 @@ export default function PrivateTodosPage() {
   );
 }
 
-function KanbanColumn({ width = 320, groupId, status, statusLabel, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
+function KanbanColumn({ width = 320, groupId, status, statusLabel, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions, hasMore, onLoadMore }: any) {
   const droppableId = `${groupId}::${status.id}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const isCreatingHere = creatingInStatus === droppableId;
@@ -856,6 +862,15 @@ function KanbanColumn({ width = 320, groupId, status, statusLabel, tasks, creati
         {tasks.map((task: any) => (
           <DraggableTaskCard key={task._id} task={task} deleteTodo={deleteTodo} handleUpdateTodo={handleUpdateTodo} handleMoveTodo={handleMoveTodo} groupOptions={groupOptions} workspaceOptions={workspaceOptions} />
         ))}
+        {hasMore && (
+          <button
+            onClick={onLoadMore}
+            className="w-full mt-1 py-1.5 text-xs font-medium rounded-md hover:bg-[var(--surface-elevated)] transition-colors border border-dashed border-[var(--hairline-strong)]"
+            style={{ color: "var(--mute)" }}
+          >
+            Load more
+          </button>
+        )}
       </div>
     </div>
   );

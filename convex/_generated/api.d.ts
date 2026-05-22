@@ -27,6 +27,7 @@ import type * as sharkTank from "../sharkTank.js";
 import type * as sharkTankComments from "../sharkTankComments.js";
 import type * as social from "../social.js";
 import type * as socialChats from "../socialChats.js";
+import type * as todoExcelSheets from "../todoExcelSheets.js";
 import type * as todoGroups from "../todoGroups.js";
 import type * as todos from "../todos.js";
 import type * as users from "../users.js";
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   sharkTankComments: typeof sharkTankComments;
   social: typeof social;
   socialChats: typeof socialChats;
+  todoExcelSheets: typeof todoExcelSheets;
   todoGroups: typeof todoGroups;
   todos: typeof todos;
   users: typeof users;

@@ -9,6 +9,7 @@ import { useWorkspaceStore } from "@/store/workspace-store";
 import { Plus, Users, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
+import { TodoExcelSheetsView } from "@/components/todos/todo-excel-sheets-view";
 import { SheetView } from "@/components/todos/sheet-view";
 import { TodoSheetView } from "@/components/todos/todo-sheet-view";
 import {
@@ -50,7 +51,7 @@ export default function WorkspaceTodosPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<"board" | "table" | "sheet">("board");
+  const [viewMode, setViewMode] = useState<"board" | "table" | "sheet" | "excelSheets">("board");
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -250,6 +251,9 @@ export default function WorkspaceTodosPage() {
             <button onClick={() => setViewMode("sheet")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "sheet" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "sheet" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
               Sheet View
             </button>
+            <button onClick={() => setViewMode("excelSheets")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "excelSheets" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "excelSheets" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
+              Excel Sheets
+            </button>
           </div>
           {isOwner && (
             <button onClick={() => setShowCreateGroup(true)} className="btn-primary text-sm flex items-center gap-2 px-3">
@@ -292,6 +296,8 @@ export default function WorkspaceTodosPage() {
           onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
           onDeleteTodo={async (id) => { await deleteTodo({ id }); }}
         />
+      ) : viewMode === "excelSheets" ? (
+        <TodoExcelSheetsView scope="workspace" workspaceId={selectedWorkspaceId ?? undefined} clerkId={user?.id} />
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCorners}
           onDragStart={(e) => { const task = todos?.find((t) => t._id === e.active.id); if (task) setActiveTask(task); }}

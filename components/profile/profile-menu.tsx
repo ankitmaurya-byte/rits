@@ -8,6 +8,7 @@ import {
   Bell,
   LogOut,
   MessageSquare,
+  Radar,
   Settings,
   Shield,
   User,
@@ -111,6 +112,12 @@ export function ProfileMenu({ variant }: { variant?: "sidebar" }) {
             <Link href="/profile">
               <User size={14} />
               Profile
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard">
+              <Radar size={14} />
+              Dashboard
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>

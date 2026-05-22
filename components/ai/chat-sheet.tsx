@@ -16,7 +16,6 @@ import {
   Link2,
   Loader2,
   Lock,
-  MessageSquarePlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
@@ -30,7 +29,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
 import { useWorkspaceStore } from "@/store/workspace-store";
@@ -46,6 +44,7 @@ type ChatSheetProps = {
 
 type AgentKey = "workspace-strategist" | "researcher" | "planner" | "writer";
 type ScopeMode = "private" | "current" | "all";
+type ConversationSelectValue = Id<"chatConversations"> | "__new";
 
 type Citation = {
   refId: string;
@@ -436,7 +435,7 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
   const [draft, setDraft] = useState("");
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [isLoadingChat, setIsLoadingChat] = useState(false);
+  const [, setIsLoadingChat] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const activeRequestId = useRef(0);
@@ -446,6 +445,7 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
     (!isStartingNew ? (conversations[0]?._id ?? null) : null);
   const activeConversation =
     conversations.find((c) => c._id === activeConversationId) ?? null;
+  const conversationSelectValue: ConversationSelectValue = activeConversationId ?? "__new";
   const activeAgent = agents.find((a) => a.key === agentKey) ?? agents[0];
   const activeScope =
     scopeOptions.find((s) => s.key === scopeMode) ?? scopeOptions[0];
@@ -563,9 +563,7 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
   };
 
   const hasMessages = messages.length > 0 || pendingMessage !== null;
-  const conversationCount = conversations.length;
-  const visibleLoadError =
-    !user && isLoaded ? "Sign in to use Rits AI." : loadError;
+  const visibleLoadError = !user && isLoaded ? "Sign in to use Rits AI." : loadError;
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -638,6 +636,21 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                 options={scopeOptions.map((s) => ({ key: s.key, label: s.label }))}
               />
 
+              <MinimalSelect<ConversationSelectValue>
+                value={conversationSelectValue}
+                onChange={(value) => {
+                  if (value === "__new") {
+                    startNewConversation();
+                    return;
+                  }
+                  void openConversation(value);
+                }}
+                options={[
+                  { key: "__new", label: "New chat" },
+                  ...conversations.map((conversation) => ({ key: conversation._id, label: conversation.title })),
+                ]}
+              />
+
               {/* Scope badge */}
               <div
                 className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] sm:inline-flex"
@@ -659,127 +672,7 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
         {/* ---------------------------------------------------------------- */}
         {/* Body: sidebar + thread                                            */}
         {/* ---------------------------------------------------------------- */}
-        <div className="relative grid min-h-0 flex-1 xl:grid-cols-[240px_minmax(0,1fr)]">
-          {/* Conversation list */}
-          <aside
-            className="flex min-h-0 flex-col border-b xl:border-b-0 xl:border-r"
-            style={{
-              borderColor: "var(--hairline-strong)",
-              backgroundColor: "var(--surface-card)",
-            }}
-          >
-            {/* New chat button */}
-            <div
-              className="shrink-0 border-b px-3 py-2.5"
-              style={{ borderColor: "var(--hairline)" }}
-            >
-              <button
-                type="button"
-                onClick={startNewConversation}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors"
-                style={{ color: "var(--charcoal)" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "rgba(255,255,255,0.06)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
-                }}
-              >
-                <MessageSquarePlus size={15} style={{ color: "var(--mute)" }} />
-                New chat
-              </button>
-            </div>
-
-            {/* List */}
-            <div className="min-h-0 flex-1 overflow-y-auto py-2">
-              {isLoadingChat && conversationCount === 0 ? (
-                <div
-                  className="flex items-center gap-2 px-5 py-2 text-[12px]"
-                  style={{ color: "var(--charcoal)" }}
-                >
-                  <Loader2 size={12} className="animate-spin" />
-                  Loading…
-                </div>
-              ) : null}
-
-              {visibleLoadError ? (
-                <div
-                  className="px-5 py-2 text-[12px] leading-5"
-                  style={{ color: "var(--charcoal)" }}
-                >
-                  {visibleLoadError}
-                </div>
-              ) : null}
-
-              {!isLoadingChat && !visibleLoadError && conversationCount === 0 ? (
-                <div
-                  className="px-5 py-2 text-[12px] leading-5"
-                  style={{ color: "var(--mute)" }}
-                >
-                  No conversations yet.
-                </div>
-              ) : null}
-
-              <div className="flex flex-col">
-                {conversations.map((conversation) => {
-                  const isActive =
-                    conversation._id === activeConversationId && !isStartingNew;
-                  return (
-                    <button
-                      key={conversation._id}
-                      type="button"
-                      onClick={() => void openConversation(conversation._id)}
-                      className="group flex w-full items-center gap-2.5 px-3 py-[7px] text-left transition-colors"
-                      style={{
-                        backgroundColor: isActive
-                          ? "rgba(255,255,255,0.07)"
-                          : "transparent",
-                        borderLeft: isActive
-                          ? "2px solid var(--ink)"
-                          : "2px solid transparent",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive)
-                          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                            "rgba(255,255,255,0.04)";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive)
-                          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                            "transparent";
-                      }}
-                    >
-                      <span
-                        className="h-1.5 w-1.5 shrink-0 rounded-full"
-                        style={{
-                          backgroundColor: isActive
-                            ? "var(--accent-blue)"
-                            : "var(--stone)",
-                        }}
-                      />
-                      <span
-                        className="flex-1 truncate text-[13px]"
-                        style={{
-                          color: isActive ? "var(--ink)" : "var(--charcoal)",
-                          fontWeight: isActive ? 500 : 400,
-                        }}
-                      >
-                        {conversation.title}
-                      </span>
-                      <span
-                        className="shrink-0 text-[10px] tabular-nums"
-                        style={{ color: "var(--mute)" }}
-                      >
-                        {formatDistanceToNow(new Date(conversation.updatedAt), { addSuffix: false })}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </aside>
-
-          {/* Thread pane */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 min-w-0 flex-col">
             {/* Conversation meta bar */}
             <div
@@ -801,7 +694,9 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
                     {activeConversation?.title ?? "Start a new Rits AI thread"}
                   </h3>
                   <p className="mt-0.5 text-xs leading-5" style={{ color: "var(--charcoal)" }}>
-                    {activeConversation
+                    {visibleLoadError
+                      ? visibleLoadError
+                      : activeConversation
                       ? `${formatMessageTime(activeConversation.updatedAt)} · ${activeScope.description.toLowerCase()}`
                       : "Ask for synthesis, prioritization, or links across the work you already captured in Rits."}
                   </p>

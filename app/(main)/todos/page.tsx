@@ -8,6 +8,7 @@ import { api } from "@/convex/_generated/api";
 import { Plus, Sparkles, CheckCircle2, Circle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
+import { TodoExcelSheetsView } from "@/components/todos/todo-excel-sheets-view";
 import { SheetView } from "@/components/todos/sheet-view";
 import { TodoSheetView } from "@/components/todos/todo-sheet-view";
 
@@ -44,7 +45,7 @@ export default function TodosPage() {
   const [creatingAiInStatus, setCreatingAiInStatus] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiCreating, setIsAiCreating] = useState(false);
-  const [viewMode, setViewMode] = useState<"board" | "table" | "sheet">("board");
+  const [viewMode, setViewMode] = useState<"board" | "table" | "sheet" | "excelSheets">("board");
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -202,6 +203,9 @@ export default function TodosPage() {
             <button onClick={() => setViewMode("sheet")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "sheet" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "sheet" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
               Sheet View
             </button>
+            <button onClick={() => setViewMode("excelSheets")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "excelSheets" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "excelSheets" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
+              Excel Sheets
+            </button>
           </div>
         </div>
       </div>
@@ -238,6 +242,8 @@ export default function TodosPage() {
           onUpdateTodo={async (id, updates) => handleUpdateTodo(id, updates as Record<string, unknown>)}
           onDeleteTodo={async (id) => { await deleteTodo({ id }); }}
         />
+      ) : viewMode === "excelSheets" ? (
+        <TodoExcelSheetsView scope="workspace" workspaceId={workspaceId ?? undefined} />
       ) : (
         <DndContext 
           sensors={sensors} 

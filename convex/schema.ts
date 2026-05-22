@@ -347,6 +347,27 @@ export default defineSchema({
     .index("by_workspace", ["workspaceId"])
     .index("by_user", ["createdBy"]),
 
+  todoExcelSheets: defineTable({
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    workspaceId: v.optional(v.id("workspaces")),
+    createdBy: v.optional(v.id("users")),
+    name: v.string(),
+    order: v.number(),
+    rowCount: v.number(),
+    columnCount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_workspace_and_order", ["workspaceId", "order"])
+    .index("by_user_and_order", ["createdBy", "order"]),
+
+  todoExcelRows: defineTable({
+    sheetId: v.id("todoExcelSheets"),
+    rowIndex: v.number(),
+    cells: v.record(v.string(), v.string()),
+    updatedAt: v.number(),
+  }).index("by_sheet_and_row_index", ["sheetId", "rowIndex"]),
+
   vaults: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),
     workspaceId: v.optional(v.id("workspaces")),
@@ -502,12 +523,21 @@ export default defineSchema({
     prompt: v.string(),
     context: v.string(),
     content: v.string(),
+    summary: v.optional(v.string()),
+    sourceType: v.optional(v.string()),
+    sourceFilters: v.optional(v.array(v.string())),
+    contextOrigin: v.optional(v.string()),
+    contextAttachmentName: v.optional(v.string()),
+    published: v.optional(v.boolean()),
+    shareToken: v.optional(v.string()),
     createdBy: v.id("users"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
-    .index("by_user_private", ["createdBy", "scope"]),
+    .index("by_user_private", ["createdBy", "scope"])
+    .index("by_published_and_updated_at", ["published", "updatedAt"])
+    .index("by_share_token", ["shareToken"]),
 
   mvpPages: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),

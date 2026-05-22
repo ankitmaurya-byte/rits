@@ -20,8 +20,6 @@ import {
   FolderKanban,
   MessageSquareText,
   PlugZap,
-  Radar,
-  Receipt,
   Search,
   SearchCode,
   Telescope,
@@ -56,7 +54,6 @@ const stickyBottomLinks = [
   { href: "/private/chats", label: "Private Chats", icon: MessageSquareText },
   { href: "/private/vaults", label: "Private Vault", icon: FolderKanban },
   { href: "/feed", label: "Tech Feed", icon: Flame },
-  { href: "/dashboard", label: "Dashboard", icon: Radar },
 ];
 
 const searchEntries = [

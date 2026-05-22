@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useWorkspaceStore } from "@/store/workspace-store";
-import { Plus, Users, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, X, Sparkles, AlertCircle, ListTodo, CheckSquare, XCircle, AlertTriangle, PlayCircle, Palette, Activity } from "lucide-react";
+import { Plus, Users, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, X, Sparkles, AlertCircle, ListTodo, CheckSquare, XCircle, AlertTriangle, PlayCircle, Palette, Activity, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
 import { TodoExcelSheetsView } from "@/components/todos/todo-excel-sheets-view";
@@ -246,6 +246,29 @@ export default function WorkspaceTodosPage() {
     }
   };
 
+  const [expandedStartIndices, setExpandedStartIndices] = useState<Record<string, number>>({});
+  const [boardWidth, setBoardWidth] = useState(1000);
+
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      if (entries[0]) {
+        setBoardWidth(entries[0].contentRect.width);
+      }
+    });
+    if (boardScrollRef.current) observer.observe(boardScrollRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const handleExpand = (laneId: string, index: number, E: number, N: number) => {
+    setExpandedStartIndices(prev => {
+      const current = prev[laneId] || 0;
+      const valid = Math.max(0, Math.min(current, N - E));
+      if (index < valid) return { ...prev, [laneId]: index };
+      if (index >= valid + E) return { ...prev, [laneId]: index - E + 1 };
+      return prev;
+    });
+  };
+
   useEffect(() => {
     if (viewMode !== "board") return;
 
@@ -329,7 +352,14 @@ export default function WorkspaceTodosPage() {
     if (!user || lane.id === "no-team" || !isOwner) return;
     const next = window.prompt("New column name")?.trim();
     if (!next) return;
-    const newId = next.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    let baseId = next.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    if (!baseId) baseId = "col";
+    let newId = baseId;
+    let counter = 1;
+    while (lane.columns.some((c: any) => c.id === newId)) {
+      newId = `${baseId}-${counter}`;
+      counter++;
+    }
     const updatedColumns = [...lane.columns, { id: newId, label: next, color: "var(--mute)" }];
     await updateWorkspaceGroup({
       groupId: lane.id as any,
@@ -445,6 +475,24 @@ export default function WorkspaceTodosPage() {
                   const laneTasks = todos?.filter(t => (t.groupId || "no-team") === lane.id) || [];
                   const isCollapsed = collapsedGroups.has(lane.id);
 
+                  const N = lane.columns.length;
+                  const E = Math.min(3, N);
+                  const collapsedCount = N - E;
+                  const availableW = boardWidth - 16;
+                  
+                  const collapsedWidth = collapsedCount * 48;
+                  const gapsWidth = Math.max(0, N - 1) * 24;
+                  const usedW = collapsedWidth + gapsWidth;
+                  
+                  const requiredWWithAdd = E * 260 + usedW + 72; // 72 for add button + gap
+                  const canAdd = availableW >= requiredWWithAdd;
+                  
+                  const availableForExpanded = availableW - usedW - (canAdd ? 72 : 0);
+                  const exactWidth = Math.max(260, Math.floor(availableForExpanded / E));
+
+                  const startIndex = expandedStartIndices[lane.id] || 0;
+                  const validStartIndex = Math.max(0, Math.min(startIndex, N - E));
+
                   return (
                     <div key={lane.id} className="flex flex-col" ref={(element) => { laneRefs.current[lane.id] = element; }}>
                       <div ref={(element) => { laneHeaderRefs.current[lane.id] = element; }} className="mb-3 flex items-center gap-2">
@@ -480,9 +528,10 @@ export default function WorkspaceTodosPage() {
                       </div>
 
                       <div className="overflow-x-auto pb-4 custom-scrollbar">
-                        <div className="sticky top-0 z-20 mb-3 transition-all duration-200" style={{ backgroundColor: "transparent" }}>
-                          <div className="flex gap-6 min-w-max">
-                            {lane.columns.map((column: any) => {
+                        {!isCollapsed && (
+                          <div className="flex gap-6 pl-4 items-start">
+                            {lane.columns.map((column: any, index: number) => {
+                              const isExpanded = index >= validStartIndex && index < validStartIndex + E;
                               const IconMap: Record<string, any> = {
                                 circle: Circle, clock: Clock, check: CheckCircle2, alert: AlertCircle,
                                 list: ListTodo, square: CheckSquare, x: XCircle, triangle: AlertTriangle, play: PlayCircle
@@ -494,219 +543,245 @@ export default function WorkspaceTodosPage() {
                                 if (column.id === "completed") return task.status === "completed" || task.completed;
                                 return task.status === column.id;
                               }).length;
-                              return (
-                                <div
-                                  key={`${lane.id}-${column.id}-sticky`}
-                                  className="w-[320px] flex items-center justify-between gap-3 px-3 py-2"
-                                  style={{ backgroundColor: "var(--surface-deep)", cursor: "grab" }}
-                                  draggable
-                                  onDragStart={(e) => {
-                                    e.dataTransfer.setData("text/plain", column.id);
-                                    e.dataTransfer.effectAllowed = "move";
-                                  }}
-                                  onDragOver={(e) => {
-                                    e.preventDefault();
-                                    e.dataTransfer.dropEffect = "move";
-                                  }}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    const draggedStatusId = e.dataTransfer.getData("text/plain");
-                                    if (draggedStatusId && draggedStatusId !== column.id) {
-                                      // Reorder columns
-                                      const updatedColumns = [...lane.columns];
-                                      const fromIndex = updatedColumns.findIndex(c => c.id === draggedStatusId);
-                                      const toIndex = updatedColumns.findIndex(c => c.id === column.id);
-                                      if (fromIndex > -1 && toIndex > -1) {
-                                        const [moved] = updatedColumns.splice(fromIndex, 1);
-                                        updatedColumns.splice(toIndex, 0, moved);
-                                        updateWorkspaceGroup({ groupId: lane.id as any, clerkId: user!.id, columns: updatedColumns });
-                                      }
-                                    }
-                                    newOrder.splice(toIndex, 0, draggedStatusId);
-                                  }
-                                    return newOrder;
-                            });
-                                }
-                              }}
-                            onDoubleClick={() => {
-                              if (lane.id !== "no-team" && isOwner) {
-                                const currentLabel = column.label;
-                                const next = window.prompt("Edit column name", currentLabel)?.trim();
-                                if (next && next !== currentLabel) void updateLaneColumnLabel(lane, column.id, next);
+
+                              const statusTasks = laneTasks.filter(t => {
+                                if (column.id === "todo") return t.status === "todo" || (!t.status && !t.completed);
+                                if (column.id === "in-progress") return t.status === "in-progress";
+                                if (column.id === "completed") return t.status === "completed" || t.completed;
+                                return t.status === column.id;
+                              });
+
+                              if (!isExpanded) {
+                                 return (
+                                   <div key={`${lane.id}-${column.id}-${index}-sticky`} className="flex flex-col gap-3 shrink-0">
+                                     <div 
+                                       className="w-12 shrink-0 flex flex-col items-center py-3 rounded cursor-pointer hover:bg-[var(--surface-elevated)] transition-colors" 
+                                       style={{ backgroundColor: "var(--surface-deep)" }}
+                                       onClick={() => handleExpand(lane.id, index, E, N)}
+                                       draggable
+                                       onDragStart={(e) => { e.dataTransfer.setData("text/plain", column.id); e.dataTransfer.effectAllowed = "move"; }}
+                                       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                                       onDrop={(e) => {
+                                         e.preventDefault();
+                                         const draggedStatusId = e.dataTransfer.getData("text/plain");
+                                         if (draggedStatusId && draggedStatusId !== column.id) {
+                                           const updatedColumns = [...lane.columns];
+                                           const fromIndex = updatedColumns.findIndex(c => c.id === draggedStatusId);
+                                           const toIndex = updatedColumns.findIndex(c => c.id === column.id);
+                                           if (fromIndex > -1 && toIndex > -1) {
+                                             const [moved] = updatedColumns.splice(fromIndex, 1);
+                                             updatedColumns.splice(toIndex, 0, moved);
+                                             updateWorkspaceGroup({ groupId: lane.id as any, clerkId: user!.id, columns: updatedColumns });
+                                           }
+                                         }
+                                       }}
+                                     >
+                                       <StatusIcon size={16} style={{ color: column.color || "var(--mute)" }} />
+                                       <span className="mt-3 text-xs font-semibold whitespace-nowrap" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', color: "var(--ink)" }}>
+                                         {column.label}
+                                       </span>
+                                       <span className="mt-2 text-xs font-medium text-[var(--mute)]">{count}</span>
+                                     </div>
+                                     <CollapsedBody groupId={lane.id} status={column} onClick={() => handleExpand(lane.id, index, E, N)} />
+                                   </div>
+                                 );
                               }
-                            }}
-                            >
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button className="flex min-w-0 items-center gap-2 rounded px-1 py-0.5 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)", cursor: "pointer" }}>
-                                  <GripVertical size={14} style={{ color: "var(--mute)" }} />
-                                  <StatusIcon size={16} style={{ color: column.color || "var(--mute)" }} />
-                                  <div className="flex min-w-0 items-center gap-1.5">
-                                    <span className="font-medium text-sm">{column.label}</span>
-                                    <span className="text-sm font-medium tabular-nums" style={{ color: "var(--mute)", minWidth: count >= 100 ? "2.25rem" : count >= 10 ? "1.5rem" : undefined }}>
-                                      {count}
-                                    </span>
+
+                              return (
+                                <div key={`${lane.id}-${column.id}-${index}-sticky`} className="flex flex-col gap-3 shrink-0" style={{ width: exactWidth }}>
+                                  <div
+                                    className="group flex items-center justify-between gap-3 px-3 py-2 shrink-0 transition-all duration-200 sticky top-0 z-20"
+                                    style={{ backgroundColor: "var(--surface-deep)", cursor: "grab" }}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData("text/plain", column.id);
+                                      e.dataTransfer.effectAllowed = "move";
+                                    }}
+                                    onDragOver={(e) => {
+                                      e.preventDefault();
+                                      e.dataTransfer.dropEffect = "move";
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      const draggedStatusId = e.dataTransfer.getData("text/plain");
+                                      if (draggedStatusId && draggedStatusId !== column.id) {
+                                        const updatedColumns = [...lane.columns];
+                                        const fromIndex = updatedColumns.findIndex(c => c.id === draggedStatusId);
+                                        const toIndex = updatedColumns.findIndex(c => c.id === column.id);
+                                        if (fromIndex > -1 && toIndex > -1) {
+                                          const [moved] = updatedColumns.splice(fromIndex, 1);
+                                          updatedColumns.splice(toIndex, 0, moved);
+                                          updateWorkspaceGroup({ groupId: lane.id as any, clerkId: user!.id, columns: updatedColumns });
+                                        }
+                                      }
+                                    }}
+                                    onDoubleClick={() => {
+                                      if (lane.id !== "no-team" && isOwner) {
+                                        const currentLabel = column.label;
+                                        const next = window.prompt("Edit column name", currentLabel)?.trim();
+                                        if (next && next !== currentLabel) void updateLaneColumnLabel(lane, column.id, next);
+                                      }
+                                    }}
+                                  >
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <button className="flex min-w-0 items-center gap-2 rounded px-1 py-0.5 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)", cursor: "pointer" }}>
+                                          <GripVertical size={14} style={{ color: "var(--mute)" }} />
+                                          <StatusIcon size={16} style={{ color: column.color || "var(--mute)" }} />
+                                          <div className="flex min-w-0 items-center gap-1.5">
+                                            <span className="font-medium text-sm">{column.label}</span>
+                                            <span className="text-sm font-medium tabular-nums" style={{ color: "var(--mute)", minWidth: count >= 100 ? "2.25rem" : count >= 10 ? "1.5rem" : undefined }}>
+                                              {count}
+                                            </span>
+                                          </div>
+                                        </button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="start">
+                                        {lane.id !== "no-team" && isOwner ? (
+                                          <>
+                                            <DropdownMenuItem onClick={() => {
+                                              const currentLabel = column.label;
+                                              const next = window.prompt("Edit column name", currentLabel)?.trim();
+                                              if (next && next !== currentLabel) void updateLaneColumnLabel(lane, column.id, next);
+                                            }}>
+                                              Edit name
+                                            </DropdownMenuItem>
+
+                                            <DropdownMenuSub>
+                                              <DropdownMenuSubTrigger>
+                                                <Palette size={14} className="mr-2" style={{ color: "var(--mute)" }} />
+                                                Color
+                                              </DropdownMenuSubTrigger>
+                                              <DropdownMenuPortal>
+                                                <DropdownMenuSubContent alignOffset={-5}>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--charcoal)" })}>
+                                                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--charcoal)" }} /> Gray
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-blue)" })}>
+                                                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-blue)" }} /> Blue
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-green)" })}>
+                                                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-green)" }} /> Green
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-red)" })}>
+                                                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-red)" }} /> Red
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-orange)" })}>
+                                                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-orange)" }} /> Orange
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-purple)" })}>
+                                                    <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-purple)" }} /> Purple
+                                                  </DropdownMenuItem>
+                                                </DropdownMenuSubContent>
+                                              </DropdownMenuPortal>
+                                            </DropdownMenuSub>
+
+                                            <DropdownMenuSub>
+                                              <DropdownMenuSubTrigger>
+                                                <Activity size={14} className="mr-2" style={{ color: "var(--mute)" }} />
+                                                Icon
+                                              </DropdownMenuSubTrigger>
+                                              <DropdownMenuPortal>
+                                                <DropdownMenuSubContent alignOffset={-5}>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "circle" })}>
+                                                    <Circle size={14} className="mr-2" /> Circle
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "clock" })}>
+                                                    <Clock size={14} className="mr-2" /> Clock
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "check" })}>
+                                                    <CheckCircle2 size={14} className="mr-2" /> Check
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "list" })}>
+                                                    <ListTodo size={14} className="mr-2" /> List
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "alert" })}>
+                                                    <AlertCircle size={14} className="mr-2" /> Alert
+                                                  </DropdownMenuItem>
+                                                  <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "square" })}>
+                                                    <CheckSquare size={14} className="mr-2" /> Square
+                                                  </DropdownMenuItem>
+                                                </DropdownMenuSubContent>
+                                              </DropdownMenuPortal>
+                                            </DropdownMenuSub>
+                                          </>
+                                        ) : null}
+                                        <DropdownMenuItem onClick={() => void navigator.clipboard.writeText(column.label).then(() => toast.success("Column name copied."))}>
+                                          Share
+                                        </DropdownMenuItem>
+                                        {lane.id !== "no-team" && isOwner ? (
+                                          <DropdownMenuItem variant="destructive" onClick={() => {
+                                            if (window.confirm("Delete column? Tasks will be orphaned.")) {
+                                              const updatedColumns = lane.columns.filter((c: any) => c.id !== column.id);
+                                              updateWorkspaceGroup({ groupId: lane.id as any, clerkId: user!.id, columns: updatedColumns });
+                                            }
+                                          }}>
+                                            Delete
+                                          </DropdownMenuItem>
+                                        ) : null}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          setCreatingAiInStatus(null);
+                                          setCreatingInStatus(`${lane.id}::${column.id}`);
+                                        }}
+                                        className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
+                                        style={{ color: "var(--mute)" }}
+                                      >
+                                        <Plus size={16} />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setCreatingInStatus(null);
+                                          setCreatingAiInStatus(`${lane.id}::${column.id}`);
+                                        }}
+                                        className="flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-[var(--surface-elevated)] transition-colors"
+                                        style={{ color: "var(--mute)" }}
+                                      >
+                                        <Sparkles size={13} /> AI
+                                      </button>
+                                    </div>
                                   </div>
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start">
-                                {lane.id !== "no-team" && isOwner ? (
-                                  <>
-                                    <DropdownMenuItem onClick={() => {
-                                      const currentLabel = column.label;
-                                      const next = window.prompt("Edit column name", currentLabel)?.trim();
-                                      if (next && next !== currentLabel) void updateLaneColumnLabel(lane, column.id, next);
-                                    }}>
-                                      Edit name
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuSub>
-                                      <DropdownMenuSubTrigger>
-                                        <Palette size={14} className="mr-2" style={{ color: "var(--mute)" }} />
-                                        Color
-                                      </DropdownMenuSubTrigger>
-                                      <DropdownMenuPortal>
-                                        <DropdownMenuSubContent alignOffset={-5}>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--charcoal)" })}>
-                                            <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--charcoal)" }} /> Gray
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-blue)" })}>
-                                            <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-blue)" }} /> Blue
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-green)" })}>
-                                            <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-green)" }} /> Green
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-red)" })}>
-                                            <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-red)" }} /> Red
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-orange)" })}>
-                                            <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-orange)" }} /> Orange
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { color: "var(--accent-purple)" })}>
-                                            <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: "var(--accent-purple)" }} /> Purple
-                                          </DropdownMenuItem>
-                                        </DropdownMenuSubContent>
-                                      </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-
-                                    <DropdownMenuSub>
-                                      <DropdownMenuSubTrigger>
-                                        <Activity size={14} className="mr-2" style={{ color: "var(--mute)" }} />
-                                        Icon
-                                      </DropdownMenuSubTrigger>
-                                      <DropdownMenuPortal>
-                                        <DropdownMenuSubContent alignOffset={-5}>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "circle" })}>
-                                            <Circle size={14} className="mr-2" /> Circle
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "clock" })}>
-                                            <Clock size={14} className="mr-2" /> Clock
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "check" })}>
-                                            <CheckCircle2 size={14} className="mr-2" /> Check
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "list" })}>
-                                            <ListTodo size={14} className="mr-2" /> List
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "alert" })}>
-                                            <AlertCircle size={14} className="mr-2" /> Alert
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem onClick={() => updateLaneColumnAppearance(lane, column.id, { icon: "square" })}>
-                                            <CheckSquare size={14} className="mr-2" /> Square
-                                          </DropdownMenuItem>
-                                        </DropdownMenuSubContent>
-                                      </DropdownMenuPortal>
-                                    </DropdownMenuSub>
-                                  </>
-                                ) : null}
-                                <DropdownMenuItem onClick={() => void navigator.clipboard.writeText(column.label).then(() => toast.success("Column name copied."))}>
-                                  Share
-                                </DropdownMenuItem>
-                                {lane.id !== "no-team" && isOwner ? (
-                                  <DropdownMenuItem variant="destructive" onClick={() => {
-                                    if (window.confirm("Delete column? Tasks will be orphaned.")) {
-                                      const updatedColumns = lane.columns.filter((c: any) => c.id !== column.id);
-                                      updateWorkspaceGroup({ groupId: lane.id as any, clerkId: user!.id, columns: updatedColumns });
-                                    }
-                                  }}>
-                                    Delete
-                                  </DropdownMenuItem>
-                                ) : null}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                onClick={() => {
-                                  setCreatingAiInStatus(null);
-                                  setCreatingInStatus(`${lane.id}::${column.id}`);
-                                }}
-                                className="p-1 rounded hover:bg-[var(--surface-elevated)] transition-colors"
-                                style={{ color: "var(--mute)" }}
-                              >
-                                <Plus size={16} />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setCreatingInStatus(null);
-                                  setCreatingAiInStatus(`${lane.id}::${column.id}`);
-                                }}
-                                className="flex items-center gap-1 rounded px-2 py-1 text-xs hover:bg-[var(--surface-elevated)] transition-colors"
-                                style={{ color: "var(--mute)" }}
-                              >
-                                <Sparkles size={13} /> AI
-                              </button>
-                            </div>
-                          </div>
-                          );
-                        })}
-                          <div className="w-8 shrink-0" />
-                        </div>
-                      </div>
-
-                      {!isCollapsed && (
-                        <div className="flex gap-6 pl-4">
-                          {lane.columns.map((column: any) => {
-                            const statusTasks = laneTasks.filter(t => {
-                              if (column.id === "todo") return t.status === "todo" || (!t.status && !t.completed);
-                              if (column.id === "in-progress") return t.status === "in-progress";
-                              if (column.id === "completed") return t.status === "completed" || t.completed;
-                              return t.status === column.id;
-                            });
-                            return (
-                              <KanbanColumn
-                                key={`${lane.id}::${column.id}`}
-                                groupId={lane.id}
-                                status={column}
-                                tasks={statusTasks}
-                                statusLabel={column.label}
-                                creatingInStatus={creatingInStatus}
-                                setCreatingInStatus={setCreatingInStatus}
-                                newTitle={newTitle}
-                                setNewTitle={setNewTitle}
-                                handleCreate={handleCreate}
-                                creatingAiInStatus={creatingAiInStatus}
-                                setCreatingAiInStatus={setCreatingAiInStatus}
-                                aiPrompt={aiPrompt}
-                                setAiPrompt={setAiPrompt}
-                                handleCreateWithAi={handleCreateWithAi}
-                                isAiCreating={isAiCreating}
-                                deleteTodo={deleteTodo}
-                                handleUpdateStatus={handleUpdateStatus}
-                                handleUpdateTodo={handleUpdateTodo}
-                                handleMoveTodo={handleMoveTodo}
-                                groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
-                                workspaceOptions={workspaceOptions}
-                              />
-                            );
-                          })}
-                          <button
-                            onClick={() => addLaneColumn(lane)}
-                            className="flex shrink-0 w-8 items-center justify-center rounded-xl border border-dashed border-[var(--hairline-strong)] bg-transparent hover:bg-[var(--surface-elevated)] transition-colors text-[var(--mute)] hover:text-[var(--ink)] cursor-pointer"
-                          >
-                            <span className="text-xs font-semibold uppercase tracking-widest whitespace-nowrap flex items-center gap-2" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-                              <Plus size={14} className="inline-block" /> Add Column
-                            </span>
-                          </button>
+                                  <KanbanColumn
+                                    width={exactWidth}
+                                    groupId={lane.id}
+                                    status={column}
+                                    tasks={statusTasks}
+                                    statusLabel={column.label}
+                                    creatingInStatus={creatingInStatus}
+                                    setCreatingInStatus={setCreatingInStatus}
+                                    newTitle={newTitle}
+                                    setNewTitle={setNewTitle}
+                                    handleCreate={handleCreate}
+                                    creatingAiInStatus={creatingAiInStatus}
+                                    setCreatingAiInStatus={setCreatingAiInStatus}
+                                    aiPrompt={aiPrompt}
+                                    setAiPrompt={setAiPrompt}
+                                    handleCreateWithAi={handleCreateWithAi}
+                                    isAiCreating={isAiCreating}
+                                    deleteTodo={deleteTodo}
+                                    handleUpdateStatus={handleUpdateStatus}
+                                    handleUpdateTodo={handleUpdateTodo}
+                                    handleMoveTodo={handleMoveTodo}
+                                    groupOptions={groups?.map((group) => ({ id: group._id, name: group.name })) ?? []}
+                                    workspaceOptions={workspaceOptions}
+                                  />
+                                </div>
+                              );
+                            })}
+                          
+                          {canAdd && (
+                            <button
+                              onClick={() => addLaneColumn(lane)}
+                              className="flex shrink-0 w-12 h-full min-h-[150px] items-center justify-center rounded-xl border border-dashed border-[var(--hairline-strong)] bg-transparent hover:bg-[var(--surface-elevated)] transition-colors text-[var(--mute)] hover:text-[var(--ink)] cursor-pointer"
+                            >
+                              <span className="text-xs font-semibold uppercase tracking-widest whitespace-nowrap flex items-center gap-2" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                                <Plus size={14} className="inline-block" /> Add Column
+                              </span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -768,7 +843,7 @@ export default function WorkspaceTodosPage() {
   );
 }
 
-function KanbanColumn({ groupId, status, statusLabel, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
+function KanbanColumn({ width = 320, groupId, status, statusLabel, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, handleMoveTodo, groupOptions, workspaceOptions }: any) {
   const droppableId = `${groupId}::${status.id}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const isCreatingHere = creatingInStatus === droppableId;
@@ -776,8 +851,8 @@ function KanbanColumn({ groupId, status, statusLabel, tasks, creatingInStatus, s
 
   return (
     <div ref={setNodeRef}
-      className={`flex-shrink-0 w-[320px] flex flex-col gap-3 rounded-xl p-2 transition-colors duration-200 border border-transparent ${isOver ? "bg-[var(--surface-elevated)] border-[var(--hairline-strong)]" : ""}`}
-      style={{ minHeight: "150px" }}>
+      className={`flex-shrink-0 flex flex-col gap-3 rounded-xl px-2 pb-2 pt-0 transition-all duration-200 border border-transparent ${isOver ? "bg-[var(--surface-elevated)] border-[var(--hairline-strong)]" : ""}`}
+      style={{ width: `${width}px`, minHeight: "150px" }}>
       <div className="flex flex-col gap-3">
         {isCreatingHere ? (
           <div className="feature-card p-3 rounded-xl border shadow-sm" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--accent-blue)" }}>
@@ -838,5 +913,20 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, handleMoveTodo,
         onMoveTodo={(id, target) => handleMoveTodo(id, target)}
       />
     </div>
+  );
+}
+
+function CollapsedBody({ groupId, status, onClick }: any) {
+  const droppableId = `${groupId}::${status.id}`;
+  const { setNodeRef, isOver } = useDroppable({ id: droppableId });
+  
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`w-12 shrink-0 rounded-xl border border-dashed cursor-pointer hover:bg-[var(--surface-elevated)] transition-colors
+        ${isOver ? "bg-[var(--surface-elevated)] border-[var(--hairline-strong)]" : "border-transparent"}`}
+      style={{ minHeight: "150px", backgroundColor: "var(--surface-deep)" }}
+      onClick={onClick}
+    />
   );
 }

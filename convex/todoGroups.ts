@@ -153,3 +153,54 @@ export const updateWorkspaceGroup = mutation({
     });
   },
 });
+
+export const deletePrivateGroup = mutation({
+  args: {
+    groupId: v.id("todoGroups"),
+    createdBy: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const group = await ctx.db.get(args.groupId);
+    if (!group || group.createdBy !== args.createdBy || group.workspaceId) {
+      throw new ConvexError("Private group not found or access denied");
+    }
+    
+    // Unassign tasks from this group before deleting
+    const tasks = await ctx.db.query("todos").withIndex("by_user_private", (q) => q.eq("createdBy", args.createdBy)).collect();
+    for (const task of tasks) {
+      if (task.groupId === args.groupId) {
+        await ctx.db.patch(task._id, { groupId: undefined, status: "todo" });
+      }
+    }
+    
+    await ctx.db.delete(args.groupId);
+  },
+});
+
+export const deleteWorkspaceGroup = mutation({
+  args: {
+    groupId: v.id("todoGroups"),
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getUserByClerkId(ctx, args.clerkId);
+    const group = await ctx.db.get(args.groupId);
+    if (!group || !group.workspaceId) {
+      throw new ConvexError("Workspace group not found");
+    }
+    const workspace = await ctx.db.get(group.workspaceId);
+    if (!workspace || workspace.ownerId !== user._id) {
+      throw new ConvexError("Only the workspace owner can delete this group");
+    }
+    
+    // Unassign tasks from this group before deleting
+    const tasks = await ctx.db.query("todos").withIndex("by_workspace", (q) => q.eq("workspaceId", group.workspaceId as any)).collect();
+    for (const task of tasks) {
+      if (task.groupId === args.groupId) {
+        await ctx.db.patch(task._id, { groupId: undefined, status: "todo" });
+      }
+    }
+
+    await ctx.db.delete(args.groupId);
+  },
+});

@@ -6,75 +6,175 @@ import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
 import { Id } from "@/convex/_generated/dataModel";
-import { Plus, FileText, Trash2, Clock, Menu, Lock } from "lucide-react";
+import { Plus, FileText, Trash2, Clock, Menu, Lock, ChevronRight, List, Filter, ArrowDownUp, Zap, Search, Maximize2, Settings, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { NoteEditor } from "@/components/notes/editor";
 import { formatDistanceToNow } from "date-fns";
 import { useConfirm } from "@/components/ui/confirm-provider";
 
-export default function PrivateNotesPage() {
-  const { user } = useUser();
-  const searchParams = useSearchParams();
-  const convexUser = useQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
+const MOCK_FOLDERS = [
+  { id: "my-folders", name: "My Folders" },
+  { id: "shared", name: "Shared" },
+  { id: "shared-with-me", name: "Shared With Me" }
+];
 
-  const notes = useQuery(api.notes.getPrivateNotes, convexUser ? { createdBy: convexUser._id } : "skip");
-  const createNote = useMutation(api.notes.createNote);
-  const updateNote = useMutation(api.notes.updateNote);
-  const deleteNote = useMutation(api.notes.deleteNote);
+const MOCK_RESOURCES = [
+  {
+    id: "architecture-guide",
+    title: "Architecture Guide —",
+    folder: "spiral tech resources",
+    type: "page"
+  },
+  {
+    id: "yc-companies",
+    url: "https://news.ycombinator.com/item?id=32724564",
+    title: "Pitch Deck Perfection",
+    folder: "YC companies",
+    type: "link"
+  }
+];
 
-  const [selectedId, setSelectedId] = useState<Id<"notes"> | null>(null);
-  const [editContent, setEditContent] = useState("");
-  const [editTitle, setEditTitle] = useState("");
-  const [newTitle, setNewTitle] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const confirm = useConfirm();
-
-  const selectedNote = notes?.find((n) => n._id === selectedId);
-  const requestedNoteId = searchParams.get("note");
-  const autoSelectedNote = selectedNote
-    ? null
-    : notes?.find((item) => item._id === requestedNoteId) ?? null;
-  const activeNote = selectedNote ?? autoSelectedNote;
-  const activeTitle = selectedNote ? editTitle : autoSelectedNote?.title ?? "";
-  const activeContent = selectedNote ? editContent : autoSelectedNote?.content ?? "";
-
-  const handleSelect = (id: Id<"notes">, title: string, content: string) => {
-    setSelectedId(id); setEditTitle(title); setEditContent(content);
-  };
-
-  useEffect(() => {
-    const noteId = selectedId ?? autoSelectedNote?._id;
-    if (!noteId || !activeNote) return;
-    if (editTitle === activeNote.title && editContent === activeNote.content) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setSaving(true);
-      void updateNote({ id: noteId, title: editTitle, content: editContent })
-        .catch((error) => {
-          toast.error(error instanceof Error ? error.message : "Failed to save note.");
-        })
-        .finally(() => setSaving(false));
-    }, 700);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [activeNote, autoSelectedNote, editContent, editTitle, selectedId, updateNote]);
-
-  const handleCreate = async () => {
-    if (!convexUser || !newTitle.trim()) { toast.error("Title is required"); return; }
-    try {
-      const id = await createNote({ scope: "private", title: newTitle.trim(), content: "", createdBy: convexUser._id });
-      setNewTitle(""); setShowCreate(false);
-      handleSelect(id as Id<"notes">, newTitle.trim(), "");
-      toast.success("Note created!");
-    } catch { toast.error("Failed to create note."); }
-  };
-
+function ConfluenceViewToggle({ view, setView }: { view: "sidebar" | "gallery"; setView: (v: "sidebar" | "gallery") => void }) {
   return (
-    <div className="flex h-full overflow-hidden animate-fade-in-up" style={{ backgroundColor: "var(--canvas)" }}>
+    <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] rounded-lg shrink-0">
+      <button 
+        onClick={() => setView("sidebar")}
+        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${view === "sidebar" ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}
+      >
+        Sidebar View
+      </button>
+      <button 
+        onClick={() => setView("gallery")}
+        className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${view === "gallery" ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}
+      >
+        Gallery View
+      </button>
+    </div>
+  );
+}
+
+function FolderList() {
+  return (
+    <div className="w-full lg:w-[260px] shrink-0 border-r border-[var(--hairline-strong)] pr-4 py-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wider mb-4 px-2" style={{ color: "var(--charcoal)" }}>Folders</h3>
+      <div className="flex flex-col gap-0.5">
+        {MOCK_FOLDERS.map(f => (
+          <button key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--surface-elevated)] transition-colors text-sm w-full text-left" style={{ color: "var(--body)" }}>
+            <ChevronRight size={14} className="opacity-50" />
+            {f.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ResourceToolbar() {
+  return (
+    <div className="flex items-center justify-between mb-6 pb-2 border-b border-[var(--hairline-strong)] flex-wrap gap-4">
+      <div className="flex items-center gap-3">
+        <button className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--surface-elevated)] hover:bg-[var(--surface-elevated-hover)] transition-colors text-sm border border-[var(--hairline)]" style={{ color: "var(--ink)" }}>
+          <Clock size={14} /> Most Recent
+        </button>
+        <button className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-[var(--surface-elevated)] transition-colors text-sm" style={{ color: "var(--body)" }}>
+          <List size={14} /> List
+        </button>
+        <button className="px-3 py-1.5 rounded-md hover:bg-[var(--surface-elevated)] transition-colors text-sm" style={{ color: "var(--body)" }}>
+          1 more...
+        </button>
+      </div>
+      
+      <div className="flex items-center gap-1.5">
+        <button className="p-2 hover:bg-[var(--surface-elevated)] rounded-md transition-colors" style={{ color: "var(--stone)" }}><Filter size={16} /></button>
+        <button className="p-2 hover:bg-[var(--surface-elevated)] rounded-md transition-colors" style={{ color: "var(--stone)" }}><ArrowDownUp size={16} /></button>
+        <button className="p-2 hover:bg-[var(--surface-elevated)] rounded-md transition-colors" style={{ color: "var(--stone)" }}><Zap size={16} /></button>
+        <div className="w-[1px] h-4 bg-[var(--hairline-strong)] mx-1" />
+        <button className="p-2 hover:bg-[var(--surface-elevated)] rounded-md transition-colors" style={{ color: "var(--stone)" }}><Search size={16} /></button>
+        <button className="p-2 hover:bg-[var(--surface-elevated)] rounded-md transition-colors" style={{ color: "var(--stone)" }}><Maximize2 size={16} /></button>
+        <button className="p-2 hover:bg-[var(--surface-elevated)] rounded-md transition-colors" style={{ color: "var(--stone)" }}><Settings size={16} /></button>
+        
+        <button className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors ml-2">
+          New <ChevronDown size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ResourceCard({ resource }: { resource?: any }) {
+  if (!resource) {
+    return (
+      <button className="flex flex-col items-center justify-center w-[236px] h-[184px] rounded-xl border border-dashed border-[var(--hairline-strong)] hover:border-[var(--charcoal)] transition-colors group bg-transparent hover:bg-[var(--surface-elevated)]">
+        <span className="text-sm font-medium text-[var(--charcoal)] group-hover:text-[var(--body)]">+ New page</span>
+      </button>
+    );
+  }
+  
+  return (
+    <div className="flex flex-col w-[236px] h-[184px] rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-deep)] hover:bg-[var(--surface-elevated)] transition-colors overflow-hidden cursor-pointer group">
+      <div className="flex-1 p-4 flex flex-col items-start justify-center">
+        {resource.url && (
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-400 mb-2 truncate w-full">{resource.url}</span>
+        )}
+        <h4 className="text-base font-medium text-[var(--ink)] leading-snug line-clamp-3">{resource.title}</h4>
+      </div>
+      <div className="px-4 py-3 border-t border-[var(--hairline-strong)] bg-[var(--canvas)] group-hover:bg-[var(--surface-deep)] transition-colors flex items-center gap-2">
+        <div className="w-5 h-5 rounded bg-[var(--surface-elevated)] flex items-center justify-center shrink-0">
+          <FileText size={12} className="text-[var(--stone)]" />
+        </div>
+        <span className="text-xs font-medium text-[var(--charcoal)] truncate">{resource.folder}</span>
+      </div>
+    </div>
+  );
+}
+
+function GalleryConfluenceView() {
+  return (
+    <div className="flex flex-col w-full h-full bg-[#191919] overflow-auto">
+      <div className="flex flex-col max-w-7xl mx-auto w-full px-6 py-8 md:px-12 md:py-12">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shrink-0">
+            <FileText size={16} />
+          </div>
+          <input 
+            type="text" 
+            defaultValue="confluence" 
+            className="text-3xl font-bold bg-transparent text-white outline-none w-full placeholder-[var(--charcoal)]"
+          />
+        </div>
+        
+        <div className="w-full h-[1px] bg-[var(--hairline-strong)] mb-8" />
+        
+        <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+          <FolderList />
+          
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-medium text-white mb-6">Reviewed and Completed Resources</h2>
+            <ResourceToolbar />
+            
+            <div className="flex flex-wrap gap-4 items-start">
+              {MOCK_RESOURCES.map(r => (
+                <ResourceCard key={r.id} resource={r} />
+              ))}
+              <ResourceCard />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SidebarConfluenceView({
+  notes, showCreate, newTitle, setNewTitle, handleCreate, setShowCreate,
+  handleSelect, activeNote, deleteNote, confirm, selectedId, setSelectedId,
+  sidebarOpen, setSidebarOpen, activeTitle, saving, activeContent,
+  autoSelectedNote, setEditTitle, setEditContent
+}: any) {
+  return (
+    <div className="flex h-full w-full overflow-hidden" style={{ backgroundColor: "var(--canvas)" }}>
       {/* Sidebar */}
-      <div className="flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-r"
+      <div className="flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-r relative"
         style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", width: sidebarOpen ? "288px" : "0px", opacity: sidebarOpen ? 1 : 0, borderRightWidth: sidebarOpen ? "1px" : "0px" }}>
         <div className="flex items-center justify-between px-5 py-4 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
           <div className="flex items-center gap-2">
@@ -105,7 +205,7 @@ export default function PrivateNotesPage() {
               <p className="text-sm font-medium mb-1" style={{ color: "var(--charcoal)" }}>No private Confluence pages yet</p>
             </div>
           )}
-          {notes?.map((note) => {
+          {notes?.map((note: any) => {
             const isSelected = activeNote?._id === note._id;
             return (
               <div key={note._id} role="button" tabIndex={0}
@@ -171,6 +271,92 @@ export default function PrivateNotesPage() {
               <Plus size={16} /> Create Private Confluence Page
             </button>
           </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function PrivateNotesPage() {
+  const { user } = useUser();
+  const searchParams = useSearchParams();
+  const convexUser = useQuery(api.users.getUser, user ? { clerkId: user.id } : "skip");
+
+  const notes = useQuery(api.notes.getPrivateNotes, convexUser ? { createdBy: convexUser._id } : "skip");
+  const createNote = useMutation(api.notes.createNote);
+  const updateNote = useMutation(api.notes.updateNote);
+  const deleteNote = useMutation(api.notes.deleteNote);
+
+  const [selectedId, setSelectedId] = useState<Id<"notes"> | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [view, setView] = useState<"sidebar" | "gallery">("sidebar");
+  const confirm = useConfirm();
+
+  const selectedNote = notes?.find((n) => n._id === selectedId);
+  const requestedNoteId = searchParams.get("note");
+  const autoSelectedNote = selectedNote
+    ? null
+    : notes?.find((item) => item._id === requestedNoteId) ?? null;
+  const activeNote = selectedNote ?? autoSelectedNote;
+  const activeTitle = selectedNote ? editTitle : autoSelectedNote?.title ?? "";
+  const activeContent = selectedNote ? editContent : autoSelectedNote?.content ?? "";
+
+  const handleSelect = (id: Id<"notes">, title: string, content: string) => {
+    setSelectedId(id); setEditTitle(title); setEditContent(content);
+  };
+
+  useEffect(() => {
+    const noteId = selectedId ?? autoSelectedNote?._id;
+    if (!noteId || !activeNote) return;
+    if (editTitle === activeNote.title && editContent === activeNote.content) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setSaving(true);
+      void updateNote({ id: noteId, title: editTitle, content: editContent })
+        .catch((error) => {
+          toast.error(error instanceof Error ? error.message : "Failed to save note.");
+        })
+        .finally(() => setSaving(false));
+    }, 700);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeNote, autoSelectedNote, editContent, editTitle, selectedId, updateNote]);
+
+  const handleCreate = async () => {
+    if (!convexUser || !newTitle.trim()) { toast.error("Title is required"); return; }
+    try {
+      const id = await createNote({ scope: "private", title: newTitle.trim(), content: "", createdBy: convexUser._id });
+      setNewTitle(""); setShowCreate(false);
+      handleSelect(id as Id<"notes">, newTitle.trim(), "");
+      toast.success("Note created!");
+    } catch { toast.error("Failed to create note."); }
+  };
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden animate-fade-in-up relative" style={{ backgroundColor: "var(--canvas)" }}>
+      {/* Top Toggle Row */}
+      <div className="flex items-center justify-center py-3 border-b shrink-0 z-20" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
+        <ConfluenceViewToggle view={view} setView={setView} />
+      </div>
+      
+      <div className="flex-1 min-h-0 relative">
+        {view === "sidebar" ? (
+          <SidebarConfluenceView 
+            notes={notes} showCreate={showCreate} newTitle={newTitle} setNewTitle={setNewTitle}
+            handleCreate={handleCreate} setShowCreate={setShowCreate} handleSelect={handleSelect}
+            activeNote={activeNote} deleteNote={deleteNote} confirm={confirm}
+            selectedId={selectedId} setSelectedId={setSelectedId} sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen} activeTitle={activeTitle} saving={saving}
+            activeContent={activeContent} autoSelectedNote={autoSelectedNote}
+            setEditTitle={setEditTitle} setEditContent={setEditContent} convexUser={convexUser}
+          />
+        ) : (
+          <GalleryConfluenceView />
         )}
       </div>
     </div>

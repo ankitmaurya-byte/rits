@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import {
   Building2,
   CircleDot,
@@ -249,15 +249,12 @@ function formatMetric(metric: MetricKey, value: number) {
   if (metric === "growthRate" || metric === "competitionIntensity") {
     return `${value}%`;
   }
-
   if (metric === "activeUsers" || metric === "customers") {
     return value >= 1 ? `${value.toFixed(value >= 10 ? 0 : 1)}M` : `${(value * 1000).toFixed(0)}K`;
   }
-
   if (metric === "fundingRaised") {
     return value === 0 ? "Bootstrapped" : `$${value.toFixed(0)}M`;
   }
-
   return `$${value.toFixed(0)}M`;
 }
 
@@ -277,6 +274,41 @@ export function CompetitorAnalysisPage() {
   const [selectedSector, setSelectedSector] = useState<Sector | "All">("All");
   const [selectedCompanyName, setSelectedCompanyName] = useState("Swiggy");
   const [hoveredCompanyName, setHoveredCompanyName] = useState<string | null>(null);
+
+  // Pan and Zoom state
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [hasDragged, setHasDragged] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    const scaleAdjust = e.deltaY * -0.001;
+    const newScale = Math.min(Math.max(0.2, transform.scale + scaleAdjust), 5);
+    setTransform((prev) => ({ ...prev, scale: newScale }));
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true);
+    setHasDragged(false);
+    setDragStart({ x: e.clientX - transform.x, y: e.clientY - transform.y });
+    if (containerRef.current) {
+      containerRef.current.setPointerCapture(e.pointerId);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    setHasDragged(true);
+    setTransform((prev) => ({ ...prev, x: e.clientX - dragStart.x, y: e.clientY - dragStart.y }));
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false);
+    if (containerRef.current) {
+      containerRef.current.releasePointerCapture(e.pointerId);
+    }
+  };
 
   const visibleCompanies = useMemo(
     () => companies.filter((company) => selectedSector === "All" || company.sector === selectedSector),
@@ -338,56 +370,104 @@ export function CompetitorAnalysisPage() {
   }, []);
 
   return (
-    <div className="page-container animate-fade-in-up max-w-none relative">
-      <div className="absolute inset-x-0 top-0 h-[420px] pointer-events-none" style={{ background: "radial-gradient(ellipse at top, rgba(94,168,255,0.14) 0%, transparent 58%), radial-gradient(ellipse at 65% 15%, rgba(255,116,92,0.12) 0%, transparent 48%)" }} />
+    <div className="absolute inset-0 bg-[#05070b] overflow-hidden">
+      {/* Background canvas that is movable and zoomable */}
+      <div 
+        ref={containerRef}
+        className="absolute inset-0 w-full h-full touch-none"
+        onWheel={handleWheel}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ cursor: isDragging ? "grabbing" : "grab" }}
+      >
+        <svg className="w-full h-full" style={{ overflow: "visible" }}>
+          <defs>
+            <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="16" />
+            </filter>
+          </defs>
+          <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
+            {/* Some background grid/paths if desired */}
+            <path d="M 0 120 C 280 30, 410 240, 610 150 S 960 90, 1080 170" stroke="rgba(255,255,255,0.04)" strokeWidth="1.2" fill="none" />
+            <path d="M 90 520 C 280 400, 450 590, 660 470 S 940 450, 1060 560" stroke="rgba(255,255,255,0.04)" strokeWidth="1.2" fill="none" />
 
-      <div className="page-header mb-8 flex-col items-start gap-6 border-b pb-8 xl:flex-row xl:items-end xl:justify-between" style={{ borderColor: "var(--hairline-strong)" }}>
-        <div className="max-w-4xl">
-          <h1 className="text-3xl font-medium tracking-tight sm:text-4xl" style={{ color: "var(--ink)" }}>Competitor Market Map</h1>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: "Companies", value: `${companies.length}` },
-            { label: "Crowded core", value: "Food + QComm" },
-            { label: "Isolated node", value: "Notion" },
-            { label: "Metric mode", value: `${labelForMetric(sizeMetric)} / ${labelForMetric(borderMetric)}` },
-          ].map((item) => (
-            <div key={item.label} className="rounded-2xl border px-4 py-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>{item.label}</p>
-              <p className="mt-2 text-sm font-medium" style={{ color: "var(--ink)" }}>{item.value}</p>
-            </div>
-          ))}
-        </div>
+            {positionedCompanies.filter((company) => company.visible).map((company) => {
+              const colors = sectorStyles[company.sector];
+              const active = hoveredCompanyName === company.name || selectedCompanyName === company.name;
+              return (
+                <g
+                  key={company.name}
+                  onMouseEnter={() => setHoveredCompanyName(company.name)}
+                  onMouseLeave={() => setHoveredCompanyName(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!hasDragged) {
+                      setSelectedCompanyName(company.name);
+                    }
+                  }}
+                  style={{ cursor: "pointer", opacity: company.visible ? 1 : 0, transition: "opacity 220ms ease" }}
+                >
+                  <path d={company.path} fill={colors.glow} filter="url(#softBlur)" opacity={0.7} />
+                  <path
+                    d={company.path}
+                    fill={colors.fill}
+                    stroke={colors.stroke}
+                    strokeWidth={active ? company.borderWidth + 1.2 : company.borderWidth}
+                    opacity={company.opacity}
+                    style={{ mixBlendMode: "screen", transition: "all 220ms ease" }}
+                  />
+                  <text x={company.cx} y={company.cy - 2} textAnchor="middle" style={{ fill: "#f7f8fb", fontSize: active ? 15 : 14, fontWeight: 600, letterSpacing: "-0.01em", pointerEvents: "none" }}>{company.name}</text>
+                  <text x={company.cx} y={company.cy + 16} textAnchor="middle" style={{ fill: "rgba(255,255,255,0.68)", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase", pointerEvents: "none" }}>{company.sector}</text>
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+
+        {/* Hover Tooltip - Attached to the canvas coords */}
+        {hoveredCompany ? (
+          <div
+            className="pointer-events-none absolute w-[200px] rounded-2xl border px-3 py-2 text-xs shadow-2xl"
+            style={{
+              left: transform.x + hoveredCompany.cx * transform.scale + 20,
+              top: transform.y + hoveredCompany.cy * transform.scale - 20,
+              borderColor: "rgba(255,255,255,0.1)",
+              backgroundColor: "rgba(7,9,15,0.92)",
+              backdropFilter: "blur(16px)",
+              color: "#f7f8fb",
+            }}
+          >
+            <p className="font-medium text-sm">{hoveredCompany.name}</p>
+            <p className="mt-1" style={{ color: "rgba(255,255,255,0.66)" }}>{hoveredCompany.description}</p>
+          </div>
+        ) : null}
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="feature-card" style={{ padding: "20px" }}>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Layers3 size={16} style={{ color: "var(--accent-blue)" }} />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Map Controls</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full border px-3 py-1.5" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--mute)" }}>Area = {labelForMetric(sizeMetric)}</span>
-              <span className="rounded-full border px-3 py-1.5" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)", color: "var(--mute)" }}>Border = {labelForMetric(borderMetric)}</span>
-            </div>
+      {/* Floating Controls Overlay - Top Left */}
+      <div className="absolute top-4 left-4 w-[240px] flex flex-col gap-3 pointer-events-none">
+        <section className="feature-card pointer-events-auto shadow-xl" style={{ padding: "16px", backgroundColor: "rgba(7,9,15,0.85)", backdropFilter: "blur(16px)" }}>
+          <div className="mb-3 flex items-center gap-2">
+            <Layers3 size={14} style={{ color: "var(--accent-blue)" }} />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Map Controls</p>
           </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="flex flex-col gap-2">
             <label>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Blob size</span>
-              <select value={sizeMetric} onChange={(event) => setSizeMetric(event.target.value as SizeMetric)} className="input-field">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Blob size</span>
+              <select value={sizeMetric} onChange={(e) => setSizeMetric(e.target.value as SizeMetric)} className="input-field text-xs py-1.5 h-auto">
                 {sizeMetricOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
             <label>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Border metric</span>
-              <select value={borderMetric} onChange={(event) => setBorderMetric(event.target.value as BorderMetric)} className="input-field">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Border metric</span>
+              <select value={borderMetric} onChange={(e) => setBorderMetric(e.target.value as BorderMetric)} className="input-field text-xs py-1.5 h-auto">
                 {borderMetricOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
             <label>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Sector filter</span>
-              <select value={selectedSector} onChange={(event) => setSelectedSector(event.target.value as Sector | "All")} className="input-field">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Sector filter</span>
+              <select value={selectedSector} onChange={(e) => setSelectedSector(e.target.value as Sector | "All")} className="input-field text-xs py-1.5 h-auto">
                 <option value="All">All sectors</option>
                 {Object.keys(sectorStyles).map((sector) => <option key={sector} value={sector}>{sector}</option>)}
               </select>
@@ -395,167 +475,86 @@ export function CompetitorAnalysisPage() {
           </div>
         </section>
 
-        <aside className="feature-card" style={{ padding: "20px" }}>
-          <div className="mb-4 flex items-center gap-2">
-            <Filter size={16} style={{ color: "var(--accent-orange)" }} />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Sector Legend</p>
+        <aside className="feature-card pointer-events-auto shadow-xl" style={{ padding: "16px", backgroundColor: "rgba(7,9,15,0.85)", backdropFilter: "blur(16px)" }}>
+          <div className="mb-3 flex items-center gap-2">
+            <Filter size={14} style={{ color: "var(--accent-orange)" }} />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Sector Legend</p>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             {Object.entries(sectorStyles).map(([sector, colors]) => (
               <button
                 key={sector}
                 type="button"
                 onClick={() => setSelectedSector((current) => current === sector ? "All" : (sector as Sector))}
-                className="flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition-colors"
+                className="flex w-full items-center justify-between rounded-lg border px-2 py-1.5 text-left transition-colors"
                 style={{ borderColor: selectedSector === sector ? colors.stroke : "var(--hairline)", backgroundColor: selectedSector === sector ? "var(--surface-elevated)" : "var(--surface-card)" }}
               >
-                <span className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--ink)" }}>
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: colors.stroke, boxShadow: `0 0 20px ${colors.glow}` }} />
+                <span className="flex items-center gap-2 text-xs font-medium" style={{ color: "var(--ink)" }}>
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: colors.stroke, boxShadow: `0 0 10px ${colors.glow}` }} />
                   {sector}
                 </span>
-                <span className="text-xs" style={{ color: "var(--mute)" }}>{sectorCounts[sector] ?? 0}</span>
+                <span className="text-[10px]" style={{ color: "var(--mute)" }}>{sectorCounts[sector] ?? 0}</span>
               </button>
             ))}
           </div>
         </aside>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="overflow-hidden rounded-[28px] border" style={{ borderColor: "rgba(255,255,255,0.08)", backgroundColor: "#05070b" }}>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.54)" }}>Market Map Canvas</p>
-              <p className="mt-1 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Overlaps are computed from shared tags, geography, business model, and declared competitor relationships.</p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full border px-3 py-1.5" style={{ borderColor: "rgba(255,255,255,0.1)", backgroundColor: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)" }}><MousePointer2 size={12} className="mr-1 inline" /> Hover for metrics</span>
-              <span className="rounded-full border px-3 py-1.5" style={{ borderColor: "rgba(255,255,255,0.1)", backgroundColor: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)" }}><Building2 size={12} className="mr-1 inline" /> Click for details</span>
-            </div>
+      {/* Floating Company Details - Bottom Right (or Top Right depending on preference) */}
+      <div className="absolute top-4 right-4 w-[300px] pointer-events-none">
+        <aside className="feature-card pointer-events-auto shadow-2xl max-h-[calc(100vh-32px)] overflow-y-auto" style={{ padding: "18px", backgroundColor: "rgba(7,9,15,0.85)", backdropFilter: "blur(16px)" }}>
+          <div className="mb-4 flex items-center gap-2">
+            <Swords size={14} style={{ color: "var(--accent-orange)" }} />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Company Details</p>
           </div>
 
-          <div className="relative overflow-hidden">
-            <svg viewBox="0 0 1080 640" className="block h-[640px] w-full" role="img" aria-label="Competitor market map">
-              <defs>
-                <filter id="softBlur" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="16" />
-                </filter>
-              </defs>
-
-              <rect x="0" y="0" width="1080" height="640" fill="#05070b" />
-              <path d="M 0 120 C 280 30, 410 240, 610 150 S 960 90, 1080 170" stroke="rgba(255,255,255,0.04)" strokeWidth="1.2" fill="none" />
-              <path d="M 90 520 C 280 400, 450 590, 660 470 S 940 450, 1060 560" stroke="rgba(255,255,255,0.04)" strokeWidth="1.2" fill="none" />
-
-              {positionedCompanies.filter((company) => company.visible).map((company) => {
-                const colors = sectorStyles[company.sector];
-                const active = hoveredCompanyName === company.name || selectedCompanyName === company.name;
-                return (
-                  <g
-                    key={company.name}
-                    onMouseEnter={() => setHoveredCompanyName(company.name)}
-                    onMouseLeave={() => setHoveredCompanyName(null)}
-                    onClick={() => setSelectedCompanyName(company.name)}
-                    style={{ cursor: "pointer", opacity: company.visible ? 1 : 0, transition: "opacity 220ms ease, transform 220ms ease" }}
-                  >
-                    <path d={company.path} fill={colors.glow} filter="url(#softBlur)" opacity={0.7} />
-                    <path
-                      d={company.path}
-                      fill={colors.fill}
-                      stroke={colors.stroke}
-                      strokeWidth={active ? company.borderWidth + 1.2 : company.borderWidth}
-                      opacity={company.opacity}
-                      style={{ mixBlendMode: "screen" }}
-                    />
-                    <text x={company.cx} y={company.cy - 2} textAnchor="middle" style={{ fill: "#f7f8fb", fontSize: active ? 15 : 14, fontWeight: 600, letterSpacing: "-0.01em" }}>{company.name}</text>
-                    <text x={company.cx} y={company.cy + 16} textAnchor="middle" style={{ fill: "rgba(255,255,255,0.68)", fontSize: 10.5, letterSpacing: "0.12em", textTransform: "uppercase" }}>{company.sector}</text>
-                  </g>
-                );
-              })}
-            </svg>
-
-            {hoveredCompany ? (
-              <div
-                className="pointer-events-none absolute max-w-[240px] rounded-2xl border px-4 py-3 text-sm shadow-2xl"
-                style={{
-                  left: `clamp(16px, ${((hoveredCompany.cx + 24) / 1080) * 100}%, calc(100% - 256px))`,
-                  top: `clamp(16px, ${((hoveredCompany.cy - 32) / 640) * 100}%, calc(100% - 140px))`,
-                  borderColor: "rgba(255,255,255,0.1)",
-                  backgroundColor: "rgba(7,9,15,0.92)",
-                  backdropFilter: "blur(16px)",
-                  color: "#f7f8fb",
-                }}
-              >
-                <p className="font-medium">{hoveredCompany.name}</p>
-                <p className="mt-1 text-xs" style={{ color: "rgba(255,255,255,0.66)" }}>{hoveredCompany.description}</p>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p style={{ color: "rgba(255,255,255,0.54)" }}>{labelForMetric(sizeMetric)}</p>
-                    <p>{formatMetric(sizeMetric, hoveredCompany.metrics[sizeMetric])}</p>
-                  </div>
-                  <div>
-                    <p style={{ color: "rgba(255,255,255,0.54)" }}>{labelForMetric(borderMetric)}</p>
-                    <p>{formatMetric(borderMetric, hoveredCompany.metrics[borderMetric])}</p>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <aside className="feature-card self-start" style={{ padding: "22px" }}>
-          <div className="mb-5 flex items-center gap-2">
-            <Swords size={16} style={{ color: "var(--accent-orange)" }} />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Company Details</p>
-          </div>
-
-          <div className="rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
-            <div className="flex items-start justify-between gap-3">
+          <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)", backgroundColor: "rgba(0,0,0,0.4)" }}>
+            <div className="flex items-start justify-between gap-2">
               <div>
-                <h2 className="text-xl font-medium" style={{ color: "var(--ink)" }}>{selectedCompany.name}</h2>
-                <p className="mt-1 text-sm" style={{ color: "var(--charcoal)" }}>{selectedCompany.description}</p>
-              </div>
-              <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ borderColor: sectorStyles[selectedCompany.sector].stroke, color: "var(--ink)", backgroundColor: "var(--surface-card)" }}>{selectedCompany.sector}</span>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{labelForMetric(sizeMetric)}</p>
-                <p className="mt-2 font-medium" style={{ color: "var(--ink)" }}>{formatMetric(sizeMetric, selectedCompany.metrics[sizeMetric])}</p>
-              </div>
-              <div className="rounded-xl border p-3" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{labelForMetric(borderMetric)}</p>
-                <p className="mt-2 font-medium" style={{ color: "var(--ink)" }}>{formatMetric(borderMetric, selectedCompany.metrics[borderMetric])}</p>
+                <h2 className="text-lg font-medium" style={{ color: "var(--ink)" }}>{selectedCompany.name}</h2>
+                <p className="mt-1 text-xs" style={{ color: "var(--charcoal)" }}>{selectedCompany.description}</p>
               </div>
             </div>
 
-            <div className="mt-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Overlap Drivers</p>
-              <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div className="rounded-lg border p-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{labelForMetric(sizeMetric)}</p>
+                <p className="mt-1 font-medium" style={{ color: "var(--ink)" }}>{formatMetric(sizeMetric, selectedCompany.metrics[sizeMetric])}</p>
+              </div>
+              <div className="rounded-lg border p-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{labelForMetric(borderMetric)}</p>
+                <p className="mt-1 font-medium" style={{ color: "var(--ink)" }}>{formatMetric(borderMetric, selectedCompany.metrics[borderMetric])}</p>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <div className="flex flex-wrap gap-1.5">
                 {selectedCompany.tags.map((tag) => (
-                  <span key={tag} className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--body)" }}>{tag}</span>
+                  <span key={tag} className="rounded-md border px-2 py-0.5 text-[10px]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--body)" }}>{tag}</span>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-            <div className="mb-3 flex items-center gap-2">
-              <Sparkles size={15} style={{ color: "var(--accent-blue)" }} />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Why It Overlaps</p>
+          <div className="mt-4 rounded-xl border p-3" style={{ borderColor: "var(--hairline)", backgroundColor: "rgba(0,0,0,0.4)" }}>
+            <div className="mb-2 flex items-center gap-1.5">
+              <Sparkles size={12} style={{ color: "var(--accent-blue)" }} />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Why It Overlaps</p>
             </div>
-            <div className="space-y-3 text-sm" style={{ color: "var(--body)" }}>
-              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Customer segment:</span> {selectedCompany.customerSegment}</p>
-              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Business model:</span> {selectedCompany.businessModel}</p>
-              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Product category:</span> {selectedCompany.productCategory}</p>
-              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Geography:</span> {selectedCompany.geography.join(", ")}</p>
+            <div className="space-y-2 text-xs" style={{ color: "var(--body)" }}>
+              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Customer:</span> {selectedCompany.customerSegment}</p>
+              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Model:</span> {selectedCompany.businessModel}</p>
+              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Product:</span> {selectedCompany.productCategory}</p>
+              <p><span style={{ color: "var(--ink)", fontWeight: 600 }}>Geo:</span> {selectedCompany.geography.join(", ")}</p>
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
-            <div className="mb-3 flex items-center gap-2">
-              <CircleDot size={15} style={{ color: "var(--accent-green)" }} />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Closest Competitors</p>
+          <div className="mt-4 rounded-xl border p-3" style={{ borderColor: "var(--hairline)", backgroundColor: "rgba(0,0,0,0.4)" }}>
+            <div className="mb-2 flex items-center gap-1.5">
+              <CircleDot size={12} style={{ color: "var(--accent-green)" }} />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Competitors</p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {selectedCompany.overlapNames.slice(0, 5).map((name) => {
                 const match = companies.find((company) => company.name === name);
                 if (!match) return null;
@@ -564,20 +563,29 @@ export function CompetitorAnalysisPage() {
                     key={name}
                     type="button"
                     onClick={() => setSelectedCompanyName(name)}
-                    className="flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition-colors"
-                    style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}
+                    className="flex w-full items-center justify-between rounded-lg border px-2 py-2 text-left transition-colors hover:bg-[var(--surface-card)] pointer-events-auto"
+                    style={{ borderColor: "var(--hairline)", backgroundColor: "transparent" }}
                   >
                     <span>
-                      <span className="block text-sm font-medium" style={{ color: "var(--ink)" }}>{name}</span>
-                      <span className="block mt-1 text-xs" style={{ color: "var(--mute)" }}>{match.sector}</span>
+                      <span className="block text-xs font-medium" style={{ color: "var(--ink)" }}>{name}</span>
+                      <span className="block mt-0.5 text-[9px]" style={{ color: "var(--mute)" }}>{match.sector}</span>
                     </span>
-                    <span className="text-xs" style={{ color: "var(--body)" }}>{sharedCount(selectedCompany, match)} overlap pts</span>
+                    <span className="text-[10px]" style={{ color: "var(--body)" }}>{sharedCount(selectedCompany, match)} pt</span>
                   </button>
                 );
               })}
             </div>
           </div>
         </aside>
+      </div>
+      
+      {/* Keyboard/Mouse Hint Bottom Center */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+        <div className="flex gap-2 text-[10px] font-medium tracking-wide uppercase px-4 py-2 rounded-full border bg-[rgba(7,9,15,0.7)] backdrop-blur-md" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
+          <span>Drag to pan</span>
+          <span className="opacity-40">•</span>
+          <span>Scroll to zoom</span>
+        </div>
       </div>
     </div>
   );

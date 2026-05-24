@@ -287,7 +287,7 @@ export function TodoCard({
 
   if (isOverlay) {
     return (
-      <div className="feature-card rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-card)] p-4 shadow-2xl">
+      <div className="feature-card rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-card)] shadow-2xl" style={{ padding: "10px 12px" }}>
         <div className="mb-2 flex items-start justify-between gap-3">
           <div className="flex-1">
             <p className="text-[14px] font-medium leading-tight" style={{ color: "var(--ink)" }}>
@@ -308,7 +308,8 @@ export function TodoCard({
   return (
     <>
       <div
-        className="feature-card cursor-pointer rounded-xl border border-[var(--hairline)] bg-[var(--surface-card)] p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--hairline-strong)] hover:shadow-lg"
+        className="feature-card cursor-pointer rounded-xl border border-[var(--hairline)] bg-[var(--surface-card)] shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--hairline-strong)] hover:shadow-lg"
+        style={{ padding: "10px 12px" }}
         {...(dragHandleProps?.listeners ?? {})}
         {...(dragHandleProps?.attributes ?? {})}
         onClick={() => {
@@ -330,7 +331,7 @@ export function TodoCard({
                   {title}
                 </p>
                 {compactDescription ? (
-                  <p className="mt-2 line-clamp-2 text-xs leading-relaxed" style={{ color: "var(--charcoal)" }}>
+                  <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed" style={{ color: "var(--charcoal)" }}>
                     {compactDescription}
                   </p>
                 ) : null}
@@ -361,8 +362,8 @@ export function TodoCard({
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-medium" style={{ color: "var(--mute)" }}>
-              <span className="rounded-md bg-[var(--surface-elevated)] px-2 py-1">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-medium" style={{ color: "var(--mute)" }}>
+              <span className="rounded-md bg-[var(--surface-elevated)] px-1.5 py-0.5 ">
                 {priority}
               </span>
               <span>{format(task.createdAt, "MMM d, yyyy")}</span>

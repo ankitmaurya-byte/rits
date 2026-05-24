@@ -456,12 +456,12 @@ export default function WorkspaceTodosPage() {
           onDragStart={(e) => { const task = todos?.find((t) => t._id === e.active.id); if (task) setActiveTask(task); }}
           onDragCancel={() => setActiveTask(null)}
           onDragEnd={handleDragEnd}>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 relative z-10">
-            <div className={`flex items-center gap-0 overflow-x-auto pl-4 py-1 transition-all duration-200 ${offscreenGroups.top.length ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1 pointer-events-none"}`} style={{ minHeight: 32 }}>
+          <div className="flex min-h-0 flex-1 flex-col  relative z-10">
+            <div className={`flex items-center gap-0 overflow-x-auto pl-4 py-1 transition-all duration-200 ${offscreenGroups.top.length ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1 pointer-events-none"}`} style={{ minHeight: offscreenGroups.top.length ? 32 : 0 }}>
               {offscreenGroups.top.length
                 ? [...offscreenGroups.top].reverse().map((group, index, groups) => (
                   <div key={`top-${group.id}`} className="flex shrink-0 items-center">
-                    <button onClick={() => scrollLaneToCenter(group.id)} className="py-1 text-sm font-semibold transition-colors hover:opacity-100" style={{ color: "var(--ink)", opacity: 0.9 }}>
+                    <button onClick={() => scrollLaneToCenter(group.id)} className="cursor-pointer rounded-md px-2 py-1 text-sm font-semibold transition-colors hover:bg-[var(--surface-elevated)] hover:opacity-100" style={{ color: "var(--ink)", opacity: 0.9 }}>
                       {group.name}
                     </button>
                     {index < groups.length - 1 ? <span className="px-2 text-sm" style={{ color: "var(--mute)" }}>|</span> : null}
@@ -797,11 +797,11 @@ export default function WorkspaceTodosPage() {
             </div>
           </div>
 
-          <div className={`flex items-center gap-0 overflow-x-auto pl-4 py-1 transition-all duration-200 ${offscreenGroups.bottom.length ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"}`} style={{ minHeight: 32 }}>
+          <div className={`flex items-center gap-0 overflow-x-auto pl-4 py-1 transition-all duration-200 ${offscreenGroups.bottom.length ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 pointer-events-none"}`} style={{ minHeight: offscreenGroups.bottom.length ? 32 : 0 }}>
             {offscreenGroups.bottom.length
               ? offscreenGroups.bottom.map((group, index, groups) => (
                 <div key={`bottom-${group.id}`} className="flex shrink-0 items-center">
-                  <button onClick={() => scrollLaneToCenter(group.id)} className="py-1 text-sm font-semibold transition-colors hover:opacity-100" style={{ color: "var(--ink)", opacity: 0.9 }}>
+                  <button onClick={() => scrollLaneToCenter(group.id)} className="cursor-pointer rounded-md px-2 py-1 text-sm font-semibold transition-colors hover:bg-[var(--surface-elevated)] hover:opacity-100" style={{ color: "var(--ink)", opacity: 0.9 }}>
                     {group.name}
                   </button>
                   {index < groups.length - 1 ? <span className="px-2 text-sm" style={{ color: "var(--mute)" }}>|</span> : null}

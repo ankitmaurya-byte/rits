@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       prompt?: string;
       context?: string;
-      contextType?: "note" | "idea";
+      contextType?: "note" | "idea" | "roadmap";
     };
 
     const prompt = body.prompt?.trim();
@@ -41,23 +41,23 @@ export async function POST(request: NextRequest) {
     }
 
     const contextType = body.contextType ?? "note";
-    const contextLabel = contextType === "idea" ? "idea description" : "note";
+    const contextLabel = contextType === "idea" ? "idea description" : contextType === "roadmap" ? "roadmap data" : "note";
     const rawContext = (body.context ?? "").trim();
 
-    // Strip HTML tags for cleaner context
-    const plainContext = rawContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    // Strip HTML tags for cleaner context unless it's a roadmap
+    const plainContext = contextType === "roadmap" ? rawContext : rawContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 
     const systemPrompt = [
-      `You are an expert writing assistant embedded in a note-taking and idea-management app.`,
+      `You are an expert ${contextType === "roadmap" ? "roadmap generator" : "writing assistant"} embedded in a productivity app.`,
       `The user is currently editing a ${contextLabel}.`,
       plainContext
-        ? `Here is the current content of the ${contextLabel} (use this as context):\n\n"""\n${plainContext.slice(0, 8000)}\n"""`
+        ? `Here is the current content of the ${contextLabel} (use this as context):\n\n"""\n${contextType === "roadmap" ? plainContext : plainContext.slice(0, 8000)}\n"""`
         : `The ${contextLabel} is currently empty.`,
       ``,
-      `Follow the user's instruction precisely. Return only the written content  no preamble, no meta commentary, no markdown code fences unless the user asks for code.`,
-      `Format your response as clean rich text: use paragraphs, bullet points, headings, or numbered lists as appropriate for the content.`,
+      `Follow the user's instruction precisely. Return only the requested content  no preamble, no meta commentary${contextType === "roadmap" ? "." : ", no markdown code fences unless the user asks for code."}`,
+      contextType === "roadmap" ? "" : `Format your response as clean rich text: use paragraphs, bullet points, headings, or numbered lists as appropriate for the content.`,
       `If the user asks you to improve, rewrite, summarise, expand, or continue the existing content, do so relative to the context provided.`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
 
     const response = await fetch(chatUrl(XAI_API_URL), {
       method: "POST",
@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: XAI_MODEL,
         temperature: 0.4,
+        max_tokens: 8192,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
@@ -85,7 +86,10 @@ export async function POST(request: NextRequest) {
     };
 
     const result = data.choices?.[0]?.message?.content?.trim() ?? "";
-    if (!result) throw new Error("AI returned an empty response.");
+    if (!result) {
+      console.error("AI returned empty. Full response:", JSON.stringify(data));
+      throw new Error("AI returned an empty response.");
+    }
 
     return NextResponse.json({ result });
   } catch (error) {

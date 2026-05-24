@@ -588,12 +588,17 @@ export default defineSchema({
         dashed: v.optional(v.boolean()),
       })
     ),
+    shareToken: v.optional(v.string()),
+    published: v.optional(v.boolean()),
+    publishedAt: v.optional(v.number()),
     createdBy: v.id("users"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
-    .index("by_user_private", ["createdBy", "scope"]),
+    .index("by_user_private", ["createdBy", "scope"])
+    .index("by_share_token", ["shareToken"])
+    .index("by_published_and_updated_at", ["published", "updatedAt"]),
 
   friendRequests: defineTable({
     fromUserId: v.id("users"),

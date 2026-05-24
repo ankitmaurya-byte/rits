@@ -32,15 +32,8 @@ function sanitizeTopics(topics: string[]) {
   return next.length > 0 ? next : ["General"];
 }
 
-async function requireWorkspaceMember(ctx: DbCtx, workspaceId: Id<"workspaces">, userId: Id<"users">) {
-  const membership = await ctx.db
-    .query("workspaceMembers")
-    .withIndex("by_workspace_and_user", (q) => q.eq("workspaceId", workspaceId).eq("userId", userId))
-    .first();
-
-  if (!membership) {
-    throw new ConvexError("Workspace access required");
-  }
+function createShareToken() {
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 }
 
 async function requireRoadmapAccess(ctx: DbCtx, roadmapId: Id<"roadmaps">) {
@@ -51,36 +44,17 @@ async function requireRoadmapAccess(ctx: DbCtx, roadmapId: Id<"roadmaps">) {
     throw new ConvexError("Roadmap not found");
   }
 
-  if (roadmap.scope === "private") {
-    if (roadmap.createdBy !== user._id) {
-      throw new ConvexError("You do not have access to this roadmap");
-    }
-  } else if (roadmap.workspaceId) {
-    await requireWorkspaceMember(ctx, roadmap.workspaceId, user._id);
+  if (roadmap.createdBy !== user._id) {
+    throw new ConvexError("You do not have access to this roadmap");
   }
 
   return { user, roadmap };
 }
 
 export const listRoadmaps = query({
-  args: {
-    scope: v.union(v.literal("private"), v.literal("workspace")),
-    workspaceId: v.optional(v.id("workspaces")),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const { user } = await requireCurrentUser(ctx);
-
-    if (args.scope === "workspace") {
-      if (!args.workspaceId) {
-        return [];
-      }
-      await requireWorkspaceMember(ctx, args.workspaceId, user._id);
-      return await ctx.db
-        .query("roadmaps")
-        .withIndex("by_workspace", (q) => q.eq("workspaceId", args.workspaceId!))
-        .order("desc")
-        .take(50);
-    }
 
     return await ctx.db
       .query("roadmaps")
@@ -100,8 +74,6 @@ export const getRoadmap = query({
 
 export const createRoadmap = mutation({
   args: {
-    scope: v.union(v.literal("private"), v.literal("workspace")),
-    workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     topic: v.string(),
     topics: v.array(v.string()),
@@ -110,22 +82,16 @@ export const createRoadmap = mutation({
   },
   handler: async (ctx, args) => {
     const { user } = await requireCurrentUser(ctx);
-    if (args.scope === "workspace") {
-      if (!args.workspaceId) {
-        throw new ConvexError("Workspace roadmaps require a workspace");
-      }
-      await requireWorkspaceMember(ctx, args.workspaceId, user._id);
-    }
 
     const now = Date.now();
     return await ctx.db.insert("roadmaps", {
-      scope: args.scope,
-      workspaceId: args.scope === "workspace" ? args.workspaceId : undefined,
+      scope: "private",
       title: args.title.trim() || "Untitled roadmap",
       topic: args.topic.trim() || "General",
       topics: sanitizeTopics(args.topics),
       nodes: args.nodes,
       edges: args.edges,
+      published: false,
       createdBy: user._id,
       createdAt: now,
       updatedAt: now,
@@ -194,5 +160,67 @@ export const deleteRoadmap = mutation({
   handler: async (ctx, args) => {
     const { roadmap } = await requireRoadmapAccess(ctx, args.roadmapId);
     await ctx.db.delete(roadmap._id);
+  },
+});
+
+export const createShareLink = mutation({
+  args: { roadmapId: v.id("roadmaps") },
+  handler: async (ctx, args) => {
+    const { roadmap } = await requireRoadmapAccess(ctx, args.roadmapId);
+    const shareToken = roadmap.shareToken ?? createShareToken();
+
+    if (!roadmap.shareToken) {
+      await ctx.db.patch(roadmap._id, { shareToken, updatedAt: Date.now() });
+    }
+
+    return shareToken;
+  },
+});
+
+export const setPublished = mutation({
+  args: {
+    roadmapId: v.id("roadmaps"),
+    published: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { roadmap } = await requireRoadmapAccess(ctx, args.roadmapId);
+    const shareToken = roadmap.shareToken ?? createShareToken();
+    const now = Date.now();
+
+    await ctx.db.patch(roadmap._id, {
+      published: args.published,
+      publishedAt: args.published ? now : roadmap.publishedAt,
+      shareToken,
+      updatedAt: now,
+    });
+
+    return shareToken;
+  },
+});
+
+export const listPublishedRoadmaps = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("roadmaps")
+      .withIndex("by_published_and_updated_at", (q) => q.eq("published", true))
+      .order("desc")
+      .take(Math.max(1, Math.min(args.limit ?? 24, 100)));
+  },
+});
+
+export const getPublicRoadmap = query({
+  args: { shareToken: v.string() },
+  handler: async (ctx, args) => {
+    const roadmap = await ctx.db
+      .query("roadmaps")
+      .withIndex("by_share_token", (q) => q.eq("shareToken", args.shareToken))
+      .unique();
+
+    if (!roadmap) {
+      throw new ConvexError("Roadmap not found");
+    }
+
+    return roadmap;
   },
 });

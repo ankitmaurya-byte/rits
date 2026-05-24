@@ -279,43 +279,43 @@ function WorkflowDiagram() {
 const features = [
   {
     icon: <IdeaIcon />,
-    title: "Research Intake",
-    desc: "Capture briefs, hypotheses, market signals, and client questions in one place.",
+    title: "Explore Feeds",
+    desc: "Browse YC startups, Shark Tank companies, GitHub tools, and startup discovery surfaces from one entry point.",
     color: "#ffc53d",
     glow: "rgba(255,197,61,0.12)",
   },
   {
     icon: <TodoIcon />,
-    title: "Analysis Workflow",
-    desc: "Structure research tasks, review queues, and analyst follow-ups with clear status lanes.",
+    title: "Task Boards",
+    desc: "Manage private and workspace todos with lanes, groups, AI todo generation, and drag-and-drop planning.",
     color: "#11ff99",
     glow: "rgba(17,255,153,0.12)",
   },
   {
     icon: <NoteIcon />,
-    title: "Research Notes",
-    desc: "Build layered notes, interview summaries, findings, and internal memos with rich editing.",
+    title: "Notes And Chats",
+    desc: "Write rich notes, keep private drafts, and collaborate through workspace chats and shared context.",
     color: "#3b9eff",
     glow: "rgba(59,158,255,0.12)",
   },
   {
     icon: <AIIcon />,
     title: "Rits AI",
-    desc: "Contextual AI that reads your research base and helps summarize, compare, and surface patterns.",
+    desc: "Use AI across chats, research analysis, todo creation, and structured report generation from mixed inputs.",
     color: "#ff801f",
     glow: "rgba(255,128,31,0.12)",
   },
   {
     icon: <WorkspaceIcon />,
-    title: "Consultant Workspace",
-    desc: "Give researchers and consultants a shared operating layer clients can trust and teams can navigate.",
+    title: "Private And Workspace",
+    desc: "Switch between personal and team scopes for notes, todos, chats, resources, and vault-backed work.",
     color: "#a78bfa",
     glow: "rgba(167,139,250,0.12)",
   },
   {
     icon: <ResourceIcon />,
-    title: "Evidence Library",
-    desc: "Save sources, documents, links, and references with enough context to support final recommendations.",
+    title: "Vaults And Resources",
+    desc: "Store saved links, uploaded files, and reusable knowledge in private or workspace vault collections.",
     color: "#ff2047",
     glow: "rgba(255,32,71,0.12)",
   },
@@ -540,7 +540,7 @@ export default function Home() {
         </div>
 
         <p style={{ animation: "fadeInUp 0.8s ease 0.6s both", maxWidth: 620, fontSize: 15, lineHeight: 1.6, color: "rgba(252,253,255,0.55)", marginBottom: 40, fontFamily: "monospace" }} className="sm:text-[18px]">
-          Research briefs, analysis systems, consultant-grade notes, and AI-assisted evaluation in one operating layer.
+          Explore startup datasets, run AI research workflows, manage tasks, write notes, and organize private or shared knowledge in one operating layer.
         </p>
 
         {/* CTAs */}
@@ -601,9 +601,6 @@ export default function Home() {
                 })()
               ))}
             </div>
-            <p className="mt-6 text-center text-[11px] text-white/35 sm:text-[12px]" style={{ fontFamily: "monospace" }}>
-              Preview the homepage UI as a hand of cards. Click any card to bring it to the front.
-            </p>
           </div>
         </div>
       </section>
@@ -615,7 +612,7 @@ export default function Home() {
             <div style={{ textAlign: "center", marginBottom: 64 }}>
               <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>Research tools</p>
               <h2 style={{ fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff" }}>
-                One system.<br />Every research tool.
+                One product surface.<br />The real app features.
               </h2>
             </div>
           </Reveal>
@@ -654,13 +651,13 @@ export default function Home() {
           <Reveal>
             <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,128,31,0.7)", fontFamily: "monospace", marginBottom: 16 }}>Rits AI</p>
               <h2 style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff", marginBottom: 24 }}>
-                Your AI layer that reads the full research record
+                AI across research, chat, and execution
               </h2>
               <p style={{ fontSize: 14, lineHeight: 1.7, color: "rgba(252,253,255,0.5)", fontFamily: "monospace", marginBottom: 32 }}>
-              Rits AI does not stop at drafting. It reads briefs, notes, findings, and sources to help consultants compare evidence, summarize patterns, and prepare recommendations.
+              Rits already uses AI in multiple places: mixed-input analysis, saved reports, chat-based assistance, and guided todo creation from prompts.
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {["Contextual writing inside research notes", "Conversation memory across projects and sources", "Private analyst space plus shared client-facing work"].map((item, i) => (
+              {["Analyze links, files, docs, and notes from one research surface", "Use AI chats for ongoing questions and workspace context", "Generate structured todos and reports from raw prompts"].map((item, i) => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "rgba(252,253,255,0.6)", fontFamily: "monospace" }}>
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                     <circle cx="7" cy="7" r="6" stroke="#ff801f" strokeWidth="1" />
@@ -680,19 +677,19 @@ export default function Home() {
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ff2047" }} />
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ffc53d" }} />
                 <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#11ff99" }} />
-                <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(252,253,255,0.3)", fontFamily: "monospace" }}>Rits AI · research context</span>
+                <span style={{ marginLeft: 8, fontSize: 11, color: "rgba(252,253,255,0.3)", fontFamily: "monospace" }}>Rits AI · research + tasks + chat</span>
               </div>
               <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 16, minHeight: 220 }}>
                 {/* user message */}
                 <div style={{ alignSelf: "flex-end", background: "#101012", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px 12px 2px 12px", padding: "8px 14px", fontSize: 12, color: "rgba(252,253,255,0.7)", fontFamily: "monospace", maxWidth: "80%" }}>
-                  What themes are repeating across these interview notes?
+                  Turn these sources into a report and create follow-up tasks for the workspace.
                 </div>
                 {/* AI response */}
                 <div style={{ alignSelf: "flex-start", background: "#0a0a0c", border: "1px solid rgba(255,128,31,0.2)", borderRadius: "12px 12px 12px 2px", padding: "10px 14px", fontSize: 12, color: "rgba(252,253,255,0.6)", fontFamily: "monospace", maxWidth: "90%", lineHeight: 1.7 }}>
-                  <span style={{ color: "#ff801f" }}>Rits AI</span> · Based on your research set:<br />
-                  <span style={{ color: "#11ff99" }}>①</span> Pricing clarity is the strongest recurring pain point<br />
-                  <span style={{ color: "#11ff99" }}>②</span> Buyers trust peer referrals more than landing page claims<br />
-                  <span style={{ color: "#11ff99" }}>③</span> Enterprise prospects want implementation support before purchase
+                  <span style={{ color: "#ff801f" }}>Rits AI</span> · I can help with that:<br />
+                  <span style={{ color: "#11ff99" }}>①</span> summarize the mixed research inputs into one report<br />
+                  <span style={{ color: "#11ff99" }}>②</span> extract competitor and signal themes into notes<br />
+                  <span style={{ color: "#11ff99" }}>③</span> create actionable workspace todos for the next review round
                 </div>
                 {/* typing indicator */}
                 <div style={{ alignSelf: "flex-start", display: "flex", gap: 4, padding: "10px 14px" }}>
@@ -724,55 +721,27 @@ export default function Home() {
 
         <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 16px", textAlign: "center" }}>
           <Reveal>
-            <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>Method and infrastructure</p>
+            <p style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(252,253,255,0.3)", fontFamily: "monospace", marginBottom: 16 }}>Scope and product surface</p>
             <h2 style={{ fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 400, lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "monospace", color: "#fcfdff", marginBottom: 48 }}>
-              Built for trusted research delivery
+              Built around the product that already exists
             </h2>
           </Reveal>
 
-          <Reveal delay={100}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "center" }}>
-              {[
-                { name: "Next.js", color: "#fcfdff" },
-                { name: "Convex", color: "#11ff99" },
-                { name: "Clerk", color: "#3b9eff" },
-                { name: "TipTap", color: "#ffc53d" },
-                { name: "Tailwind", color: "#38bdf8" },
-                { name: "xAI / Grok", color: "#ff801f" },
-                { name: "TypeScript", color: "#a78bfa" },
-                { name: "Radix UI", color: "#fcfdff" },
-              ].map(t => (
-                <span key={t.name} style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  background: "#0a0a0c", border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 9999, padding: "5px 14px",
-                  fontSize: 12, fontFamily: "monospace", color: "rgba(252,253,255,0.55)",
-                  transition: "border-color 0.2s, color 0.2s",
-                }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = t.color; (e.currentTarget as HTMLElement).style.borderColor = `${t.color}40`; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(252,253,255,0.55)"; (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.1)"; }}>
-                  <span style={{ width: 5, height: 5, borderRadius: "50%", background: t.color, display: "inline-block" }} />
-                  {t.name}
-                </span>
-              ))}
-            </div>
-          </Reveal>
-
-          <Reveal delay={180} className="mt-14">
+          <Reveal delay={180}>
             <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="rounded-[24px] border border-white/10 bg-[#0a0a0c] p-6 text-left">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Consulting structure</p>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Private and workspace scopes</p>
                 <h3 className="mt-3 text-2xl font-normal text-white" style={{ fontFamily: "monospace" }}>
-                  Shared context, clear evidence, and visible reasoning.
+                  Personal work and team work live side by side.
                 </h3>
                 <p className="mt-4 max-w-2xl text-[13px] leading-7 text-white/45" style={{ fontFamily: "monospace" }}>
-                  Analysts keep working notes private when needed, research teams share structured findings, and client-ready recommendations can be assembled from the same source base.
+                  The app already separates notes, todos, chats, resources, and vaults into private and workspace surfaces so you can choose what stays personal and what becomes collaborative.
                 </p>
                 <div className="mt-6 grid gap-3 sm:grid-cols-3">
                   {[
-                    ["Private", "Draft interpretations, raw notes, and internal analyst thinking"],
-                    ["Shared", "Team-visible findings, project lanes, and collaborative review"],
-                    ["Advisory", "Evidence assembled into decision-ready recommendations"],
+                    ["Private", "Your own notes, todos, chats, resources, and vaults"],
+                    ["Workspace", "Shared notes, task boards, chats, members, and settings"],
+                    ["Explore to save", "Move discoveries into research, notes, or vault collections"],
                   ].map(([title, text]) => (
                     <div key={title} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
                       <p className="text-sm text-white" style={{ fontFamily: "monospace" }}>{title}</p>
@@ -782,12 +751,12 @@ export default function Home() {
                 </div>
               </div>
               <div className="rounded-[24px] border border-white/10 bg-[#06060a] p-6 text-left">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Trust signals</p>
+                <p className="text-[11px] uppercase tracking-[0.14em] text-white/35" style={{ fontFamily: "monospace" }}>Core surfaces</p>
                 <div className="mt-4 flex flex-col gap-4">
                   {[
-                    ["Traceability", "Every recommendation can point back to notes and sources", "#3b9eff"],
-                    ["Consistency", "Research process becomes repeatable across engagements", "#11ff99"],
-                    ["Clarity", "Clients see conclusions with stronger narrative support", "#ffc53d"],
+                    ["Explore", "YC, Shark Tank, GitHub tools, startups, and discovery hubs", "#3b9eff"],
+                    ["Research", "Analysis, competitors, reports, newsletters, and MVP lab", "#11ff99"],
+                    ["Vaults + Integrations", "Saved knowledge collections and product-facing integration routes", "#ffc53d"],
                   ].map(([label, text, color]) => (
                     <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between">

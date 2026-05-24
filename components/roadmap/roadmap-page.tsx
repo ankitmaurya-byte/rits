@@ -544,23 +544,29 @@ function shallowEqualIds(left: string[], right: string[]) {
 
 function formatRoadmapForAi(draft: DraftRoadmap) {
   const nodesById = new Map(draft.nodes.map((node) => [node.id, node.label]));
+  const visibleNodes = draft.nodes.slice(0, 45);
+  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+  const visibleEdges = draft.edges
+    .filter((edge) => visibleNodeIds.has(edge.from) || visibleNodeIds.has(edge.to))
+    .slice(0, 80);
   const edgeLines = draft.edges.length
-    ? draft.edges.map((edge) => `${nodesById.get(edge.from) ?? edge.from} -> ${nodesById.get(edge.to) ?? edge.to}${edge.dashed ? " (dashed)" : ""}`).join("\n")
+    ? visibleEdges.map((edge) => `${nodesById.get(edge.from) ?? edge.from} -> ${nodesById.get(edge.to) ?? edge.to}${edge.dashed ? " dashed" : ""}`).join("\n")
     : "No edges yet.";
 
   return [
-    `Roadmap title: ${draft.title}`,
-    `Primary topic: ${draft.topic}`,
+    `Title: ${draft.title}`,
+    `Topic: ${draft.topic}`,
     `Topics: ${draft.topics.join(", ")}`,
+    draft.nodes.length > visibleNodes.length ? `Showing ${visibleNodes.length} of ${draft.nodes.length} nodes.` : "",
     "",
     "Nodes:",
-    draft.nodes
-      .map((node, index) => `${index + 1}. ${node.label} (${node.id})\ntopic: ${node.topic}\ntone: ${node.tone}\ndescription: ${node.description}\nposition: x=${Math.round(node.x)}, y=${Math.round(node.y)}`)
-      .join("\n\n"),
+    visibleNodes
+      .map((node, index) => `${index + 1}. ${node.label} [${node.id}] topic=${node.topic} tone=${node.tone} x=${Math.round(node.x)} y=${Math.round(node.y)} desc=${node.description.slice(0, 140)}`)
+      .join("\n"),
     "",
     "Edges:",
     edgeLines,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 const RoadmapNode = memo(function RoadmapNode({ id, data, selected }: NodeProps<Node<RoadmapFlowData>>) {
@@ -603,7 +609,6 @@ const RoadmapNode = memo(function RoadmapNode({ id, data, selected }: NodeProps<
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium">{data.label}</p>
-          <p className="mt-1 text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>{data.topic}</p>
         </div>
       </div>
 
@@ -1272,33 +1277,14 @@ function RoadmapEditor({
     const context = formatRoadmapForAi(draftContext);
 
     const prompt = [
-      `User request: ${currentPrompt}`,
-      ``,
-      isSelectionActive 
-        ? "CRITICAL INSTRUCTION: The user has selected specific nodes. You MUST focus entirely on expanding or modifying ONLY these selected nodes. Generate new child branches connected to these nodes."
-        : "INSTRUCTION: You are generating or modifying the user's roadmap.",
-      ``,
-      "RESPONSE FORMAT:",
-      "1. If the user is just chatting or asking a question that does NOT require modifying the roadmap, return EXACTLY this JSON format:",
-      `{ "reply": "Your conversational response here" }`,
-      ``,
-      "2. If the user asks to generate, expand, or modify the roadmap, return EXACTLY this JSON patch format:",
-      "```json",
-      "{",
-      "  \"summary\": \"Brief summary of your changes\",",
-      "  \"title\": \"Roadmap title\",",
-      "  \"topic\": \"Main topic\",",
-      "  \"topics\": [\"topic1\"],",
-      "  \"nodes\": [{\"id\": \"unique-id\", \"label\": \"...\", \"description\": \"...\", \"topic\": \"...\", \"tone\": \"skill\", \"x\": 100, \"y\": 200}],",
-      "  \"edges\": [{\"id\": \"edge-1\", \"from\": \"source-id\", \"to\": \"target-id\", \"dashed\": false}]",
-      "}",
-      "```",
-      ``,
-      "RULES FOR ROADMAP GENERATION:",
-      "- Create in-depth, complex branching trees. Do NOT just make a straight line.",
-      "- YOU MUST provide `x` and `y` coordinates for every new node. Nodes are 250px wide and 100px tall. Space them out by at least 300px horizontally and 150px vertically to prevent overlap.",
-      "- NEVER return an empty nodes array if asked to expand or generate. You MUST generate the nodes.",
-      "- Generate completely unique IDs for every new node and edge."
+      `Request: ${currentPrompt.slice(0, 1200)}`,
+      isSelectionActive
+        ? "Selected-node mode: only modify or branch from selected nodes."
+        : "Roadmap mode: modify the roadmap when useful.",
+      "Return JSON only.",
+      "For chat-only: {\"reply\":\"...\"}",
+      "For edits: {\"summary\":\"...\",\"title\":\"...\",\"topic\":\"...\",\"topics\":[\"...\"],\"nodes\":[{\"id\":\"unique-id\",\"label\":\"...\",\"description\":\"...\",\"topic\":\"...\",\"tone\":\"core|skill|optional\",\"x\":100,\"y\":200}],\"edges\":[{\"id\":\"unique-id\",\"from\":\"source-id\",\"to\":\"target-id\",\"dashed\":false}]}",
+      "Rules: unique ids, include x/y for new nodes, space nodes about 300px x 150px apart, create branches when expanding.",
     ].join("\n");
 
     pushAiMessage({ role: "user", content: currentPrompt, scope: "roadmap" });
@@ -1917,13 +1903,13 @@ function CustomControls() {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   return (
     <Panel position="bottom-left" className="m-4 flex flex-col gap-1 rounded-lg border p-1 shadow-lg" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline)" }}>
-      <button type="button" onClick={() => zoomIn({ duration: 300 })} className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} title="Zoom in">
+      <button type="button" onClick={() => void zoomIn()} className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} title="Zoom in">
         <Plus size={14} />
       </button>
-      <button type="button" onClick={() => zoomOut({ duration: 300 })} className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} title="Zoom out">
+      <button type="button" onClick={() => void zoomOut()} className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} title="Zoom out">
         <Minus size={14} />
       </button>
-      <button type="button" onClick={() => fitView({ duration: 600 })} className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} title="Fit to view">
+      <button type="button" onClick={() => void fitView()} className="flex h-7 w-7 items-center justify-center rounded transition-colors hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }} title="Fit to view">
         <Maximize size={12} />
       </button>
     </Panel>

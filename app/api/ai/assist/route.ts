@@ -15,6 +15,11 @@ function chatUrl(base: string) {
   return t.endsWith("/chat/completions") ? t : `${t}/chat/completions`;
 }
 
+function truncateText(value: string, maxChars: number) {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, maxChars)}\n\n[Context truncated to fit model limits.]`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
@@ -45,7 +50,10 @@ export async function POST(request: NextRequest) {
     const rawContext = (body.context ?? "").trim();
 
     // Strip HTML tags for cleaner context unless it's a roadmap
-    const plainContext = contextType === "roadmap" ? rawContext : rawContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const normalizedContext = contextType === "roadmap" ? rawContext : rawContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const plainContext = truncateText(normalizedContext, contextType === "roadmap" ? 5000 : 6500);
+    const safePrompt = truncateText(prompt, contextType === "roadmap" ? 2500 : 3500);
+    const maxTokens = contextType === "roadmap" ? 2200 : 1800;
 
     const systemPrompt = [
       `You are an expert ${contextType === "roadmap" ? "roadmap generator" : "writing assistant"} embedded in a productivity app.`,
@@ -68,10 +76,10 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model: XAI_MODEL,
         temperature: 0.4,
-        max_tokens: 8192,
+        max_tokens: maxTokens,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: prompt },
+          { role: "user", content: safePrompt },
         ],
       }),
     });

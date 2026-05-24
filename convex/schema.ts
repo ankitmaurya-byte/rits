@@ -588,6 +588,27 @@ export default defineSchema({
         dashed: v.optional(v.boolean()),
       })
     ),
+    aiMessages: v.optional(v.array(
+      v.object({
+        role: v.string(),
+        content: v.string(),
+        scope: v.optional(v.string()),
+      })
+    )),
+    history: v.optional(v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        createdAt: v.number(),
+        draft: v.object({
+          title: v.string(),
+          topic: v.string(),
+          topics: v.array(v.string()),
+          nodes: v.array(v.any()),
+          edges: v.array(v.any()),
+        }),
+      })
+    )),
     shareToken: v.optional(v.string()),
     published: v.optional(v.boolean()),
     publishedAt: v.optional(v.number()),

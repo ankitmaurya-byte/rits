@@ -79,6 +79,15 @@ export const createRoadmap = mutation({
     topics: v.array(v.string()),
     nodes: v.array(nodeValidator),
     edges: v.array(edgeValidator),
+    aiMessages: v.optional(v.array(v.object({ role: v.string(), content: v.string(), scope: v.optional(v.string()) }))),
+    history: v.optional(v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        createdAt: v.number(),
+        draft: v.any(),
+      })
+    )),
   },
   handler: async (ctx, args) => {
     const { user } = await requireCurrentUser(ctx);
@@ -91,6 +100,8 @@ export const createRoadmap = mutation({
       topics: sanitizeTopics(args.topics),
       nodes: args.nodes,
       edges: args.edges,
+      aiMessages: args.aiMessages,
+      history: args.history,
       published: false,
       createdBy: user._id,
       createdAt: now,
@@ -107,6 +118,15 @@ export const updateRoadmap = mutation({
     topics: v.array(v.string()),
     nodes: v.array(nodeValidator),
     edges: v.array(edgeValidator),
+    aiMessages: v.optional(v.array(v.object({ role: v.string(), content: v.string(), scope: v.optional(v.string()) }))),
+    history: v.optional(v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        createdAt: v.number(),
+        draft: v.any(),
+      })
+    )),
   },
   handler: async (ctx, args) => {
     const { roadmap } = await requireRoadmapAccess(ctx, args.roadmapId);
@@ -116,6 +136,8 @@ export const updateRoadmap = mutation({
       topics: sanitizeTopics(args.topics),
       nodes: args.nodes,
       edges: args.edges,
+      aiMessages: args.aiMessages,
+      history: args.history,
       updatedAt: Date.now(),
     });
   },

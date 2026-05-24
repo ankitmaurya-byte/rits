@@ -21,7 +21,7 @@ import {
   type NodeProps,
   type Viewport,
 } from "@xyflow/react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileUp, Globe2, History, LayoutTemplate, Loader2, Maximize, MessageSquare, Minus, Plus, Route, Sparkles, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, FileUp, Globe2, History, LayoutTemplate, Loader2, Maximize, Minus, Plus, Route, Sparkles, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import "@xyflow/react/dist/style.css";
@@ -62,6 +62,8 @@ type DraftRoadmap = {
   topics: string[];
   nodes: BuilderNode[];
   edges: BuilderEdge[];
+  aiMessages?: RoadmapAiMessage[];
+  history?: RoadmapHistoryEntry[];
 };
 
 type RoadmapTemplate = {
@@ -71,6 +73,8 @@ type RoadmapTemplate = {
   topics: string[];
   nodes: BuilderNode[];
   edges: BuilderEdge[];
+  aiMessages?: RoadmapAiMessage[];
+  history?: RoadmapHistoryEntry[];
 };
 
 type RoadmapFlowData = {
@@ -259,9 +263,42 @@ function formatHistoryTime(value: number) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function createEmptyDraft(): DraftRoadmap {
+function createUniqueRoadmapTitle(existingTitles: string[]) {
+  const baseTitle = "Untitled roadmap";
+  const usedTitles = new Set(existingTitles.map((title) => title.trim().toLowerCase()));
+
+  if (!usedTitles.has(baseTitle.toLowerCase())) {
+    return baseTitle;
+  }
+
+  let index = 1;
+  while (usedTitles.has(`${baseTitle} ${index}`.toLowerCase())) {
+    index += 1;
+  }
+
+  return `${baseTitle} ${index}`;
+}
+
+function createInitialHistoryEntry(draft: DraftRoadmap): RoadmapHistoryEntry {
   return {
-    title: "Untitled roadmap",
+    id: `initial-${Date.now()}`,
+    label: "Created roadmap",
+    createdAt: Date.now(),
+    draft: cloneDraft(draft),
+  };
+}
+
+function persistedRoadmapSignature(draft: DraftRoadmap, aiMessages: RoadmapAiMessage[], history: RoadmapHistoryEntry[]) {
+  return JSON.stringify({
+    ...draft,
+    aiMessages,
+    history: history.slice(0, 50),
+  });
+}
+
+function createEmptyDraft(title = "Untitled roadmap"): DraftRoadmap {
+  return {
+    title,
     topic: "General",
     topics: ["General"],
     nodes: [
@@ -505,21 +542,6 @@ function shallowEqualIds(left: string[], right: string[]) {
   return left.every((value, index) => value === right[index]);
 }
 
-function formatNodesForAi(nodes: Array<Node<RoadmapFlowData>>) {
-  return nodes
-    .map((node, index) => {
-      const position = `x=${Math.round(node.position.x)}, y=${Math.round(node.position.y)}`;
-      return [
-        `${index + 1}. ${node.data.label} (${node.id})`,
-        `topic: ${node.data.topic}`,
-        `tone: ${node.data.tone}`,
-        `description: ${node.data.description}`,
-        `position: ${position}`,
-      ].join("\n");
-    })
-    .join("\n\n");
-}
-
 function formatRoadmapForAi(draft: DraftRoadmap) {
   const nodesById = new Map(draft.nodes.map((node) => [node.id, node.label]));
   const edgeLines = draft.edges.length
@@ -543,7 +565,7 @@ function formatRoadmapForAi(draft: DraftRoadmap) {
 
 const RoadmapNode = memo(function RoadmapNode({ id, data, selected }: NodeProps<Node<RoadmapFlowData>>) {
   const toneStyle = nodeStyle(data.tone);
-  const addTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const addTimerRef = useRef<number | null>(null);
   const buttons: Array<{ direction: AddDirection; className: string }> = [
     { direction: "top", className: "left-1/2 top-0 -translate-x-1/2 -translate-y-1/2" },
     { direction: "right", className: "right-0 top-1/2 translate-x-1/2 -translate-y-1/2" },
@@ -627,6 +649,7 @@ function RoadmapEditor({
   published = false,
   canPersist,
   onDeleted,
+  onSaved,
   headerActions,
 }: {
   roadmapId: Id<"roadmaps"> | null;
@@ -634,6 +657,7 @@ function RoadmapEditor({
   published?: boolean;
   canPersist: boolean;
   onDeleted: () => void;
+  onSaved: (id: Id<"roadmaps">, draft?: DraftRoadmap) => void;
   headerActions?: React.ReactNode;
 }) {
   const [title, setTitle] = useState(initialDraft.title);
@@ -649,29 +673,26 @@ function RoadmapEditor({
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>(() => initialDraft.nodes[0]?.id ? [initialDraft.nodes[0].id] : []);
   const [isCtrlSelecting, setIsCtrlSelecting] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
-  const [aiMessages, setAiMessages] = useState<RoadmapAiMessage[]>([]);
-  const [aiLoading, setAiLoading] = useState<null | "roadmap-chat" | "selection-chat" | "roadmap-improve" | "selection-improve">(null);
+  const [aiMessages, setAiMessages] = useState<RoadmapAiMessage[]>(initialDraft.aiMessages ?? []);
+  const [aiLoading, setAiLoading] = useState<null | "roadmap-improve">(null);
   const [savedRoadmapId, setSavedRoadmapId] = useState<Id<"roadmaps"> | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [flowViewport, setFlowViewport] = useState<Viewport>({ x: 0, y: 0, zoom: 1 });
-  const [history, setHistory] = useState<RoadmapHistoryEntry[]>(() => [
-    {
-      id: "initial",
-      label: "Opened roadmap",
-      createdAt: Date.now(),
-      draft: cloneDraft(initialDraft),
-    },
-  ]);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [history, setHistory] = useState<RoadmapHistoryEntry[]>(() => 
+    initialDraft.history && initialDraft.history.length > 0 
+      ? initialDraft.history 
+      : [{
+          id: "initial",
+          label: "Opened roadmap",
+          createdAt: Date.now(),
+          draft: cloneDraft(initialDraft),
+        }]
+  );
   const [localPublished, setLocalPublished] = useState(published);
-  const [activeTipPopup, setActiveTipPopup] = useState<number>(0);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && !localStorage.getItem("roadmap_tips_seen")) {
-      setActiveTipPopup(1);
-    }
-  }, []);
+  const [activeTipPopup, setActiveTipPopup] = useState<number>(() =>
+    typeof window !== "undefined" && !localStorage.getItem("roadmap_tips_seen") ? 1 : 0
+  );
 
   const closeTipPopup = (id: number) => {
     if (id === 1) {
@@ -690,13 +711,13 @@ function RoadmapEditor({
   const pendingConnectionRef = useRef<PendingConnection | null>(null);
   const connectNodesRef = useRef<(sourceNodeId: string, targetNodeId: string) => void>(() => {});
   const flowViewportRef = useRef<Viewport>({ x: 0, y: 0, zoom: 1 });
-  const lastSavedSignatureRef = useRef(draftSignature(initialDraft));
+  const lastSavedSignatureRef = useRef(persistedRoadmapSignature(initialDraft, initialDraft.aiMessages ?? [], initialDraft.history ?? []));
   const lastHistorySignatureRef = useRef(draftSignature(initialDraft));
   const pendingHistoryLabelRef = useRef<string | null>(null);
   const skipNextHistoryRef = useRef(false);
   const historyReadyRef = useRef(false);
   const autoSaveReadyRef = useRef(false);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveTimerRef = useRef<number | null>(null);
   const [nodes, setNodes] = useState<Array<Node<RoadmapFlowData>>>(() =>
     toFlowNodes(initialDraft, addNodeFrom, startConnection)
   );
@@ -988,7 +1009,8 @@ function RoadmapEditor({
 
   useEffect(() => {
     const draft = createDraftFromFlow();
-    const signature = draftSignature(draft);
+    const historyToSave = history.slice(0, 50);
+    const signature = persistedRoadmapSignature(draft, aiMessages, historyToSave);
 
     if (!autoSaveReadyRef.current) {
       autoSaveReadyRef.current = true;
@@ -998,25 +1020,23 @@ function RoadmapEditor({
 
     if (!canPersist || signature === lastSavedSignatureRef.current) return;
 
-    setAutoSaveStatus("idle");
     if (autoSaveTimerRef.current) {
       window.clearTimeout(autoSaveTimerRef.current);
     }
 
     autoSaveTimerRef.current = window.setTimeout(() => {
       void (async () => {
-        setAutoSaveStatus("saving");
         try {
           if (currentRoadmapId) {
-            await updateRoadmap({ roadmapId: currentRoadmapId, ...draft });
+            await updateRoadmap({ roadmapId: currentRoadmapId, ...draft, aiMessages, history: historyToSave });
           } else {
-            const createdId = await createRoadmap(draft);
+            const createdId = await createRoadmap({ ...draft, aiMessages, history: historyToSave });
             setSavedRoadmapId(createdId);
+            onSaved(createdId, { ...draft, aiMessages, history: historyToSave });
           }
           lastSavedSignatureRef.current = signature;
-          setAutoSaveStatus("saved");
-        } catch {
-          setAutoSaveStatus("error");
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Failed to autosave roadmap.");
         }
       })();
     }, 900);
@@ -1026,7 +1046,7 @@ function RoadmapEditor({
         window.clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [canPersist, createDraftFromFlow, currentRoadmapId, createRoadmap, updateRoadmap]);
+  }, [aiMessages, canPersist, createDraftFromFlow, createRoadmap, currentRoadmapId, history, onSaved, updateRoadmap]);
 
   const syncSelectionState = (nextNodes: Array<Node<RoadmapFlowData>>, nextEdges: Edge[]) => {
     const nextSelectedNodeIds = nextNodes.filter((node) => node.selected).map((node) => node.id);
@@ -1102,7 +1122,6 @@ function RoadmapEditor({
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
   const selectedEdge = edges.find((edge) => edge.id === selectedEdgeId) ?? null;
-  const selectedNodes = nodes.filter((node) => selectedNodeIds.includes(node.id));
 
   const updateSelectedNode = (patch: Partial<RoadmapFlowData>) => {
     if (!selectedNodeId) return;
@@ -1246,7 +1265,7 @@ function RoadmapEditor({
       draftContext = {
         ...fullDraft,
         nodes: fullDraft.nodes.filter((n) => selectedNodeIds.includes(n.id)),
-        edges: fullDraft.edges.filter((e) => selectedNodeIds.includes(e.source) || selectedNodeIds.includes(e.target)),
+        edges: fullDraft.edges.filter((edge) => selectedNodeIds.includes(edge.from) || selectedNodeIds.includes(edge.to)),
       };
     }
 
@@ -1700,7 +1719,28 @@ function RoadmapEditor({
 
 export function RoadmapPage() {
   const { user } = useUser();
-  const [activeSource, setActiveSource] = useState<{ kind: SourceKind; id: string }>({ kind: "draft", id: "new" });
+  const [activeSource, setActiveSource] = useState<{ kind: SourceKind; id: string }>(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlId = urlParams.get("id");
+        if (urlId) return { kind: "roadmap", id: urlId };
+
+        const stored = localStorage.getItem("rits_last_roadmap_source");
+        if (stored) return JSON.parse(stored);
+      }
+    } catch {}
+    return { kind: "draft", id: "new" };
+  });
+  const [creatingRoadmap, setCreatingRoadmap] = useState(false);
+  const [pendingRoadmapDrafts, setPendingRoadmapDrafts] = useState<Record<string, DraftRoadmap>>({});
+  const reservedRoadmapTitlesRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("rits_last_roadmap_source", JSON.stringify(activeSource));
+    }
+  }, [activeSource]);
   const [savedMenuOpen, setSavedMenuOpen] = useState(false);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
   const draftCounterRef = useRef(1);
@@ -1708,7 +1748,7 @@ export function RoadmapPage() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (menuContainerRef.current && !menuContainerRef.current.contains(event.target as Node)) {
+      if (event.target instanceof globalThis.Node && menuContainerRef.current && !menuContainerRef.current.contains(event.target)) {
         setSavedMenuOpen(false);
         setTemplateMenuOpen(false);
       }
@@ -1723,6 +1763,7 @@ export function RoadmapPage() {
   };
 
   const deleteRoadmap = useMutation(api.roadmaps.deleteRoadmap);
+  const createRoadmap = useMutation(api.roadmaps.createRoadmap);
 
   const roadmaps = (useQuery(
     api.roadmaps.listRoadmaps,
@@ -1734,13 +1775,16 @@ export function RoadmapPage() {
     topics: string[];
     nodes: BuilderNode[];
     edges: BuilderEdge[];
+    aiMessages?: RoadmapAiMessage[];
+    history?: RoadmapHistoryEntry[];
     published?: boolean;
   }>;
 
-  const resolvedSource = activeSource.kind === "roadmap" && !roadmaps.some((item) => item._id === activeSource.id)
+  const resolvedSource = activeSource.kind === "roadmap" && !roadmaps.some((item) => item._id === activeSource.id) && !pendingRoadmapDrafts[activeSource.id]
     ? { kind: "draft" as const, id: "new" }
     : activeSource;
   const sourceRoadmap = resolvedSource.kind === "roadmap" ? roadmaps.find((item) => item._id === resolvedSource.id) ?? null : null;
+  const pendingRoadmapDraft = resolvedSource.kind === "roadmap" ? pendingRoadmapDrafts[resolvedSource.id] ?? null : null;
   const sourceTemplate = resolvedSource.kind === "template" ? templates.find((item) => item.id === resolvedSource.id) ?? templates[0] : null;
   const initialDraft = sourceRoadmap
     ? {
@@ -1749,10 +1793,49 @@ export function RoadmapPage() {
         topics: [...sourceRoadmap.topics],
         nodes: sourceRoadmap.nodes.map((node) => ({ ...node })),
         edges: sourceRoadmap.edges.map((edge) => ({ ...edge })),
+        aiMessages: sourceRoadmap.aiMessages ?? [],
+        history: sourceRoadmap.history ?? [],
       }
+    : pendingRoadmapDraft
+      ? cloneDraft(pendingRoadmapDraft)
     : resolvedSource.kind === "template"
       ? cloneTemplate(sourceTemplate ?? templates[0])
       : createEmptyDraft();
+
+  const handleCreateNewRoadmap = async () => {
+    if (!user) {
+      toast.error("Please sign in to create roadmaps.");
+      return;
+    }
+
+    if (creatingRoadmap) return;
+
+    const title = createUniqueRoadmapTitle([
+      ...roadmaps.map((roadmap) => roadmap.title),
+      ...reservedRoadmapTitlesRef.current,
+    ]);
+    const draft = createEmptyDraft(title);
+    const history = [createInitialHistoryEntry(draft)];
+
+    setCreatingRoadmap(true);
+    try {
+      const createdId = await createRoadmap({ ...draft, aiMessages: [], history });
+      reservedRoadmapTitlesRef.current = [...reservedRoadmapTitlesRef.current, title];
+      setPendingRoadmapDrafts((current) => ({
+        ...current,
+        [createdId]: { ...draft, aiMessages: [], history },
+      }));
+      setActiveSource({ kind: "roadmap", id: createdId });
+      setSavedMenuOpen(false);
+      setTemplateMenuOpen(false);
+      if (typeof window !== "undefined") window.history.pushState(null, "", `?id=${createdId}`);
+      toast.success("Roadmap created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create roadmap.");
+    } finally {
+      setCreatingRoadmap(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in-up" style={{ padding: 0, maxWidth: "none" }}>
@@ -1762,10 +1845,23 @@ export function RoadmapPage() {
         initialDraft={initialDraft}
         published={sourceRoadmap?.published ?? false}
         canPersist={Boolean(user)}
-        onDeleted={() => setActiveSource(nextDraftSource())}
+        onDeleted={() => {
+          setActiveSource(nextDraftSource());
+          if (typeof window !== "undefined") window.history.pushState(null, "", window.location.pathname);
+        }}
+        onSaved={(id, draft) => {
+          if (draft) {
+            setPendingRoadmapDrafts((current) => ({ ...current, [id]: cloneDraft(draft) }));
+          }
+          setActiveSource({ kind: "roadmap", id });
+          if (typeof window !== "undefined") window.history.pushState(null, "", `?id=${id}`);
+        }}
         headerActions={
           <div ref={menuContainerRef} className="flex flex-wrap gap-3">
-            <button type="button" onClick={() => setActiveSource(nextDraftSource())} className="btn-primary"><Plus size={15} /> New roadmap</button>
+            <button type="button" onClick={() => void handleCreateNewRoadmap()} disabled={creatingRoadmap} className="btn-primary">
+              {creatingRoadmap ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+              New roadmap
+            </button>
             <div className="relative">
               <button type="button" onClick={() => setTemplateMenuOpen((current) => !current)} className="btn-outline"><FileUp size={15} /> Import template</button>
               {templateMenuOpen ? (

@@ -244,7 +244,7 @@ function SidebarConfluenceView({
                 <Menu size={18} />
               </button>
               <input value={activeTitle} onChange={(e) => {
-                if (!selectedNote && autoSelectedNote) {
+                if (!selectedId && autoSelectedNote) {
                   handleSelect(autoSelectedNote._id, autoSelectedNote.title, autoSelectedNote.content);
                 }
                 setEditTitle(e.target.value);
@@ -254,7 +254,7 @@ function SidebarConfluenceView({
             <div className="flex-1 overflow-auto p-8 lg:p-12 relative z-10">
               <div className="max-w-3xl mx-auto stripe-card" style={{ padding: "0" }}>
                 <NoteEditor content={activeContent} minHeight="500px" onChange={(value) => {
-                  if (!selectedNote && autoSelectedNote) {
+                  if (!selectedId && autoSelectedNote) {
                     handleSelect(autoSelectedNote._id, autoSelectedNote.title, autoSelectedNote.content);
                   }
                   setEditContent(value);

@@ -5,24 +5,13 @@ import { useMutation, useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import {
   ArrowLeft,
-  Bot,
   CheckCheck,
-  Folder,
-  Image as ImageIcon,
   Lock,
-  Menu,
   MessageCirclePlus,
-  MoreVertical,
-  Phone,
-  Pin,
-  Plus,
   Search,
-  Settings,
   Sparkles,
   UserPlus,
-  UserRound,
   Users,
-  WandSparkles,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -88,10 +77,6 @@ function strictPanelStyle(active?: boolean) {
   } as const;
 }
 
-function StatusDot() {
-  return <span className="h-2 w-2 rounded-full" style={{ backgroundColor: "var(--accent-green)" }} />;
-}
-
 function Avatar({ label, color = "var(--surface-elevated)", size = 44 }: { label: string; color?: string; size?: number }) {
   return (
     <div
@@ -136,23 +121,24 @@ function AiMessageBody({ content }: { content: string }) {
 }
 
 function LeftRail({ mode, onModeChange }: { mode: Mode; onModeChange: (mode: Mode) => void }) {
+  const items = [
+    { key: "private" as const, icon: <Lock size={18} />, label: "Private" },
+    { key: "workspace" as const, icon: <Users size={18} />, label: "Workspace" },
+  ];
+
   return (
-    <div className="hidden md:flex w-[72px] shrink-0 flex-col items-center justify-between border-r px-3 py-4" style={{ backgroundColor: "var(--surface-deep)", borderColor: "var(--hairline)" }}>
+    <div className="hidden w-16 shrink-0 flex-col items-center border-r px-2 py-4 md:flex" style={{ backgroundColor: "var(--surface-deep)", borderColor: "var(--hairline)" }}>
       <div className="flex flex-col gap-3">
-        {[
-          { key: "private" as const, icon: <Lock size={18} /> },
-          { key: "workspace" as const, icon: <Users size={18} /> },
-          { key: "private" as const, icon: <Bot size={18} /> },
-          { key: "workspace" as const, icon: <Folder size={18} /> },
-          { key: "private" as const, icon: <Settings size={18} /> },
-        ].map((item, index) => {
-          const active = index < 2 && mode === item.key;
+        {items.map((item) => {
+          const active = mode === item.key;
           return (
             <button
-              key={`${item.key}-${index}`}
+              key={item.key}
               type="button"
-              onClick={() => index < 2 && onModeChange(item.key)}
-              className="relative flex h-11 w-11 items-center justify-center rounded-2xl border transition-colors"
+              onClick={() => onModeChange(item.key)}
+              title={item.label}
+              aria-label={item.label}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl border transition-colors"
               style={{
                 backgroundColor: active ? "var(--surface-elevated)" : "transparent",
                 borderColor: active ? "var(--hairline-strong)" : "transparent",
@@ -164,12 +150,6 @@ function LeftRail({ mode, onModeChange }: { mode: Mode; onModeChange: (mode: Mod
             </button>
           );
         })}
-      </div>
-      <div className="flex flex-col gap-3">
-        <button type="button" className="flex h-11 w-11 items-center justify-center rounded-2xl border" style={{ borderColor: "var(--hairline)", color: "var(--mute)", backgroundColor: "var(--surface-card)" }}>
-          <ImageIcon size={18} />
-        </button>
-        <Avatar label="AS" size={44} color="var(--surface-card)" />
       </div>
     </div>
   );
@@ -377,9 +357,8 @@ function SharedMessageCard({
       <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{message.shareTitle}</p>
       <p className="mt-1 text-xs leading-5" style={{ color: "var(--charcoal)" }}>{message.shareDescription}</p>
       <p className="mt-2 text-[11px]" style={{ color: "var(--mute)" }}>{message.shareMeta}</p>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3">
         <button type="button" onClick={onImport} className="rounded-full border px-3 py-1.5 text-[11px] font-medium" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--ink)" }}>Import</button>
-        <button type="button" className="rounded-full border px-3 py-1.5 text-[11px] font-medium" style={{ borderColor: "rgba(17,255,153,0.22)", backgroundColor: "rgba(17,255,153,0.12)", color: "var(--accent-green)" }}>Ask AI</button>
       </div>
     </div>
   );
@@ -394,7 +373,6 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [composer, setComposer] = useState("");
-  const [aiMenuOpen, setAiMenuOpen] = useState(false);
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [selectedPrivateRoomId, setSelectedPrivateRoomId] = useState<Id<"socialChatRooms"> | null>(null);
   const [selectedWorkspaceRoomId, setSelectedWorkspaceRoomId] = useState<Id<"socialChatRooms"> | null>(null);
@@ -581,25 +559,23 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
       <div className="flex h-full overflow-hidden border" style={{ borderColor: "var(--hairline)" }}>
         <LeftRail mode={mode} onModeChange={setMode} />
 
-        <div className={`${mobileView === "chat" ? "hidden md:flex" : "flex"} relative h-full w-full md:w-[440px] xl:w-[520px] shrink-0 flex-col border-r`} style={{ backgroundColor: "#050507", borderColor: "var(--hairline)" }}>
-          <div className="border-b px-5 py-4" style={{ borderColor: "var(--hairline)" }}>
-            <div className="mb-4 flex items-center justify-between">
+        <div className={`${mobileView === "chat" ? "hidden md:flex" : "flex"} relative h-full w-full shrink-0 flex-col border-r md:w-[380px] xl:w-[440px]`} style={{ backgroundColor: "#050507", borderColor: "var(--hairline)" }}>
+          <div className="border-b px-4 py-3" style={{ borderColor: "var(--hairline)" }}>
+            <div className="mb-3 flex items-center justify-between">
               <div>
-                <p className="text-[28px] font-medium tracking-tight" style={{ color: "var(--ink)" }}>{mode === "private" ? "Private Chats" : workspace?.name ?? "Workspace Chats"}</p>
-                <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>{mode === "private" ? "Friends only direct messaging" : "Objective-specific rooms for workspace members"}</p>
+                <p className="text-xl font-medium tracking-tight" style={{ color: "var(--ink)" }}>{mode === "private" ? "Private Chats" : workspace?.name ?? "Workspace Chats"}</p>
               </div>
               <div className="flex items-center gap-2">
                 {mode === "private" ? (
-                  <button type="button" onClick={() => setPeopleOpen(true)} className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><UserPlus size={18} /></button>
+                  <button type="button" onClick={() => setPeopleOpen(true)} title="People" aria-label="People" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><UserPlus size={18} /></button>
                 ) : (
-                  <button type="button" onClick={() => setWorkspaceModalOpen(true)} className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><MessageCirclePlus size={18} /></button>
+                  <button type="button" onClick={() => setWorkspaceModalOpen(true)} title="New workspace chat" aria-label="New workspace chat" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><MessageCirclePlus size={18} /></button>
                 )}
-                <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><Menu size={18} /></button>
               </div>
             </div>
             <div className="relative">
               <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
-              <input value={searchValue} onChange={(event) => setSearchValue(event.target.value)} placeholder={mode === "private" ? "Search friends or start a chat" : "Search workspace chats"} className="h-11 w-full rounded-full border pl-11 pr-4 text-sm outline-none" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline)", color: "var(--ink)" }} />
+              <input value={searchValue} onChange={(event) => setSearchValue(event.target.value)} placeholder={mode === "private" ? "Search private chats" : "Search workspace chats"} className="h-11 w-full rounded-full border pl-11 pr-4 text-sm outline-none" style={{ backgroundColor: "var(--surface-card)", borderColor: "var(--hairline)", color: "var(--ink)" }} />
             </div>
           </div>
 
@@ -613,7 +589,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
           <div className="flex-1 overflow-y-auto px-3 py-3">
             {filteredRooms.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
-                <Folder size={36} className="mb-4" style={{ color: "var(--stone)" }} />
+                <MessageCirclePlus size={34} className="mb-4" style={{ color: "var(--stone)" }} />
                 <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>No chats yet</p>
                 <p className="mt-2 max-w-xs text-sm" style={{ color: "var(--mute)" }}>{mode === "private" ? "Add friends to start private chats." : "Create a workspace room for a specific objective."}</p>
               </div>
@@ -638,10 +614,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
                       <div className="min-w-0 flex-1">
                         <div className="mb-1 flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{room.displayName ?? room.title}</p>
-                              {mode === "workspace" ? <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: "rgba(17,255,153,0.22)", backgroundColor: "rgba(17,255,153,0.1)", color: "var(--accent-green)" }}><StatusDot /> AI</span> : null}
-                            </div>
+                            <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{room.displayName ?? room.title}</p>
                             <p className="mt-0.5 truncate text-xs" style={{ color: "var(--mute)" }}>{room.objective ?? (mode === "private" ? room.otherUser?.email ?? "Friend chat" : "Workspace room")}</p>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-1">
@@ -649,10 +622,7 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
                             {room.unreadCount ? <span className="inline-flex min-w-[20px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: "rgba(17,255,153,0.16)", color: "var(--accent-green)" }}>{room.unreadCount}</span> : room.lastMessagePreview ? <CheckCheck size={14} style={{ color: "#7ec8ff" }} /> : null}
                           </div>
                         </div>
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="truncate text-sm" style={{ color: "var(--charcoal)" }}>{room.lastMessagePreview ?? "No messages yet"}</p>
-                          {mode === "private" ? <Pin size={12} style={{ color: "var(--mute)" }} /> : null}
-                        </div>
+                        <p className="truncate text-sm" style={{ color: "var(--charcoal)" }}>{room.lastMessagePreview ?? "No messages yet"}</p>
                       </div>
                     </button>
                   );
@@ -670,28 +640,15 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
                   <button type="button" onClick={() => setMobileView("list")} className="md:hidden" style={{ color: "var(--ink)" }}><ArrowLeft size={18} /></button>
                   <Avatar label={(activeRoom.displayName ?? activeRoom.title).slice(0, 2)} color="var(--surface-elevated)" />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{activeRoom.displayName ?? activeRoom.title}</p>
-                      <StatusDot />
-                    </div>
+                    <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{activeRoom.displayName ?? activeRoom.title}</p>
                     <p className="truncate text-xs" style={{ color: "var(--mute)" }}>{mode === "private" ? "friend chat" : activeRoom.objective ?? "workspace objective thread"}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2" style={{ color: "var(--mute)" }}>
-                  <button type="button" onClick={() => void handleAnalyzeUnread()} className="rounded-full p-2 hover:bg-[var(--surface-elevated)]"><Sparkles size={17} /></button>
-                  <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]"><Search size={17} /></button>
-                  <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]"><Phone size={17} /></button>
-                  <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]"><MoreVertical size={17} /></button>
-                </div>
-              </div>
-
-              <div className="border-b px-4 py-3 md:px-6" style={{ borderColor: "var(--hairline)", backgroundColor: "rgba(255,255,255,0.02)" }}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border px-3 py-1 text-[11px]" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)", color: "var(--body)" }}>
-                    {mode === "private" ? "Private friend chat" : workspace?.name ?? "Workspace"}
-                  </span>
-                  {activeRoom.unreadCount && activeRoom.unreadCount > 5 ? <span className="rounded-full border px-3 py-1 text-[11px]" style={{ borderColor: "rgba(17,255,153,0.22)", backgroundColor: "rgba(17,255,153,0.1)", color: "var(--accent-green)" }}>AI can analyze {activeRoom.unreadCount} unread messages</span> : null}
-                </div>
+                {messages.length > 0 ? (
+                  <div className="flex items-center gap-2" style={{ color: "var(--mute)" }}>
+                    <button type="button" onClick={() => void handleAnalyzeUnread()} title="Analyze latest messages" aria-label="Analyze latest messages" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]"><Sparkles size={17} /></button>
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6" style={{ background: "radial-gradient(circle at top, rgba(255,255,255,0.04), transparent 36%), var(--canvas)" }}>
@@ -748,29 +705,11 @@ export function ChatWorkspaceUI({ initialMode = "private" }: { initialMode?: Mod
               </div>
 
               <div className="border-t px-4 py-3 md:px-6" style={{ borderColor: "var(--hairline)", backgroundColor: "#050507" }}>
-                <div className="mb-3 flex gap-2 overflow-x-auto">
-                  {["Reply casually", "Make it professional", "Summarize", "Create task"].map((item) => (
-                    <button key={item} type="button" className="rounded-full border px-3 py-1.5 text-[11px] font-medium whitespace-nowrap" style={{ borderColor: "var(--hairline)", backgroundColor: "rgba(255,255,255,0.04)", color: "var(--body)" }}>{item}</button>
-                  ))}
-                </div>
                 {shareKind ? <ShareMenu kind={shareKind} items={shareItems} onShare={(item) => void handleShare(item)} /> : null}
-                <div className="flex items-end gap-3 rounded-[20px] border px-3 py-2" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
-                  <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><Plus size={18} /></button>
-                  <button type="button" className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--mute)" }}><UserRound size={18} /></button>
+                <div className="flex items-end gap-3 rounded-[18px] border px-3 py-2" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
                   <textarea value={composer} onChange={(event) => setComposer(event.target.value)} onKeyDown={handleComposerKeyDown} rows={1} placeholder={mode === "private" ? "Type a message or use /link, /ideas, /notes" : "Type a message or use /link, /confluence"} className="max-h-28 min-h-[24px] flex-1 resize-none bg-transparent py-2 text-sm outline-none" style={{ color: "var(--ink)" }} />
-                  <button type="button" onClick={() => setAiMenuOpen((current) => !current)} className="rounded-full p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--accent-green)" }}><WandSparkles size={18} /></button>
-                  <button type="button" onClick={() => void handleSend()} className="rounded-full px-4 py-2 text-sm font-medium" style={{ backgroundColor: "var(--accent-green)", color: "#02160e" }}>Send</button>
+                  <button type="button" onClick={() => void handleSend()} disabled={!composer.trim()} className="rounded-full px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: "var(--accent-green)", color: "#02160e" }}>Send</button>
                 </div>
-                {aiMenuOpen ? (
-                  <div className="mt-3 grid grid-cols-1 gap-2 rounded-2xl border p-3 md:grid-cols-2" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
-                    {["Rewrite message", "Summarize chat", "Generate reply", "Translate", "Extract tasks", "Ask AI about this chat"].map((item) => (
-                      <button key={item} type="button" className="flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm hover:bg-[var(--surface-elevated)]" style={{ color: "var(--ink)" }}>
-                        <Sparkles size={14} style={{ color: "var(--accent-green)" }} />
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             </>
           ) : (

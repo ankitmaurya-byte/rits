@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import ycStartupsImage from "@/lib/homepage_ui/ycstartups.png";
+import githubToolsImage from "@/lib/homepage_ui/githubtools.png";
+import sharkTankImage from "@/lib/homepage_ui/sharktank.png";
+import kanbanImage from "@/lib/homepage_ui/kanban.png";
 
 const NAV_LINKS = [
   { label: "Features", href: "#features" },
@@ -128,28 +132,6 @@ function ResourceIcon() {
       <path d="M6 16h20M16 6c-3 4-3 12 0 20M16 6c3 4 3 12 0 20" stroke="#ff2047" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
     </svg>
   );
-}
-
-/* ─── Animated number counter ─── */
-function Counter({ target, suffix = "" }: { target: number; suffix?: string }) {
-  const [count, setCount] = useState(0);
-  const ref = useRef<HTMLSpanElement>(null);
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) {
-        let start = 0;
-        const step = target / 60;
-        const timer = setInterval(() => {
-          start += step;
-          if (start >= target) { setCount(target); clearInterval(timer); }
-          else setCount(Math.floor(start));
-        }, 16);
-      }
-    }, { threshold: 0.5 });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [target]);
-  return <span ref={ref}>{count}{suffix}</span>;
 }
 
 /* ─── Scroll reveal hook ─── */
@@ -294,21 +276,6 @@ function WorkflowDiagram() {
   );
 }
 
-/* ─── Stats bar SVG ─── */
-function StatsBar({ label, value, color, pct }: { label: string; value: string; color: string; pct: number }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "rgba(252,253,255,0.5)", fontFamily: "monospace" }}>
-        <span>{label}</span><span style={{ color }}>{value}</span>
-      </div>
-      <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 99, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 99,
-          animation: "growBar 1.2s ease-out forwards", transformOrigin: "left" }} />
-      </div>
-    </div>
-  );
-}
-
 const features = [
   {
     icon: <IdeaIcon />,
@@ -354,19 +321,40 @@ const features = [
   },
 ];
 
-const stats = [
-  { label: "Research briefs", value: "12K+", target: 12, suffix: "K+", color: "#ffc53d", pct: 85 },
-  { label: "Analyses completed", value: "48K+", target: 48, suffix: "K+", color: "#11ff99", pct: 92 },
-  { label: "AI queries", value: "8K+", target: 8, suffix: "K+", color: "#3b9eff", pct: 60 },
-  { label: "Consulting teams", value: "340+", target: 340, suffix: "+", color: "#ff801f", pct: 70 },
-];
+const HOME_UI_CARDS = [
+  {
+    title: "Kanban Board",
+    image: kanbanImage,
+  },
+  {
+    title: "GitHub Tools",
+    image: githubToolsImage,
+  },
+  {
+    title: "YC Startups",
+    image: ycStartupsImage,
+  },
+  {
+    title: "Shark Tank",
+    image: sharkTankImage,
+  },
+] as const;
+
+const HERO_CARD_SLOTS = [
+  { x: "0px", rotate: 0, scale: 1.03, lift: -18, zIndex: 40 },
+  { x: "clamp(-180px, -14vw, -28px)", rotate: -8, scale: 0.97, lift: -4, zIndex: 30 },
+  { x: "clamp(28px, 14vw, 170px)", rotate: 7, scale: 0.94, lift: 4, zIndex: 20 },
+  { x: "clamp(-330px, -26vw, -52px)", rotate: -14, scale: 0.9, lift: 10, zIndex: 10 },
+] as const;
 
 export default function Home() {
   const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [headerHidden, setHeaderHidden] = useState(false);
+  const [activeHeroCard, setActiveHeroCard] = useState<number>(1);
   const lastScrollY = useRef(0);
+  const heroCardCount = HOME_UI_CARDS.length;
 
   useEffect(() => {
     if (isLoaded && isSignedIn) router.push("/dashboard");
@@ -569,29 +557,54 @@ export default function Home() {
           </SignInButton>
         </div>
 
-        {/* Workflow diagram */}
-        <div className="relative aspect-[12/8] sm:aspect-[12/7] w-full max-w-[1180px] pt-6 sm:pt-8 lg:pt-12" style={{ animation: "fadeInUp 0.8s ease 0.9s both" }}>
-          <WorkflowDiagram />
-      
-        </div>
-      </section>
+        <div className="relative w-full max-w-[1180px] pt-6 sm:pt-8 lg:pt-12" style={{ animation: "fadeInUp 0.8s ease 0.9s both" }}>
+          <div className="mx-auto flex w-full max-w-[1080px] flex-col items-center">
+            <div className="relative flex min-h-[300px] w-full items-center justify-center overflow-visible sm:min-h-[360px] lg:min-h-[430px]">
+              {HOME_UI_CARDS.map((card, index) => (
+                (() => {
+                  const slotIndex = (activeHeroCard - index + heroCardCount) % heroCardCount;
+                  const slot = HERO_CARD_SLOTS[slotIndex];
 
-      {/* ─────────── STATS BAND ─────────── */}
-      <section className="relative z-10 px-4 sm:px-6 lg:px-8 py-12 sm:py-16" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div style={{ maxWidth: 960, margin: "0 auto" }}>
-          <Reveal>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-12">
-              {stats.map((s) => (
-                <div key={s.label} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ fontSize: "clamp(28px, 5vw, 44px)", fontWeight: 400, fontFamily: "monospace", color: s.color, lineHeight: 1 }}>
-                    <Counter target={s.target} suffix={s.suffix} />
-                  </div>
-                  <div style={{ fontSize: 12, color: "rgba(252,253,255,0.4)", fontFamily: "monospace" }}>{s.label}</div>
-                  <StatsBar label="" value="" color={s.color} pct={s.pct} />
-                </div>
+                  return (
+                    <button
+                      key={card.title}
+                      type="button"
+                      onClick={() => setActiveHeroCard(index)}
+                      className="absolute w-[76%] max-w-[640px] cursor-pointer overflow-hidden rounded-[22px] border border-white/12 bg-[#0a0a0c] text-left shadow-[0_24px_80px_rgba(0,0,0,0.45)] transition-transform duration-300 hover:-translate-y-3"
+                      style={{
+                        zIndex: slot.zIndex,
+                        transform: `translateX(${slot.x}) translateY(${slot.lift}px) rotate(${slot.rotate}deg) scale(${slot.scale})`,
+                      }}
+                    >
+                      <div className="relative aspect-[16/10] w-full bg-[#06060a]">
+                        <Image
+                          src={card.image}
+                          alt={card.title}
+                          fill
+                          className="object-cover object-top"
+                          sizes="(min-width: 1024px) 640px, 76vw"
+                          priority={index < 2}
+                        />
+                        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 py-4 sm:px-5">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.16em] text-white/45" style={{ fontFamily: "monospace" }}>Homepage UI</p>
+                            <p className="mt-1 text-sm text-white sm:text-base" style={{ fontFamily: "monospace" }}>{card.title}</p>
+                          </div>
+                          <span className="hidden rounded-full border border-white/15 bg-black/35 px-3 py-1 text-[10px] text-white/70 backdrop-blur-sm sm:inline-flex" style={{ fontFamily: "monospace" }}>
+                            Bring to front
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })()
               ))}
             </div>
-          </Reveal>
+            <p className="mt-6 text-center text-[11px] text-white/35 sm:text-[12px]" style={{ fontFamily: "monospace" }}>
+              Preview the homepage UI as a hand of cards. Click any card to bring it to the front.
+            </p>
+          </div>
         </div>
       </section>
 

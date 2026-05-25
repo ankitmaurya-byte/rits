@@ -52,8 +52,14 @@ type NoteTreeItemProps = {
   allNotes: NoteDoc[];
   activeNoteId: Id<"notes"> | null;
   expandedFolders: Set<Id<"notes">>;
+  draggedNoteId: Id<"notes"> | null;
+  dropTarget: { id: Id<"notes">; intent: DropIntent } | null;
   toggleFolder: (folderId: Id<"notes">) => void;
   handleSelect: (id: Id<"notes">, content: string) => void;
+  handleDragStart: (event: DragEvent<HTMLElement>, note: NoteDoc) => void;
+  handleDragOverItem: (event: DragEvent<HTMLElement>, target: NoteDoc) => void;
+  handleDropOnItem: (event: DragEvent<HTMLElement>, target: NoteDoc) => Promise<void>;
+  resetDragState: () => void;
   deleteNote: (args: DeleteNoteArgs) => Promise<unknown>;
   confirm: ConfirmFn;
   depth?: number;
@@ -173,28 +179,48 @@ function NoteTreeItem({
   allNotes,
   activeNoteId,
   expandedFolders,
+  draggedNoteId,
+  dropTarget,
   toggleFolder,
   handleSelect,
+  handleDragStart,
+  handleDragOverItem,
+  handleDropOnItem,
+  resetDragState,
   deleteNote,
   confirm,
   depth = 0
 }: NoteTreeItemProps) {
-  const children = allNotes.filter((n) => n.parentId === item._id);
+  const children = sortNotes(allNotes.filter((n) => n.parentId === item._id));
   const isFolder = item.kind === "folder";
   const isExpanded = expandedFolders.has(item._id);
   const isSelected = activeNoteId === item._id;
+  const activeDrop = dropTarget?.id === item._id ? dropTarget.intent : null;
+  const dropClass = activeDrop === "inside"
+    ? "ring-1 ring-blue-400/70 bg-blue-500/10"
+    : activeDrop === "before"
+      ? "border-t-blue-400"
+      : activeDrop === "after"
+        ? "border-b-blue-400"
+        : "border-y-transparent";
+  const draggingClass = draggedNoteId === item._id ? "opacity-45" : "";
 
   return (
     <div>
       <div 
-        className="w-full text-left transition-colors group relative cursor-pointer"
+        className={`w-full text-left transition-colors group relative cursor-grab active:cursor-grabbing ${draggingClass}`}
         style={{ 
           backgroundColor: isSelected ? "var(--surface-elevated)" : "transparent"
         }}
+        draggable
+        onDragStart={(event) => handleDragStart(event, item)}
+        onDragOver={(event) => handleDragOverItem(event, item)}
+        onDragEnd={resetDragState}
+        onDrop={(event) => void handleDropOnItem(event, item)}
       >
         {isSelected && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />}
         <div 
-          className="flex items-center justify-between py-2 pr-4 hover:bg-[var(--surface-elevated)]"
+          className={`flex items-center justify-between border-y py-2 pr-4 hover:bg-[var(--surface-elevated)] ${dropClass}`}
           style={{ paddingLeft: `${(depth * 12) + 12}px` }}
           onClick={() => {
             if (isFolder) {
@@ -259,8 +285,14 @@ function NoteTreeItem({
                 allNotes={allNotes} 
                 activeNoteId={activeNoteId} 
                 expandedFolders={expandedFolders} 
+                draggedNoteId={draggedNoteId}
+                dropTarget={dropTarget}
                 toggleFolder={toggleFolder} 
                 handleSelect={handleSelect} 
+                handleDragStart={handleDragStart}
+                handleDragOverItem={handleDragOverItem}
+                handleDropOnItem={handleDropOnItem}
+                resetDragState={resetDragState}
                 deleteNote={deleteNote} 
                 confirm={confirm}
                 depth={depth + 1}
@@ -479,6 +511,7 @@ export function ConfluenceLayout({
           parentId: target._id,
           sortOrder: getInsertSortOrder(siblings, siblings.length),
         });
+        setExpandedFolders((previous) => new Set(previous).add(target._id));
         toast.success(`Moved to ${target.title}.`);
         return;
       }
@@ -488,6 +521,30 @@ export function ConfluenceLayout({
         id: dragged._id,
         parentId,
         sortOrder: getSortOrderForTarget(target, intent === "inside" ? "after" : intent, dragged._id),
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to move item.");
+    } finally {
+      resetDragState();
+    }
+  };
+
+  const handleDropOnRoot = async (event: DragEvent<HTMLDivElement>) => {
+    if (!draggedNoteId) return;
+    event.preventDefault();
+
+    const dragged = allNotes.find((note) => note._id === draggedNoteId);
+    if (!dragged) {
+      resetDragState();
+      return;
+    }
+
+    const siblings = getSiblings(null, dragged._id);
+    try {
+      await updateNote({
+        id: dragged._id,
+        parentId: null,
+        sortOrder: getInsertSortOrder(siblings, siblings.length),
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to move item.");
@@ -624,7 +681,16 @@ export function ConfluenceLayout({
                 </div>
               )}
 
-              <div className="flex-1 overflow-y-auto py-2">
+              <div
+                className="flex-1 overflow-y-auto py-2"
+                onDragOver={(event) => {
+                  if (!draggedNoteId) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropTarget(null);
+                }}
+                onDrop={(event) => void handleDropOnRoot(event)}
+              >
                 {rootItems.map((item) => (
                   <NoteTreeItem 
                     key={item._id} 
@@ -632,8 +698,14 @@ export function ConfluenceLayout({
                     allNotes={allNotes} 
                     activeNoteId={selectedId} 
                     expandedFolders={expandedFolders} 
+                    draggedNoteId={draggedNoteId}
+                    dropTarget={dropTarget}
                     toggleFolder={toggleFolder} 
                     handleSelect={handleSelect} 
+                    handleDragStart={handleDragStart}
+                    handleDragOverItem={handleDragOverItem}
+                    handleDropOnItem={handleDropOnItem}
+                    resetDragState={resetDragState}
                     deleteNote={deleteNote} 
                     confirm={confirm} 
                   />
@@ -754,19 +826,22 @@ export function ConfluenceLayout({
                       onDragOver={(event) => handleDragOverItem(event, item)}
                       onDragEnd={resetDragState}
                       onDrop={(event) => void handleDropOnItem(event, item)}
-                      className={`group flex h-[184px] w-[236px] cursor-grab flex-col overflow-hidden rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-deep)] transition-colors hover:bg-[var(--surface-elevated)] active:cursor-grabbing ${dropClass} ${draggingClass}`}
+                      className={`group relative flex h-[184px] w-[236px] cursor-grab flex-col overflow-hidden rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-deep)] transition-colors hover:bg-[var(--surface-elevated)] active:cursor-grabbing ${dropClass} ${draggingClass}`}
                     >
-                      <div className="flex flex-1 cursor-pointer flex-col p-4" onClick={() => setPreviewNote(item)}>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setShareNote(item);
+                        }}
+                        className="absolute right-3 top-3 z-10 rounded-md border border-[var(--hairline-strong)] bg-[var(--surface-card)] p-1.5 text-[var(--stone)] opacity-0 shadow-sm transition-all hover:bg-[var(--surface-elevated)] hover:text-blue-400 focus-visible:opacity-100 group-hover:opacity-100"
+                        aria-label={`Share ${item.title}`}
+                      >
+                        <Share2 size={14} />
+                      </button>
+                      <div className="flex h-full cursor-pointer flex-col p-4 pr-12" onClick={() => setPreviewNote(item)}>
                         <h4 className="mb-2 line-clamp-1 text-base font-medium leading-snug text-[var(--ink)]">{item.title}</h4>
-                        <p className="line-clamp-4 text-xs text-[var(--charcoal)]">{item.content ? item.content.replace(/<[^>]+>/g, '') : "Empty file"}</p>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-[var(--hairline-strong)] bg-[var(--canvas)] px-4 py-2">
-                        <div className="flex items-center gap-1.5 text-xs text-[var(--mute)]">
-                          <FileText size={12} /> File
-                        </div>
-                        <button onClick={() => setShareNote(item)} className="rounded p-1.5 text-[var(--stone)] transition-colors hover:bg-[var(--surface-elevated)] hover:text-blue-400">
-                          <Share2 size={14} />
-                        </button>
+                        <p className="line-clamp-6 text-xs text-[var(--charcoal)]">{item.content ? item.content.replace(/<[^>]+>/g, '') : "Empty file"}</p>
                       </div>
                     </div>
                   );

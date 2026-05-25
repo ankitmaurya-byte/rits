@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useWorkspaceStore } from "@/store/workspace-store";
-import { Plus, Users, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, X, Sparkles, AlertCircle, ListTodo, CheckSquare, XCircle, AlertTriangle, PlayCircle, Palette, Activity, Minus } from "lucide-react";
+import { Plus, Users, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, X, Sparkles, AlertCircle, ListTodo, CheckSquare, XCircle, AlertTriangle, PlayCircle, Palette, Activity, Minus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
 import { TodoExcelSheetsView } from "@/components/todos/todo-excel-sheets-view";

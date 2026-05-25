@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
         ? `Here is the current content of the ${contextLabel} (use this as context):\n\n"""\n${contextType === "roadmap" ? plainContext : plainContext.slice(0, 8000)}\n"""`
         : `The ${contextLabel} is currently empty.`,
       ``,
-      `Follow the user's instruction precisely. Return only the requested content  no preamble, no meta commentary${contextType === "roadmap" ? "." : ", no markdown code fences unless the user asks for code."}`,
-      contextType === "roadmap" ? "" : `Format your response as clean rich text: use paragraphs, bullet points, headings, or numbered lists as appropriate for the content.`,
+      `Follow the user's instruction precisely. Return only the requested content  no preamble, no meta commentary${contextType === "roadmap" ? "." : ", and absolutely no markdown code fences unless the user asks for code."}`,
+      contextType === "roadmap" ? "" : `Format your response using ONLY plain HTML tags (e.g. <p>, <strong>, <em>, <ul>, <li>, <h1>). DO NOT use Markdown formatting (like **, -, #). For nested lists, ensure strict HTML (the nested <ul> MUST be inside an <li> element).`,
       `If the user asks you to improve, rewrite, summarise, expand, or continue the existing content, do so relative to the context provided.`,
     ].filter(Boolean).join("\n");
 
@@ -93,7 +93,14 @@ export async function POST(request: NextRequest) {
       choices?: Array<{ message?: { content?: string } }>;
     };
 
-    const result = data.choices?.[0]?.message?.content?.trim() ?? "";
+    let result = data.choices?.[0]?.message?.content?.trim() ?? "";
+    if (contextType !== "roadmap") {
+      result = result
+        .replace(/^```(?:html|xml)?\n?/i, "")
+        .replace(/\n?```$/i, "")
+        .replace(/>\s+</g, "><")
+        .trim();
+    }
     if (!result) {
       console.error("AI returned empty. Full response:", JSON.stringify(data));
       throw new Error("AI returned an empty response.");

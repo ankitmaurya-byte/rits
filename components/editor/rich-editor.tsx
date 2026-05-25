@@ -583,7 +583,19 @@ export function RichEditor({
           void handleImageFiles(event.dataTransfer.files);
           return true;
         }
+        if (event.dataTransfer?.types.includes("application/x-rits-block")) {
+          // Tell ProseMirror to ignore block drops so it doesn't insert raw numbers
+          return true;
+        }
         return false;
+      },
+      handleDOMEvents: {
+        mousedown: (view, event) => {
+          if (event.ctrlKey || event.metaKey) {
+            return true;
+          }
+          return false;
+        },
       },
       handleKeyDown(view, event) {
         if (event.key !== "/" && event.key !== " ") return false;
@@ -807,6 +819,8 @@ export function RichEditor({
       if (empty || from === to || !editor.isFocused) {
         setSelectionPopover(null);
         setSelectionPromptOpen(false);
+        setSelectionPanelPosition(null);
+        setPanelDismissed(false);
         return;
       }
 
@@ -814,6 +828,8 @@ export function RichEditor({
       if (!text || !hasAiEligibleSelectionLine(text)) {
         setSelectionPopover(null);
         setSelectionPromptOpen(false);
+        setSelectionPanelPosition(null);
+        setPanelDismissed(false);
         return;
       }
 
@@ -824,13 +840,13 @@ export function RichEditor({
         from,
         to,
         text,
-        top: Math.min(start.top, end.top) - 12,
+        top: Math.max(start.bottom, end.bottom) + 16,
         left: start.left + Math.max(width / 2, 0),
       };
 
       setSelectionPopover(nextPopover);
       if (panelDismissed) return;
-      setSelectionPanelPosition((current) => current ?? { top: nextPopover.top + 8, left: nextPopover.left });
+      setSelectionPanelPosition((current) => current ?? { top: nextPopover.top, left: nextPopover.left });
     };
 
     editor.on("selectionUpdate", updateSelectionPopover);
@@ -1219,24 +1235,6 @@ export function RichEditor({
           setBlockMenuOpen(false);
         }}
         onClick={(event) => {
-          const clickedBlock = getTopLevelBlockFromEvent(event);
-          if ((event.ctrlKey || event.metaKey) && clickedBlock) {
-            event.preventDefault();
-            event.stopPropagation();
-            setBlockMenuOpen(false);
-            setBlockHandle(clickedBlock);
-            setSelectedBlockPositions((current) => current.includes(clickedBlock.pos)
-              ? current.filter((pos) => pos !== clickedBlock.pos)
-              : [...current, clickedBlock.pos].sort((left, right) => left - right));
-            setSelectedBlocks((currentBlocks) => {
-              const currentPositions = currentBlocks.map((block) => block.pos);
-              const nextPositions = currentPositions.includes(clickedBlock.pos)
-                ? currentPositions.filter((pos) => pos !== clickedBlock.pos)
-                : [...currentPositions, clickedBlock.pos].sort((left, right) => left - right);
-              return getBlocksFromPositions(nextPositions);
-            });
-            return;
-          }
           setSelectedBlockPositions([]);
           setSelectedBlocks([]);
           editor?.chain().focus().run();
@@ -1347,7 +1345,7 @@ export function RichEditor({
                 event.stopPropagation();
                 event.dataTransfer.effectAllowed = "move";
                 const dragPositions = selectedBlockPositions.includes(activeBlockHandle.pos) ? selectedBlockPositions : [activeBlockHandle.pos];
-                event.dataTransfer.setData("text/plain", dragPositions.join(","));
+                event.dataTransfer.setData("application/x-rits-block", dragPositions.join(","));
                 const dragImage = document.createElement("div");
                 dragImage.style.width = "1px";
                 dragImage.style.height = "1px";

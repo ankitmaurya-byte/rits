@@ -72,6 +72,10 @@ export default function WorkspaceTodosPage() {
   const laneHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [offscreenGroups, setOffscreenGroups] = useState<{ top: Array<{ id: string; name: string }>; bottom: Array<{ id: string; name: string }> }>({ top: [], bottom: [] });
 
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const isOwner = workspace?.ownerId === convexUser?._id;
@@ -98,6 +102,126 @@ export default function WorkspaceTodosPage() {
     });
     return lanes;
   }, [groups]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    const results: any[] = [];
+    
+    swimlanes.forEach(lane => {
+      if (lane.name.toLowerCase().includes(q)) {
+        results.push({ type: 'group', id: lane.id, name: lane.name, lane });
+      }
+      lane.columns.forEach(col => {
+        if (col.label.toLowerCase().includes(q)) {
+          results.push({ type: 'column', id: col.id, name: `${lane.name} > ${col.label}`, lane, column: col });
+        }
+      });
+    });
+    
+    todos?.forEach(todo => {
+      if (
+        todo.title.toLowerCase().includes(q) || 
+        (todo.description && todo.description.toLowerCase().includes(q)) ||
+        (todo.customFields && todo.customFields.some((f: any) => f.key.toLowerCase().includes(q) || f.value.toLowerCase().includes(q)))
+      ) {
+        const lane = swimlanes.find(l => (todo.groupId || "no-team") === l.id);
+        if (!lane) return;
+        const col = lane.columns.find(c => {
+           if (c.id === "todo") return todo.status === "todo" || (!todo.status && !todo.completed);
+           if (c.id === "in-progress") return todo.status === "in-progress";
+           if (c.id === "completed") return todo.status === "completed" || todo.completed;
+           return todo.status === c.id;
+        });
+        if (!col) return;
+        results.push({ type: 'task', id: todo._id, name: todo.title, todo, lane, column: col });
+      }
+    });
+    
+    return results;
+  }, [searchQuery, swimlanes, todos]);
+
+  const handleSearchResultClick = (result: any) => {
+    setSearchQuery("");
+    setShowSearchResults(false);
+    
+    if (viewMode !== "board") {
+      setViewMode("board");
+    }
+
+    if (collapsedGroups.has(result.lane.id)) {
+      setCollapsedGroups(prev => {
+        const next = new Set(prev);
+        next.delete(result.lane.id);
+        return next;
+      });
+    }
+
+    if (result.type === 'task' || result.type === 'column') {
+      const colIndex = result.lane.columns.findIndex((c: any) => c.id === result.column.id);
+      if (colIndex !== -1) {
+        const E = Math.min(3, result.lane.columns.length);
+        setExpandedStartIndices(prev => {
+          const start = prev[result.lane.id] || 0;
+          if (colIndex < start) return { ...prev, [result.lane.id]: colIndex };
+          if (colIndex >= start + E) return { ...prev, [result.lane.id]: colIndex - E + 1 };
+          return prev;
+        });
+      }
+    }
+
+    if (result.type === 'task') {
+      const laneTasks = todos?.filter(t => (t.groupId || "no-team") === result.lane.id) || [];
+      const allStatusTasks = laneTasks.filter(t => {
+        if (result.column.id === "todo") return t.status === "todo" || (!t.status && !t.completed);
+        if (result.column.id === "in-progress") return t.status === "in-progress";
+        if (result.column.id === "completed") return t.status === "completed" || t.completed;
+        return t.status === result.column.id;
+      });
+      const taskIndex = allStatusTasks.findIndex(t => t._id === result.todo._id);
+      if (taskIndex !== -1) {
+        setGroupLimits(prev => {
+          const currentLimit = prev[result.lane.id] || 5;
+          if (taskIndex >= currentLimit) {
+            return { ...prev, [result.lane.id]: Math.max(currentLimit, taskIndex + 5) };
+          }
+          return prev;
+        });
+      }
+    }
+
+    setTimeout(() => {
+      let targetId = "";
+      if (result.type === "group") targetId = `lane-${result.lane.id}`;
+      if (result.type === "column") targetId = `col-${result.lane.id}-${result.column.id}`;
+      if (result.type === "task") targetId = `task-${result.todo._id}`;
+      
+      if (targetId) {
+        const el = document.getElementById(targetId);
+        if (el) {
+           el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+           el.style.transition = 'box-shadow 0.5s ease-out, transform 0.2s';
+           const oldBoxShadow = el.style.boxShadow;
+           el.style.boxShadow = '0 0 0 2px var(--accent-blue)';
+           el.style.transform = 'scale(1.02)';
+           setTimeout(() => {
+             el.style.boxShadow = oldBoxShadow;
+             el.style.transform = 'scale(1)';
+           }, 1500);
+        }
+      }
+    }, 150);
+  };
 
   const toggleCollapse = (id: string) => {
     setCollapsedGroups(prev => {
@@ -394,6 +518,29 @@ export default function WorkspaceTodosPage() {
           <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>Kanban board</h2>
         </div>
         <div className="flex items-center gap-3">
+          <div className="relative" ref={searchRef}>
+            <div className="flex items-center gap-2 rounded-lg border px-2 py-1.5 w-64 focus-within:ring-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
+              <Search size={14} style={{ color: "var(--mute)" }} />
+              <input value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setShowSearchResults(true); }} onFocus={() => setShowSearchResults(true)} placeholder="Search board..." className="bg-transparent text-sm outline-none w-full" style={{ color: "var(--ink)" }} />
+              {searchQuery && <button onClick={() => { setSearchQuery(""); setShowSearchResults(false); }} className="text-[var(--mute)] hover:text-[var(--ink)]"><X size={14} /></button>}
+            </div>
+            
+            {showSearchResults && searchQuery && (
+              <div className="absolute top-full mt-2 w-full max-h-80 overflow-y-auto rounded-xl border shadow-lg z-50 p-1" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
+                {searchResults.length === 0 ? (
+                  <div className="p-3 text-sm text-center text-[var(--mute)]">No results found</div>
+                ) : (
+                  searchResults.map(res => (
+                    <button key={`${res.type}-${res.id}`} onClick={() => handleSearchResultClick(res)} className="w-full text-left p-2 rounded-lg hover:bg-[var(--surface-elevated)] flex flex-col gap-1 items-start mb-1 transition-colors">
+                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--mute)" }}>{res.type}</span>
+                      <span className="text-sm font-medium text-[var(--ink)] line-clamp-1">{res.name}</span>
+                      {res.type === 'task' && <span className="text-xs text-[var(--charcoal)] line-clamp-1">{res.lane.name} &gt; {res.column.label}</span>}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
           <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
             <button onClick={() => setViewMode("board")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "board" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "board" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
               Kanban View
@@ -495,7 +642,7 @@ export default function WorkspaceTodosPage() {
                   const validStartIndex = Math.max(0, Math.min(startIndex, N - E));
 
                   return (
-                    <div key={lane.id} className="flex flex-col" ref={(element) => { laneRefs.current[lane.id] = element; }}>
+                    <div key={lane.id} id={`lane-${lane.id}`} className="flex flex-col" ref={(element) => { laneRefs.current[lane.id] = element; }}>
                       <div ref={(element) => { laneHeaderRefs.current[lane.id] = element; }} className="mb-3 flex items-center gap-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -592,7 +739,7 @@ export default function WorkspaceTodosPage() {
                               }
 
                               return (
-                                <div key={`${lane.id}-${column.id}-${index}-sticky`} className="flex flex-col gap-3 shrink-0" style={{ width: exactWidth }}>
+                                <div key={`${lane.id}-${column.id}-${index}-sticky`} id={`col-${lane.id}-${column.id}`} className="flex flex-col gap-3 shrink-0" style={{ width: exactWidth }}>
                                   <div
                                     className="group flex items-center justify-between gap-3 px-3 py-2 shrink-0 transition-all duration-200 sticky top-0 z-20"
                                     style={{ backgroundColor: "var(--surface-deep)", cursor: "grab" }}
@@ -915,7 +1062,7 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, handleMoveTodo,
       ? { transform: CSS.Translate.toString(transform) }
       : undefined;
   return (
-    <div ref={setNodeRef} style={style} className={`relative outline-none ${isDragging ? "pointer-events-none" : ""}`}>
+    <div ref={setNodeRef} id={`task-${task._id}`} style={style} className={`relative outline-none rounded-xl ${isDragging ? "pointer-events-none" : ""}`}>
       <TodoCard
         task={task}
         statuses={STATUSES}

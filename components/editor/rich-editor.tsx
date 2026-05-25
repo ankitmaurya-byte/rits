@@ -287,6 +287,7 @@ interface RichEditorProps {
   showCount?: boolean;
   /** "note" or "idea"  controls AI prompt suggestions */
   contextType?: "note" | "idea";
+  className?: string;
 }
 
 type SelectionPopoverState = {
@@ -309,6 +310,7 @@ export function RichEditor({
   minHeight = "300px",
   showCount = true,
   contextType = "note",
+  className = "",
 }: RichEditorProps) {
   const [aiOpen, setAiOpen] = useState(false);
   const [selectionPopover, setSelectionPopover] = useState<SelectionPopoverState | null>(null);
@@ -609,11 +611,7 @@ export function RichEditor({
   return (
     <div
       ref={editorWrapRef}
-      className="flex flex-col rounded-xl overflow-hidden"
-      style={{
-        backgroundColor: "var(--surface-card)",
-        border: "1px solid var(--hairline-strong)",
-      }}
+      className={`flex flex-col rounded-xl overflow-hidden bg-[var(--surface-card)] border border-[var(--hairline-strong)] ${className}`}
     >
       {/* Toolbar */}
       {editor && (

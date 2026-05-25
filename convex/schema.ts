@@ -332,11 +332,15 @@ export default defineSchema({
     workspaceId: v.optional(v.id("workspaces")),
     title: v.string(),
     content: v.string(),
+    kind: v.optional(v.union(v.literal("folder"), v.literal("file"))),
+    parentId: v.optional(v.id("notes")),
+    sortOrder: v.optional(v.number()),
     createdBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
-    .index("by_user_private", ["createdBy", "scope"]),
+    .index("by_user_private", ["createdBy", "scope"])
+    .index("by_parent", ["parentId"]),
 
   todoGroups: defineTable({
     workspaceId: v.optional(v.id("workspaces")),

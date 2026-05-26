@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { 
   Copy, FileText, Trash2, Clock, Menu, ChevronRight,
@@ -77,6 +77,13 @@ type ConfluenceLayoutProps = {
 
 const ORDER_GAP = 1024;
 const EMPTY_NOTES: NoteDoc[] = [];
+const SIDEBAR_DEFAULT_WIDTH = 288;
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_MAX_WIDTH = 520;
+
+function clampSidebarWidth(width: number) {
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
+}
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -317,8 +324,11 @@ export function ConfluenceLayout({
 }: ConfluenceLayoutProps) {
   const [view, setView] = useState<"sidebar" | "gallery">("sidebar");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [resizingSidebar, setResizingSidebar] = useState(false);
   const [selectedId, setSelectedId] = useState<Id<"notes"> | null>(null);
   const [editContent, setEditContent] = useState("");
+  const sidebarShellRef = useRef<HTMLDivElement | null>(null);
   
   // Folder state
   const [expandedFolders, setExpandedFolders] = useState<Set<Id<"notes">>>(new Set());
@@ -357,6 +367,35 @@ export function ConfluenceLayout({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [allNotes, currentFolderId, view]);
+
+  useEffect(() => {
+    if (!resizingSidebar) return;
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const shellRect = sidebarShellRef.current?.getBoundingClientRect();
+      if (!shellRect) return;
+      setSidebarWidth(clampSidebarWidth(event.clientX - shellRect.left));
+    };
+
+    const handleMouseUp = () => {
+      setResizingSidebar(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [resizingSidebar]);
 
   const toggleFolder = (folderId: Id<"notes">) => {
     setExpandedFolders(prev => {
@@ -654,9 +693,11 @@ export function ConfluenceLayout({
       
       <div className="flex-1 min-h-0 relative">
         {view === "sidebar" ? (
-          <div className="flex h-full w-full overflow-hidden bg-[var(--canvas)]">
-            <div className="flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-in-out border-r relative"
-              style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", width: sidebarOpen ? "288px" : "0px", opacity: sidebarOpen ? 1 : 0, borderRightWidth: sidebarOpen ? "1px" : "0px" }}>
+          <div ref={sidebarShellRef} className="flex h-full w-full overflow-hidden bg-[var(--canvas)]">
+            <div
+              className={`relative flex shrink-0 flex-col overflow-hidden border-r ${resizingSidebar ? "" : "transition-all duration-300 ease-in-out"}`}
+              style={{ borderColor: resizingSidebar ? "var(--accent-blue)" : "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", width: sidebarOpen ? `${sidebarWidth}px` : "0px", opacity: sidebarOpen ? 1 : 0, borderRightWidth: sidebarOpen ? "1px" : "0px" }}
+            >
               <div className="flex items-center justify-between px-4 py-4 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
                 <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>Explorer</span>
                 <div className="flex items-center gap-1">
@@ -711,6 +752,28 @@ export function ConfluenceLayout({
                   />
                 ))}
               </div>
+              {sidebarOpen ? (
+                <button
+                  type="button"
+                  aria-label="Resize explorer sidebar"
+                  title="Resize sidebar"
+                  className="group absolute -right-1 top-0 z-40 h-full w-2 cursor-col-resize"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setResizingSidebar(true);
+                  }}
+                  onDoubleClick={(event) => {
+                    event.preventDefault();
+                    setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
+                  }}
+                >
+                  <span
+                    className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 transition-colors group-hover:bg-[var(--accent-blue)]"
+                    style={{ backgroundColor: resizingSidebar ? "var(--accent-blue)" : "transparent" }}
+                  />
+                </button>
+              ) : null}
             </div>
 
             <div className="flex flex-col flex-1 overflow-hidden relative bg-[var(--canvas)]">

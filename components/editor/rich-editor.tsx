@@ -46,7 +46,10 @@ import {
   Sparkles,
   MessageSquarePlus,
   Grip,
+  Plus,
   X,
+  Columns2,
+  Columns3,
   ImagePlus,
   Table,
   Info,
@@ -59,6 +62,10 @@ import { toast } from "sonner";
 
 type EditorBlockHandleState = {
   pos: number;
+  contentPos: number;
+  listItemPos?: number;
+  listItemType?: string;
+  listContainerType?: string;
   top: number;
   left: number;
   height: number;
@@ -66,8 +73,11 @@ type EditorBlockHandleState = {
   text: string;
 };
 type EditorBlockDropTarget = EditorBlockHandleState & {
-  intent: "before" | "after";
+  intent: "before" | "after" | "column";
   indicatorTop: number;
+  indicatorLeft?: number;
+  indicatorHeight?: number;
+  columnInsertIndex?: number;
 };
 type EditorBlockDragPreview = {
   top: number;
@@ -84,6 +94,7 @@ type InlineAiPromptState = EditorBlockHandleState & {
   prompt: string;
   loading: boolean;
 };
+type EditorView = Editor["view"];
 type BlockAction =
   | "paragraph"
   | "h1"
@@ -99,9 +110,245 @@ type BlockAction =
   | "callout"
   | "toggle"
   | "table"
+  | "columns2"
+  | "columns3"
   | "video"
   | "audio"
   | "file";
+
+const BLOCK_HANDLE_GUTTER = 36;
+const BLOCK_HANDLE_ADD_LEFT = 8;
+const BLOCK_HANDLE_GRIP_LEFT = 36;
+const BLOCK_HANDLE_BUTTON_GAP = BLOCK_HANDLE_GRIP_LEFT - BLOCK_HANDLE_ADD_LEFT;
+const LIST_ITEM_NODE_TYPES = new Set(["listItem", "taskItem"]);
+const HARD_BREAK_NODE_TYPE = "hardBreak";
+const COLUMN_ROW_NODE_TYPE = "columnRow";
+const COLUMN_CELL_NODE_TYPE = "columnCell";
+
+function getBlockDomElement(view: EditorView, pos: number) {
+  const dom = view.nodeDOM(pos);
+  if (dom instanceof HTMLElement) return dom;
+  const domAtPos = view.domAtPos(pos);
+  if (domAtPos.node instanceof HTMLElement) {
+    const child = domAtPos.node.childNodes[domAtPos.offset];
+    if (child instanceof HTMLElement) return child;
+    return domAtPos.node;
+  }
+  return dom?.parentElement instanceof HTMLElement ? dom.parentElement : null;
+}
+
+function getListItemMeta(view: EditorView, pos: number) {
+  const safePos = Math.max(0, Math.min(pos + 1, view.state.doc.content.size));
+  const $pos = view.state.doc.resolve(safePos);
+
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (LIST_ITEM_NODE_TYPES.has(node.type.name)) {
+      const listItemPos = $pos.before(depth);
+      return {
+        listItemPos,
+        listItemType: node.type.name,
+        listContainerType: depth > 1 ? $pos.node(depth - 1).type.name : undefined,
+      };
+    }
+  }
+
+  return {};
+}
+
+function getEditorLineBlockByPos(
+  view: EditorView,
+  editorBody: HTMLDivElement,
+  pos: number
+): EditorBlockRange | null {
+  const contentNode = view.state.doc.nodeAt(pos);
+  if (!contentNode) return null;
+
+  const blockElement = getBlockDomElement(view, pos);
+  if (!blockElement) return null;
+
+  const listItemMeta = getListItemMeta(view, pos);
+  const movePos = listItemMeta.listItemPos ?? pos;
+  const moveNode = view.state.doc.nodeAt(movePos);
+  if (!moveNode) return null;
+
+  const bodyRect = editorBody.getBoundingClientRect();
+  const blockRect = blockElement.getBoundingClientRect();
+  return {
+    pos: movePos,
+    contentPos: pos,
+    ...listItemMeta,
+    end: movePos + moveNode.nodeSize,
+    nodeSize: moveNode.nodeSize,
+    top: blockRect.top - bodyRect.top + editorBody.scrollTop,
+    left: blockRect.left - bodyRect.left - BLOCK_HANDLE_GUTTER,
+    height: blockRect.height,
+    width: blockRect.width,
+    text: blockElement.textContent?.trim() || blockElement.getAttribute("data-type") || "Empty block",
+  };
+}
+
+function getRangeLineRect(view: EditorView, from: number, to: number) {
+  try {
+    if (to > from) {
+      const start = view.domAtPos(from);
+      const end = view.domAtPos(to);
+      const range = document.createRange();
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset);
+      const rect = Array.from(range.getClientRects()).find((item) => item.width > 0 || item.height > 0) ?? range.getBoundingClientRect();
+      range.detach();
+      if (rect.width > 0 || rect.height > 0) return rect;
+    }
+
+    const coords = view.coordsAtPos(from);
+    return new DOMRect(coords.left, coords.top, Math.max(coords.right - coords.left, 1), Math.max(coords.bottom - coords.top, 20));
+  } catch {
+    return null;
+  }
+}
+
+function getTextblockLineBlocks(view: EditorView, editorBody: HTMLDivElement, pos: number) {
+  const node = view.state.doc.nodeAt(pos);
+  if (!node?.isTextblock) return [];
+
+  const hardBreakOffsets: number[] = [];
+  node.forEach((child, offset) => {
+    if (child.type.name === HARD_BREAK_NODE_TYPE) hardBreakOffsets.push(offset);
+  });
+
+  if (hardBreakOffsets.length === 0) {
+    const block = getEditorLineBlockByPos(view, editorBody, pos);
+    return block ? [block] : [];
+  }
+
+  const baseBlock = getEditorLineBlockByPos(view, editorBody, pos);
+  if (!baseBlock) return [];
+
+  const bodyRect = editorBody.getBoundingClientRect();
+  const lineBlocks: EditorBlockRange[] = [];
+  let lineStartOffset = 0;
+
+  [...hardBreakOffsets, node.content.size].forEach((lineEndOffset) => {
+    const from = pos + 1 + lineStartOffset;
+    const to = pos + 1 + lineEndOffset;
+    const rect = getRangeLineRect(view, from, to);
+    if (rect) {
+      lineBlocks.push({
+        ...baseBlock,
+        contentPos: pos,
+        top: rect.top - bodyRect.top + editorBody.scrollTop,
+        left: baseBlock.left,
+        height: Math.max(rect.height, 20),
+        width: Math.max(rect.width, 1),
+      });
+    }
+    lineStartOffset = lineEndOffset + 1;
+  });
+
+  return lineBlocks.length > 0 ? lineBlocks : [baseBlock];
+}
+
+function getEditorLineBlockFromResolvedPos(view: EditorView, editorBody: HTMLDivElement, pos: number) {
+  const safePos = Math.max(0, Math.min(pos, view.state.doc.content.size));
+  const $pos = view.state.doc.resolve(safePos);
+
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.isTextblock || node.isAtom || node.isLeaf) {
+      return getEditorLineBlockByPos(view, editorBody, $pos.before(depth));
+    }
+  }
+
+  return null;
+}
+
+function getEditorLineBlocks(view: EditorView, editorBody: HTMLDivElement) {
+  const blocks: EditorBlockRange[] = [];
+
+  view.state.doc.descendants((node, pos) => {
+    if (node.isTextblock) {
+      blocks.push(...getTextblockLineBlocks(view, editorBody, pos));
+      return true;
+    }
+
+    if (node.isBlock && (node.isAtom || node.isLeaf)) {
+      const block = getEditorLineBlockByPos(view, editorBody, pos);
+      if (block) blocks.push(block);
+    }
+    return true;
+  });
+
+  return blocks;
+}
+
+function createColumnLayoutContent(columnCount: 2 | 3): Content {
+  return {
+    type: COLUMN_ROW_NODE_TYPE,
+    attrs: { cols: columnCount },
+    content: Array.from({ length: columnCount }, () => ({
+      type: COLUMN_CELL_NODE_TYPE,
+      content: [{ type: "paragraph" }],
+    })),
+  } as Content;
+}
+
+function getColumnRowMeta(view: EditorView, pos: number) {
+  const safePos = Math.max(0, Math.min(pos + 1, view.state.doc.content.size));
+  const $pos = view.state.doc.resolve(safePos);
+
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.type.name === COLUMN_ROW_NODE_TYPE) {
+      const rowPos = $pos.before(depth);
+      return {
+        pos: rowPos,
+        end: rowPos + node.nodeSize,
+        node,
+      };
+    }
+  }
+
+  return null;
+}
+
+function getColumnCellMeta(view: EditorView, pos: number) {
+  const safePos = Math.max(0, Math.min(pos + 1, view.state.doc.content.size));
+  const $pos = view.state.doc.resolve(safePos);
+
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.type.name !== COLUMN_CELL_NODE_TYPE) continue;
+
+    const rowDepth = depth - 1;
+    if (rowDepth < 1) return null;
+    const rowNode = $pos.node(rowDepth);
+    if (rowNode.type.name !== COLUMN_ROW_NODE_TYPE) return null;
+
+    const cellPos = $pos.before(depth);
+    const rowPos = $pos.before(rowDepth);
+    return {
+      cellPos,
+      cellEnd: cellPos + node.nodeSize,
+      cellIndex: $pos.index(rowDepth),
+      cellNode: node,
+      rowPos,
+      rowEnd: rowPos + rowNode.nodeSize,
+      rowNode,
+    };
+  }
+
+  return null;
+}
+
+function getColumnCellInsertPos(rowPos: number, rowNode: ProseMirrorNode, insertIndex: number) {
+  const boundedIndex = Math.max(0, Math.min(insertIndex, rowNode.childCount));
+  let insertPos = rowPos + 1;
+  for (let index = 0; index < boundedIndex; index += 1) {
+    insertPos += rowNode.child(index).nodeSize;
+  }
+  return insertPos;
+}
 
 const CalloutBlock = Node.create({
   name: "calloutBlock",
@@ -144,6 +391,55 @@ const ToggleBlock = Node.create({
       mergeAttributes(HTMLAttributes, { "data-type": "toggle", class: "rits-toggle", open: "" }),
       ["summary", { contenteditable: "false" }, node.attrs.title || "Toggle"],
       ["div", { class: "rits-toggle-content" }, 0],
+    ];
+  },
+});
+
+const ColumnCell = Node.create({
+  name: COLUMN_CELL_NODE_TYPE,
+  content: "block+",
+  isolating: true,
+  defining: true,
+  parseHTML() {
+    return [{ tag: 'div[data-type="column-cell"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, { "data-type": "column-cell", class: "rits-column-cell" }),
+      0,
+    ];
+  },
+});
+
+const ColumnRow = Node.create({
+  name: COLUMN_ROW_NODE_TYPE,
+  group: "block",
+  content: "columnCell{2,6}",
+  defining: true,
+  addAttributes() {
+    return {
+      cols: {
+        default: 2,
+        parseHTML: (element) => Number(element.getAttribute("data-cols") ?? 2),
+        renderHTML: (attributes) => ({ "data-cols": attributes.cols }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'div[data-type="columns"]' }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const cols = Math.max(2, Math.min(6, node.childCount || Number(node.attrs.cols) || 2));
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        "data-type": "columns",
+        "data-cols": cols,
+        class: "rits-column-row",
+        style: `--rits-columns:${cols};`,
+      }),
+      0,
     ];
   },
 });
@@ -369,6 +665,12 @@ function Toolbar({
       <ToolBtn title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
         <Minus size={14} />
       </ToolBtn>
+      <ToolBtn title="2 columns" onClick={() => editor.chain().focus().insertContent(createColumnLayoutContent(2)).run()}>
+        <Columns2 size={14} />
+      </ToolBtn>
+      <ToolBtn title="3 columns" onClick={() => editor.chain().focus().insertContent(createColumnLayoutContent(3)).run()}>
+        <Columns3 size={14} />
+      </ToolBtn>
 
       <Divider />
 
@@ -488,6 +790,8 @@ export function RichEditor({
   const [selectionChat, setSelectionChat] = useState<SelectionChatMessage[]>([]);
   const [selectionPanelPosition, setSelectionPanelPosition] = useState<{ top: number; left: number } | null>(null);
   const [panelDismissed, setPanelDismissed] = useState(false);
+  const [marqueeBox, setMarqueeBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
+  const marqueeRef = useRef<{ startX: number; startY: number } | null>(null);
   const [blockHandle, setBlockHandle] = useState<EditorBlockHandleState | null>(null);
   const [blockMenuOpen, setBlockMenuOpen] = useState(false);
   const [draggingBlockPos, setDraggingBlockPos] = useState<number | null>(null);
@@ -498,6 +802,7 @@ export function RichEditor({
   const [inlineAiPrompt, setInlineAiPrompt] = useState<InlineAiPromptState | null>(null);
   const editorWrapRef = useRef<HTMLDivElement | null>(null);
   const editorBodyRef = useRef<HTMLDivElement | null>(null);
+  const mouseIsDownRef = useRef(false);
   const dragStateRef = useRef<{ startX: number; startY: number; originTop: number; originLeft: number } | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -540,6 +845,8 @@ export function RichEditor({
       RitsImage,
       CalloutBlock,
       ToggleBlock,
+      ColumnCell,
+      ColumnRow,
       TableFrame,
       MediaFrame,
       Typography, // smart quotes, em-dashes, ellipsis, etc.
@@ -571,7 +878,17 @@ export function RichEditor({
           void handleImageFiles(clipboardData.files);
           return true;
         }
-        const text = clipboardData.getData("text/plain").trim();
+        const rawText = clipboardData.getData("text/plain");
+        const text = rawText.trim();
+        if (!clipboardData.getData("text/html") && /\r?\n/.test(rawText)) {
+          const paragraphs = rawText.replace(/\r\n?/g, "\n").split("\n").map((line) => (
+            line.length > 0
+              ? { type: "paragraph", content: [{ type: "text", text: line }] }
+              : { type: "paragraph" }
+          ));
+          editor?.chain().focus().insertContent(paragraphs).run();
+          return true;
+        }
         if (isImageUrl(text)) {
           insertImageFromUrl(text);
           return true;
@@ -598,41 +915,36 @@ export function RichEditor({
         },
       },
       handleKeyDown(view, event) {
+        if (event.key === "Escape") {
+          setBlockMenuOpen(false);
+          setInlineAiPrompt(null);
+          return true;
+        }
+        if (event.key === "Backspace" || (event.key.length === 1 && event.key !== "/" && event.key !== " ")) {
+          setBlockMenuOpen(false);
+          setInlineAiPrompt(null);
+        }
+
         if (event.key !== "/" && event.key !== " ") return false;
         if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return false;
 
-        const { selection, doc } = view.state;
+        const { selection } = view.state;
         if (!selection.empty || selection.$from.depth < 1) return false;
 
-        const node = selection.$from.node(1);
-        if (!node.isTextblock || node.content.size > 0) return false;
-
-        const pos = selection.$from.before(1);
-        let index = -1;
-        let nextPos = 0;
-        for (let childIndex = 0; childIndex < doc.childCount; childIndex += 1) {
-          const child = doc.child(childIndex);
-          if (nextPos === pos) {
-            index = childIndex;
+        let textblockDepth = -1;
+        for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+          if (selection.$from.node(depth).isTextblock) {
+            textblockDepth = depth;
             break;
           }
-          nextPos += child.nodeSize;
         }
-        if (index < 0 || !editorBodyRef.current) return false;
+        if (textblockDepth < 1 || !editorBodyRef.current) return false;
 
-        const blockElement = (view.dom as HTMLElement).children[index];
-        if (!(blockElement instanceof HTMLElement)) return false;
+        const node = selection.$from.node(textblockDepth);
+        if (node.content.size > 0) return false;
 
-        const bodyRect = editorBodyRef.current.getBoundingClientRect();
-        const blockRect = blockElement.getBoundingClientRect();
-        const currentBlock = {
-          pos,
-          top: blockRect.top - bodyRect.top + editorBodyRef.current.scrollTop,
-          left: blockRect.left - bodyRect.left - 36,
-          height: blockRect.height,
-          width: blockRect.width,
-          text: "Empty block",
-        };
+        const currentBlock = getEditorLineBlockFromResolvedPos(view, editorBodyRef.current, selection.from);
+        if (!currentBlock) return false;
 
         event.preventDefault();
         setSelectedBlockPositions([]);
@@ -652,127 +964,151 @@ export function RichEditor({
     },
   });
 
-  const getTopLevelBlockFromEvent = useCallback((event: ReactMouseEvent | ReactDragEvent | MouseEvent) => {
+  function getBlockViewportBox(block: EditorBlockHandleState) {
+    if (!editorBodyRef.current) return null;
+    const bodyRect = editorBodyRef.current.getBoundingClientRect();
+    const contentLeft = bodyRect.left + block.left + BLOCK_HANDLE_GUTTER;
+    const top = bodyRect.top + block.top - editorBodyRef.current.scrollTop;
+    return {
+      top,
+      bottom: top + block.height,
+      handleLeft: bodyRect.left + block.left - BLOCK_HANDLE_BUTTON_GAP,
+      contentLeft,
+      contentRight: contentLeft + block.width,
+    };
+  }
+
+  function getBlockHorizontalDistance(block: EditorBlockHandleState, clientX: number) {
+    const box = getBlockViewportBox(block);
+    if (!box) return Number.POSITIVE_INFINITY;
+    if (clientX >= box.handleLeft - 6 && clientX <= box.contentRight + 24) return 0;
+    return Math.min(
+      Math.abs(clientX - box.handleLeft),
+      Math.abs(clientX - box.contentLeft),
+      Math.abs(clientX - box.contentRight)
+    );
+  }
+
+  function getColumnDropPlacement(block: EditorBlockHandleState, clientX: number) {
     if (!editor || !editorBodyRef.current) return null;
-    const editorDom = editor.view.dom as HTMLElement;
-    const target = event.target instanceof HTMLElement ? event.target : null;
-    let blockElement = target?.closest(".ProseMirror > *");
+    const cellMeta = getColumnCellMeta(editor.view, block.contentPos);
+    if (!cellMeta) return null;
 
-    if (!(blockElement instanceof HTMLElement) || !editorDom.contains(blockElement)) {
-      const blocks = Array.from(editorDom.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-      blockElement = blocks.find((block) => {
-        const rect = block.getBoundingClientRect();
-        return event.clientY >= rect.top && event.clientY <= rect.bottom;
-      }) ?? null;
-    }
+    const rowElement = getBlockDomElement(editor.view, cellMeta.rowPos);
+    if (!rowElement) return null;
 
-    if (!(blockElement instanceof HTMLElement) || !editorDom.contains(blockElement)) return null;
-
-    const index = Array.from(editorDom.children).indexOf(blockElement);
-    if (index < 0) return null;
-
-    let pos = 0;
-    for (let childIndex = 0; childIndex < index; childIndex += 1) {
-      pos += editor.state.doc.child(childIndex).nodeSize;
-    }
+    const cellRects = Array.from(rowElement.children)
+      .filter((child): child is HTMLElement => child instanceof HTMLElement && child.getAttribute("data-type") === "column-cell")
+      .map((cell) => cell.getBoundingClientRect());
+    if (cellRects.length === 0) return null;
 
     const bodyRect = editorBodyRef.current.getBoundingClientRect();
-    const blockRect = blockElement.getBoundingClientRect();
-    return {
-      pos,
-      top: blockRect.top - bodyRect.top + editorBodyRef.current.scrollTop,
-      left: blockRect.left - bodyRect.left - 36,
-      height: blockRect.height,
-      width: blockRect.width,
-      text: blockElement.textContent?.trim() || blockElement.getAttribute("data-type") || "Empty block",
-    };
-  }, [editor]);
+    const rowRect = rowElement.getBoundingClientRect();
+    const nextCellIndex = cellRects.findIndex((rect) => clientX < rect.left + rect.width / 2);
+    const insertIndex = nextCellIndex === -1 ? cellRects.length : nextCellIndex;
+    const previousRect = cellRects[insertIndex - 1];
+    const nextRect = cellRects[insertIndex];
+    const indicatorViewportLeft = previousRect && nextRect
+      ? previousRect.right + (nextRect.left - previousRect.right) / 2
+      : nextRect
+        ? nextRect.left - 8
+        : previousRect.right + 8;
 
-  const getDropTargetFromEvent = useCallback((event: ReactDragEvent): EditorBlockDropTarget | null => {
+    return {
+      insertIndex,
+      indicatorTop: rowRect.top - bodyRect.top + editorBodyRef.current.scrollTop,
+      indicatorLeft: indicatorViewportLeft - bodyRect.left,
+      indicatorHeight: Math.max(rowRect.height, block.height),
+    };
+  }
+
+  function getEditorLineBlockFromEvent(event: ReactMouseEvent | ReactDragEvent | MouseEvent) {
+    if (!editor || !editorBodyRef.current) return null;
+    const lineBlocks = getEditorLineBlocks(editor.view, editorBodyRef.current);
+    const hoveredLines = lineBlocks.filter((block) => {
+      const box = getBlockViewportBox(block);
+      return box ? event.clientY >= box.top && event.clientY <= box.bottom : false;
+    });
+    if (hoveredLines.length > 0) {
+      return hoveredLines
+        .sort((left, right) => getBlockHorizontalDistance(left, event.clientX) - getBlockHorizontalDistance(right, event.clientX))[0];
+    }
+
+    const editorDom = editor.view.dom as HTMLElement;
+    const editorRect = editorDom.getBoundingClientRect();
+    const clientX = Math.min(Math.max(event.clientX, editorRect.left + 1), editorRect.right - 1);
+    const coords = editor.view.posAtCoords({ left: clientX, top: event.clientY });
+    if (coords) {
+      const block = getEditorLineBlockFromResolvedPos(editor.view, editorBodyRef.current, coords.pos);
+      if (block) return block;
+    }
+
+    return null;
+  }
+
+  function getDropTargetFromEvent(event: ReactDragEvent): EditorBlockDropTarget | null {
     const bodyRect = editorBodyRef.current?.getBoundingClientRect();
     if (!editor || !editorBodyRef.current || !bodyRect) return null;
 
-    let block = getTopLevelBlockFromEvent(event);
-    let intent: "before" | "after" | null = null;
+    let block = getEditorLineBlockFromEvent(event);
+    let intent: "before" | "after" | "column" | null = null;
 
     if (!block) {
-      const editorDom = editor.view.dom as HTMLElement;
-      const blocks = Array.from(editorDom.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
-      const targetIndex = blocks.findIndex((element) => event.clientY < element.getBoundingClientRect().top + element.getBoundingClientRect().height / 2);
-      const fallbackIndex = targetIndex >= 0 ? targetIndex : blocks.length - 1;
-      const fallbackElement = blocks[fallbackIndex];
-      if (!fallbackElement) return null;
-
-      let pos = 0;
-      for (let childIndex = 0; childIndex < fallbackIndex; childIndex += 1) {
-        pos += editor.state.doc.child(childIndex).nodeSize;
-      }
-
-      const blockRect = fallbackElement.getBoundingClientRect();
-      block = {
-        pos,
-        top: blockRect.top - bodyRect.top + editorBodyRef.current.scrollTop,
-        left: blockRect.left - bodyRect.left - 36,
-        height: blockRect.height,
-        width: blockRect.width,
-        text: fallbackElement.textContent?.trim() || fallbackElement.getAttribute("data-type") || "Empty block",
-      };
-      intent = targetIndex >= 0 ? "before" : "after";
+      const blocks = getEditorLineBlocks(editor.view, editorBodyRef.current);
+      const fallback = blocks
+        .map((candidate) => {
+          const box = getBlockViewportBox(candidate);
+          const verticalDistance = box
+            ? event.clientY < box.top
+              ? box.top - event.clientY
+              : event.clientY > box.bottom
+                ? event.clientY - box.bottom
+                : 0
+            : Number.POSITIVE_INFINITY;
+          return {
+            block: candidate,
+            verticalDistance,
+            horizontalDistance: getBlockHorizontalDistance(candidate, event.clientX),
+          };
+        })
+        .sort((left, right) => left.verticalDistance - right.verticalDistance || left.horizontalDistance - right.horizontalDistance)[0];
+      block = fallback?.block ?? null;
+      if (!block) return null;
+      const box = getBlockViewportBox(block);
+      intent = box && event.clientY < box.top + block.height / 2 ? "before" : "after";
     }
 
     const blockViewportTop = bodyRect.top + block.top - editorBodyRef.current.scrollTop;
+    const blockViewportLeft = bodyRect.left + block.left + BLOCK_HANDLE_GUTTER;
+    const columnDropStart = blockViewportLeft + Math.max(block.width * 0.68, block.width - 96);
+    const columnPlacement = getColumnDropPlacement(block, event.clientX);
     intent ??= event.clientY < blockViewportTop + block.height / 2 ? "before" : "after";
+    if (event.clientX >= columnDropStart) intent = "column";
     return {
       ...block,
       intent,
-      indicatorTop: intent === "before" ? block.top : block.top + block.height,
+      indicatorTop: intent === "column" && columnPlacement
+        ? columnPlacement.indicatorTop
+        : intent === "before"
+          ? block.top
+          : block.top + block.height,
+      indicatorLeft: intent === "column"
+        ? columnPlacement?.indicatorLeft ?? block.left + BLOCK_HANDLE_GUTTER + block.width + 6
+        : undefined,
+      indicatorHeight: intent === "column" ? columnPlacement?.indicatorHeight ?? block.height : undefined,
+      columnInsertIndex: intent === "column" ? columnPlacement?.insertIndex : undefined,
     };
-  }, [editor, getTopLevelBlockFromEvent]);
-
-  const getTopLevelBlockByPos = useCallback((pos: number): EditorBlockRange | null => {
-    if (!editor || !editorBodyRef.current) return null;
-    const editorDom = editor.view.dom as HTMLElement;
-    let nextPos = 0;
-    let index = -1;
-    for (let childIndex = 0; childIndex < editor.state.doc.childCount; childIndex += 1) {
-      const node = editor.state.doc.child(childIndex);
-      if (nextPos === pos) {
-        index = childIndex;
-        break;
-      }
-      nextPos += node.nodeSize;
-    }
-    if (index < 0) return null;
-
-    const node = editor.state.doc.child(index);
-    const blockElement = editorDom.children[index];
-    if (!(blockElement instanceof HTMLElement)) return null;
-
-    const bodyRect = editorBodyRef.current.getBoundingClientRect();
-    const blockRect = blockElement.getBoundingClientRect();
-    return {
-      pos,
-      end: pos + node.nodeSize,
-      nodeSize: node.nodeSize,
-      top: blockRect.top - bodyRect.top + editorBodyRef.current.scrollTop,
-      left: blockRect.left - bodyRect.left - 36,
-      height: blockRect.height,
-      width: blockRect.width,
-      text: blockElement.textContent?.trim() || blockElement.getAttribute("data-type") || "Empty block",
-    };
-  }, [editor]);
+  }
 
   const activeBlockHandle = selectedBlocks.length > 0
     ? selectedBlocks.reduce((topBlock, block) => block.top < topBlock.top ? block : topBlock, selectedBlocks[0])
     : blockHandle;
+  const activeBlockGripLeft = activeBlockHandle
+    ? Math.max(activeBlockHandle.left, BLOCK_HANDLE_GRIP_LEFT)
+    : BLOCK_HANDLE_GRIP_LEFT;
+  const activeBlockAddLeft = activeBlockGripLeft - BLOCK_HANDLE_BUTTON_GAP;
 
-  const getBlocksFromPositions = useCallback((positions: number[]) => (
-    positions
-      .map((pos) => getTopLevelBlockByPos(pos))
-      .filter((block): block is EditorBlockRange => Boolean(block))
-  ), [getTopLevelBlockByPos]);
-
-  const placeCursorInBlock = useCallback((pos: number) => {
+  function placeCursorInBlock(pos: number) {
     if (!editor) return false;
     const node = editor.state.doc.nodeAt(pos);
     if (!node) return false;
@@ -781,7 +1117,7 @@ export function RichEditor({
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.near(editor.state.doc.resolve(selectionPos))));
     editor.view.focus();
     return true;
-  }, [editor]);
+  }
 
   function insertImageFromUrl(url: string, width?: number | null) {
     if (!editor) return;
@@ -815,6 +1151,8 @@ export function RichEditor({
     if (!editor || contextType !== "note") return;
 
     const updateSelectionPopover = () => {
+      if (mouseIsDownRef.current) return;
+
       const { from, to, empty } = editor.state.selection;
       if (empty || from === to || !editor.isFocused) {
         setSelectionPopover(null);
@@ -849,10 +1187,24 @@ export function RichEditor({
       setSelectionPanelPosition((current) => current ?? { top: nextPopover.top, left: nextPopover.left });
     };
 
+    const handleMouseDown = () => {
+      mouseIsDownRef.current = true;
+      setSelectionPopover(null);
+    };
+
+    const handleMouseUp = () => {
+      mouseIsDownRef.current = false;
+      window.setTimeout(updateSelectionPopover, 0);
+    };
+
+    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mouseup", handleMouseUp);
     editor.on("selectionUpdate", updateSelectionPopover);
     editor.on("focus", updateSelectionPopover);
 
     return () => {
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mouseup", handleMouseUp);
       editor.off("selectionUpdate", updateSelectionPopover);
       editor.off("focus", updateSelectionPopover);
     };
@@ -860,15 +1212,61 @@ export function RichEditor({
 
   useEffect(() => {
     const handleMouseMove = (event: MouseEvent) => {
-      if (!dragStateRef.current) return;
-      setSelectionPanelPosition({
-        top: Math.max(16, dragStateRef.current.originTop + (event.clientY - dragStateRef.current.startY)),
-        left: Math.max(16, dragStateRef.current.originLeft + (event.clientX - dragStateRef.current.startX)),
-      });
+      if (dragStateRef.current) {
+        setSelectionPanelPosition({
+          top: Math.max(16, dragStateRef.current.originTop + (event.clientY - dragStateRef.current.startY)),
+          left: Math.max(16, dragStateRef.current.originLeft + (event.clientX - dragStateRef.current.startX)),
+        });
+        return;
+      }
+      
+      if (marqueeRef.current && editor && editorBodyRef.current) {
+        const m = marqueeRef.current;
+        const currentX = event.clientX;
+        const currentY = event.clientY;
+
+        const top = Math.min(m.startY, currentY);
+        const left = Math.min(m.startX, currentX);
+        const width = Math.abs(currentX - m.startX);
+        const height = Math.abs(currentY - m.startY);
+
+        const bodyRect = editorBodyRef.current.getBoundingClientRect();
+        setMarqueeBox({
+          top: top - bodyRect.top + editorBodyRef.current.scrollTop,
+          left: left - bodyRect.left,
+          width,
+          height,
+        });
+
+        const blocks = getEditorLineBlocks(editor.view, editorBodyRef.current);
+        
+        const nextPositions: number[] = [];
+        const nextBlocks: EditorBlockRange[] = [];
+        
+        for (const block of blocks) {
+          const blockTop = bodyRect.top + block.top - editorBodyRef.current.scrollTop;
+          const blockLeft = bodyRect.left + block.left + BLOCK_HANDLE_GUTTER;
+          const blockRight = blockLeft + block.width;
+          const blockBottom = blockTop + block.height;
+          const intersects = !(blockRight < left || blockLeft > left + width || blockBottom < top || blockTop > top + height);
+          
+          if (intersects && !nextPositions.includes(block.pos)) {
+            nextPositions.push(block.pos);
+            nextBlocks.push(block);
+          }
+        }
+
+        setSelectedBlockPositions(nextPositions);
+        setSelectedBlocks(nextBlocks);
+      }
     };
 
     const handleMouseUp = () => {
       dragStateRef.current = null;
+      if (marqueeRef.current) {
+        marqueeRef.current = null;
+        setMarqueeBox(null);
+      }
     };
 
     window.addEventListener("mousemove", handleMouseMove);
@@ -877,79 +1275,76 @@ export function RichEditor({
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, []);
+  }, [editor]);
 
-  const runSelectionAi = useCallback(
-    async (mode: "enhance" | "prompt" | "explain") => {
-      if (!editor || !selectionPopover) return;
-      if (mode === "prompt" && !selectionPrompt.trim()) return;
+  async function runSelectionAi(mode: "enhance" | "prompt" | "explain") {
+    if (!editor || !selectionPopover) return;
+    if (mode === "prompt" && !selectionPrompt.trim()) return;
 
-      setSelectionAiLoading(mode);
-      try {
-        const instruction =
-          mode === "enhance"
+    setSelectionAiLoading(mode);
+    try {
+      const instruction =
+        mode === "enhance"
+          ? [
+              "Improve the selected excerpt for clarity, flow, and precision.",
+              "Preserve the original meaning and keep the length reasonably similar unless expansion clearly helps.",
+              "Return only the revised excerpt.",
+            ].join(" ")
+          : mode === "explain"
             ? [
-                "Improve the selected excerpt for clarity, flow, and precision.",
-                "Preserve the original meaning and keep the length reasonably similar unless expansion clearly helps.",
-                "Return only the revised excerpt.",
-              ].join(" ")
-            : mode === "explain"
-              ? [
-                  "Explain the selected excerpt in a very short and clear way.",
-                  "Use the full note as context.",
-                  "Keep the explanation concise, ideally 2-4 sentences.",
-                  "Return only the explanation.",
-                ].join(" ")
-            : [
-                `Apply this instruction to the selected excerpt: ${selectionPrompt.trim()}.`,
+                "Explain the selected excerpt in a very short and clear way.",
                 "Use the full note as context.",
-                "Return only the revised excerpt.",
-              ].join(" ");
+                "Keep the explanation concise, ideally 2-4 sentences.",
+                "Return only the explanation.",
+              ].join(" ")
+          : [
+              `Apply this instruction to the selected excerpt: ${selectionPrompt.trim()}.`,
+              "Use the full note as context.",
+              "Return only the revised excerpt.",
+            ].join(" ");
 
-        const prompt = `${instruction}\n\nSelected excerpt:\n"""\n${selectionPopover.text}\n"""`;
-        if (mode !== "enhance") {
-          setSelectionChat((current) => [
-            ...current,
-            {
-              role: "user",
-              content: mode === "explain" ? `Explain: ${selectionPopover.text}` : selectionPrompt.trim(),
-            },
-          ]);
-        }
-        const response = await fetch("/api/ai/assist", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt,
-            context: editor.getHTML(),
-            contextType: "note",
-          }),
-        });
-        const data = (await response.json()) as { result?: string; error?: string };
-        if (!response.ok || data.error || !data.result?.trim()) {
-          throw new Error(data.error ?? "AI assist failed.");
-        }
-        const result = data.result.trim();
-
-        if (mode === "enhance" || mode === "prompt") {
-          editor
-            .chain()
-            .focus()
-            .insertContentAt({ from: selectionPopover.from, to: selectionPopover.to }, result)
-            .run();
-        }
-
-        setSelectionChat((current) => [...current, { role: "assistant", content: result }]);
-        if (mode === "prompt") setSelectionPrompt("");
-        if (mode !== "prompt") setSelectionPromptOpen(false);
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "AI assist failed.");
-      } finally {
-        setSelectionAiLoading(null);
+      const prompt = `${instruction}\n\nSelected excerpt:\n"""\n${selectionPopover.text}\n"""`;
+      if (mode !== "enhance") {
+        setSelectionChat((current) => [
+          ...current,
+          {
+            role: "user",
+            content: mode === "explain" ? `Explain: ${selectionPopover.text}` : selectionPrompt.trim(),
+          },
+        ]);
       }
-    },
-    [editor, selectionPopover, selectionPrompt]
-  );
+      const response = await fetch("/api/ai/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          context: editor.getHTML(),
+          contextType: "note",
+        }),
+      });
+      const data = (await response.json()) as { result?: string; error?: string };
+      if (!response.ok || data.error || !data.result?.trim()) {
+        throw new Error(data.error ?? "AI assist failed.");
+      }
+      const result = data.result.trim();
+
+      if (mode === "enhance" || mode === "prompt") {
+        editor
+          .chain()
+          .focus()
+          .insertContentAt({ from: selectionPopover.from, to: selectionPopover.to }, result)
+          .run();
+      }
+
+      setSelectionChat((current) => [...current, { role: "assistant", content: result }]);
+      if (mode === "prompt") setSelectionPrompt("");
+      if (mode !== "prompt") setSelectionPromptOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "AI assist failed.");
+    } finally {
+      setSelectionAiLoading(null);
+    }
+  }
 
   const saveSelectionChatToRitsAi = useCallback(async () => {
     if (!selectionPopover || selectionChat.length === 0) return;
@@ -986,7 +1381,7 @@ export function RichEditor({
     }
   }, [selectionChat, selectionPopover]);
 
-  const runInlineAiPrompt = useCallback(async () => {
+  async function runInlineAiPrompt() {
     if (!editor || !inlineAiPrompt?.prompt.trim() || inlineAiPrompt.loading) return;
 
     setInlineAiPrompt((current) => current ? { ...current, loading: true } : current);
@@ -1009,13 +1404,13 @@ export function RichEditor({
         throw new Error(data.error ?? "AI prompt failed.");
       }
 
-      const targetNode = editor.state.doc.nodeAt(inlineAiPrompt.pos);
+      const targetNode = editor.state.doc.nodeAt(inlineAiPrompt.contentPos);
       if (!targetNode) return;
       editor
         .chain()
         .focus()
         .insertContentAt(
-          { from: inlineAiPrompt.pos, to: inlineAiPrompt.pos + targetNode.nodeSize },
+          { from: inlineAiPrompt.contentPos, to: inlineAiPrompt.contentPos + targetNode.nodeSize },
           `<p>${data.result.trim()}</p>`
         )
         .run();
@@ -1024,18 +1419,48 @@ export function RichEditor({
       toast.error(error instanceof Error ? error.message : "AI prompt failed.");
       setInlineAiPrompt((current) => current ? { ...current, loading: false } : current);
     }
-  }, [contextType, editor, inlineAiPrompt]);
+  }
 
-  const insertBlockAfterActive = useCallback((contentToInsert: Content) => {
+  function insertBlockAfterActive(contentToInsert: Content) {
     const targetBlock = activeBlockHandle;
     if (!editor || !targetBlock) return;
     const targetNode = editor.state.doc.nodeAt(targetBlock.pos);
     const insertPos = targetBlock.pos + (targetNode?.nodeSize ?? 0);
     editor.chain().focus().insertContentAt(insertPos, contentToInsert).run();
     setBlockMenuOpen(false);
-  }, [activeBlockHandle, editor]);
+  }
 
-  const transformActiveBlock = useCallback((type: BlockAction) => {
+  function insertLineAfterActive() {
+    const targetBlock = activeBlockHandle;
+    if (!editor || !targetBlock) return;
+    const insertListItem = targetBlock.listItemPos !== undefined && targetBlock.listItemType;
+    const targetNode = editor.state.doc.nodeAt(insertListItem ? targetBlock.listItemPos! : targetBlock.pos);
+    if (!targetNode) return;
+
+    const insertPos = (insertListItem ? targetBlock.listItemPos! : targetBlock.pos) + targetNode.nodeSize;
+    const lineToInsert: Content = insertListItem
+      ? {
+          type: targetBlock.listItemType!,
+          attrs: targetBlock.listItemType === "taskItem" ? { checked: false } : undefined,
+          content: [{ type: "paragraph" }],
+        }
+      : { type: "paragraph" };
+
+    editor
+      .chain()
+      .focus()
+      .insertContentAt(insertPos, lineToInsert)
+      .setTextSelection(insertPos + (insertListItem ? 2 : 1))
+      .run();
+    setBlockMenuOpen(false);
+    setInlineAiPrompt(null);
+  }
+
+  function insertColumnsAfterActive(columnCount: 2 | 3) {
+    insertBlockAfterActive(createColumnLayoutContent(columnCount));
+  }
+
+  function transformActiveBlock(type: BlockAction) {
     const targetBlock = activeBlockHandle;
     if (!editor || !targetBlock) return;
 
@@ -1067,6 +1492,11 @@ export function RichEditor({
       return;
     }
 
+    if (type === "columns2" || type === "columns3") {
+      insertColumnsAfterActive(type === "columns2" ? 2 : 3);
+      return;
+    }
+
     if (type === "video" || type === "audio" || type === "file") {
       const url = window.prompt(`${type === "video" ? "Video embed" : type === "audio" ? "Audio" : "File"} URL`);
       if (!url?.trim()) return;
@@ -1077,11 +1507,11 @@ export function RichEditor({
       return;
     }
 
-    if (!placeCursorInBlock(targetBlock.pos)) return;
+    if (!placeCursorInBlock(targetBlock.contentPos)) return;
 
     const chain = editor.chain().focus();
     if (selectedBlocks.length > 1) {
-      const from = Math.min(...selectedBlocks.map((block) => block.pos));
+      const from = Math.min(...selectedBlocks.map((block) => block.contentPos));
       const to = Math.max(...selectedBlocks.map((block) => block.end));
       editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, from + 1, Math.max(from + 1, to - 1))));
     }
@@ -1097,9 +1527,95 @@ export function RichEditor({
     if (type === "code") chain.toggleCodeBlock().run();
     if (type === "divider") chain.setHorizontalRule().run();
     setBlockMenuOpen(false);
-  }, [activeBlockHandle, editor, insertBlockAfterActive, placeCursorInBlock, selectedBlocks]);
+  }
 
-  const moveBlock = useCallback((fromPos: number, toPos: number, intent: "before" | "after") => {
+  function createColumnCellNodeFromBlock(node: ProseMirrorNode, block?: EditorBlockHandleState) {
+    const columnCell = editor?.schema.nodes[COLUMN_CELL_NODE_TYPE];
+    if (!editor || !columnCell) return null;
+
+    if (LIST_ITEM_NODE_TYPES.has(node.type.name) && block?.listContainerType) {
+      const listContainer = editor.schema.nodes[block.listContainerType];
+      if (listContainer) {
+        return columnCell.create(null, ProseMirrorFragment.from(listContainer.create(null, ProseMirrorFragment.from(node))));
+      }
+    }
+
+    return columnCell.create(null, ProseMirrorFragment.from(node));
+  }
+
+  function moveBlockIntoColumn(fromPos: number, targetBlock: EditorBlockDropTarget) {
+    if (!editor || fromPos === targetBlock.pos) return;
+
+    const draggedNode = editor.state.doc.nodeAt(fromPos);
+    const targetNode = editor.state.doc.nodeAt(targetBlock.pos);
+    const columnRow = editor.schema.nodes[COLUMN_ROW_NODE_TYPE];
+    if (!draggedNode || !targetNode || !columnRow) return;
+
+    const draggedBlock = getEditorLineBlockByPos(editor.view, editorBodyRef.current!, fromPos) ?? undefined;
+    const targetCell = createColumnCellNodeFromBlock(targetNode, targetBlock);
+    const draggedCell = createColumnCellNodeFromBlock(draggedNode, draggedBlock);
+    if (!targetCell || !draggedCell) return;
+
+    const targetRow = getColumnRowMeta(editor.view, targetBlock.contentPos);
+    const sourceCell = getColumnCellMeta(editor.view, fromPos);
+
+    try {
+      if (targetRow) {
+        if (targetRow.node.childCount >= 6) {
+          toast.error("Column limit reached.");
+          return;
+        }
+        const rawInsertPos = getColumnCellInsertPos(
+          targetRow.pos,
+          targetRow.node,
+          targetBlock.columnInsertIndex ?? targetRow.node.childCount
+        );
+        const paragraph = editor.schema.nodes.paragraph?.create();
+        const draggedIsOnlyCellChild = sourceCell
+          && sourceCell.cellNode.childCount === 1
+          && sourceCell.cellPos + 1 === fromPos
+          && paragraph;
+        let tr = editor.state.tr;
+        tr = draggedIsOnlyCellChild
+          ? tr.replaceWith(fromPos, fromPos + draggedNode.nodeSize, paragraph)
+          : tr.delete(fromPos, fromPos + draggedNode.nodeSize);
+        const insertPos = tr.mapping.map(rawInsertPos, 1);
+        const rowPos = tr.mapping.map(targetRow.pos, -1);
+        tr = tr
+          .insert(insertPos, draggedCell)
+          .setNodeMarkup(rowPos, undefined, {
+            ...targetRow.node.attrs,
+            cols: Math.min(6, targetRow.node.childCount + 1),
+          });
+        editor.view.dispatch(tr.scrollIntoView());
+        editor.view.focus();
+        onChange(editor.getHTML());
+        return;
+      }
+
+      const row = columnRow.create(
+        { cols: 2 },
+        ProseMirrorFragment.fromArray([targetCell, draggedCell])
+      );
+      const ranges = [
+        { pos: fromPos, end: fromPos + draggedNode.nodeSize },
+        { pos: targetBlock.pos, end: targetBlock.pos + targetNode.nodeSize },
+      ].sort((left, right) => right.pos - left.pos);
+      const insertPos = targetBlock.pos - (fromPos < targetBlock.pos ? draggedNode.nodeSize : 0);
+      let tr = editor.state.tr;
+      ranges.forEach((range) => {
+        tr = tr.delete(range.pos, range.end);
+      });
+      tr = tr.insert(insertPos, row);
+      editor.view.dispatch(tr.scrollIntoView());
+      editor.view.focus();
+      onChange(editor.getHTML());
+    } catch {
+      toast.error("Couldn't create columns from those blocks.");
+    }
+  }
+
+  function moveBlock(fromPos: number, toPos: number, intent: "before" | "after") {
     if (!editor || fromPos === toPos) return;
 
     const node = editor.state.doc.nodeAt(fromPos);
@@ -1119,9 +1635,9 @@ export function RichEditor({
     editor.view.dispatch(tr.scrollIntoView());
     editor.view.focus();
     onChange(editor.getHTML());
-  }, [editor, onChange]);
+  }
 
-  const moveBlocks = useCallback((fromPositions: number[], toPos: number, intent: "before" | "after") => {
+  function moveBlocks(fromPositions: number[], toPos: number, intent: "before" | "after") {
     if (!editor || fromPositions.length === 0) return;
 
     const blocks = fromPositions
@@ -1154,7 +1670,7 @@ export function RichEditor({
     setSelectedBlockPositions([]);
     setSelectedBlocks([]);
     onChange(editor.getHTML());
-  }, [editor, onChange]);
+  }
 
   const words = editor
     ? editor.getText().trim().split(/\s+/).filter(Boolean).length
@@ -1192,11 +1708,11 @@ export function RichEditor({
       {/* Editor body */}
       <div
         ref={editorBodyRef}
-        className="relative flex-1 overflow-y-auto px-12 py-4"
+        className="relative flex-1 overflow-y-auto py-4 pl-16 pr-5 sm:pl-[72px] sm:pr-12"
         style={{ minHeight }}
         onMouseMove={(event) => {
           if (blockMenuOpen || draggingBlockPos !== null) return;
-          setBlockHandle(getTopLevelBlockFromEvent(event));
+          setBlockHandle(getEditorLineBlockFromEvent(event));
         }}
         onMouseLeave={() => {
           if (!blockMenuOpen && draggingBlockPos === null) setBlockHandle(null);
@@ -1224,29 +1740,50 @@ export function RichEditor({
           if (draggingBlockPos === null || !blockDropTarget) return;
           event.preventDefault();
           const dragPositions = selectedBlockPositions.includes(draggingBlockPos) ? selectedBlockPositions : [draggingBlockPos];
-          if (dragPositions.length > 1) {
-            moveBlocks(dragPositions, blockDropTarget.pos, blockDropTarget.intent);
+          if (blockDropTarget.intent === "column" && dragPositions.length === 1) {
+            moveBlockIntoColumn(draggingBlockPos, blockDropTarget);
+          } else if (dragPositions.length > 1) {
+            moveBlocks(dragPositions, blockDropTarget.pos, blockDropTarget.intent === "column" ? "after" : blockDropTarget.intent);
           } else {
-            moveBlock(draggingBlockPos, blockDropTarget.pos, blockDropTarget.intent);
+            moveBlock(draggingBlockPos, blockDropTarget.pos, blockDropTarget.intent === "column" ? "after" : blockDropTarget.intent);
           }
           setDraggingBlockPos(null);
           setBlockDropTarget(null);
           setBlockDragPreview(null);
           setBlockMenuOpen(false);
         }}
+        onMouseDown={(event) => {
+          if (event.ctrlKey || event.metaKey) {
+            marqueeRef.current = { startX: event.clientX, startY: event.clientY };
+            setMarqueeBox({ top: 0, left: 0, width: 0, height: 0 });
+          }
+        }}
         onClick={(event) => {
+          if (event.ctrlKey || event.metaKey) return;
           setSelectedBlockPositions([]);
           setSelectedBlocks([]);
+          setBlockMenuOpen(false);
           editor?.chain().focus().run();
         }}
       >
+        {marqueeBox ? (
+          <div
+            className="pointer-events-none absolute z-50 border border-blue-500 bg-blue-500/10"
+            style={{
+              top: marqueeBox.top,
+              left: marqueeBox.left,
+              width: marqueeBox.width,
+              height: marqueeBox.height,
+            }}
+          />
+        ) : null}
         {selectedBlocks.map((block) => (
           <div
-            key={block.pos}
+            key={`${block.pos}-${block.top}`}
             className="pointer-events-none absolute z-[1] rounded-md bg-blue-400/10 ring-1 ring-blue-400/20"
             style={{
               top: block.top,
-              left: Math.max(block.left + 36, 40),
+              left: Math.max(block.left + BLOCK_HANDLE_GUTTER, 40),
               width: Math.max(block.width, 160),
               height: block.height,
             }}
@@ -1254,11 +1791,14 @@ export function RichEditor({
         ))}
         {blockDropTarget && draggingBlockPos !== null ? (
           <div
-            className="pointer-events-none absolute z-10 h-0.5 rounded-full bg-blue-400"
+            className={`pointer-events-none absolute z-10 rounded-full bg-blue-400 ${blockDropTarget.intent === "column" ? "w-0.5" : "h-0.5"}`}
             style={{
               top: blockDropTarget.indicatorTop,
-              left: Math.max(blockDropTarget.left + 36, 40),
-              width: Math.max(blockDropTarget.width, 160),
+              left: blockDropTarget.intent === "column"
+                ? blockDropTarget.indicatorLeft
+                : Math.max(blockDropTarget.left + BLOCK_HANDLE_GUTTER, 40),
+              width: blockDropTarget.intent === "column" ? undefined : Math.max(blockDropTarget.width, 160),
+              height: blockDropTarget.intent === "column" ? blockDropTarget.indicatorHeight : undefined,
             }}
           />
         ) : null}
@@ -1283,7 +1823,7 @@ export function RichEditor({
             className="absolute z-30 flex items-center gap-2 rounded-lg border px-3 py-2 shadow-xl"
             style={{
               top: inlineAiPrompt.top + Math.max((inlineAiPrompt.height - 38) / 2, 0),
-              left: Math.max(inlineAiPrompt.left + 36, 40),
+              left: Math.max(inlineAiPrompt.left + BLOCK_HANDLE_GUTTER, 40),
               width: Math.min(Math.max(inlineAiPrompt.width, 260), 620),
               borderColor: "var(--hairline-strong)",
               backgroundColor: "var(--surface-card)",
@@ -1326,11 +1866,29 @@ export function RichEditor({
           <>
             <button
               type="button"
+              className="absolute z-20 flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-elevated)]"
+              style={{
+                top: activeBlockHandle.top + Math.max((activeBlockHandle.height - 28) / 2, 0),
+                left: activeBlockAddLeft,
+                color: "var(--mute)",
+              }}
+              title="Add line below"
+              aria-label="Add line below"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                insertLineAfterActive();
+              }}
+            >
+              <Plus size={16} strokeWidth={1.8} />
+            </button>
+            <button
+              type="button"
               draggable
               className="absolute z-20 flex h-7 w-7 cursor-grab items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-elevated)] active:cursor-grabbing"
               style={{
                 top: activeBlockHandle.top + Math.max((activeBlockHandle.height - 28) / 2, 0),
-                left: Math.max(activeBlockHandle.left, 8),
+                left: activeBlockGripLeft,
                 backgroundColor: blockMenuOpen ? "var(--surface-elevated)" : "transparent",
                 color: "var(--mute)",
               }}
@@ -1338,7 +1896,7 @@ export function RichEditor({
               aria-label="Block options"
               onClick={(event) => {
                 event.stopPropagation();
-                placeCursorInBlock(activeBlockHandle.pos);
+                placeCursorInBlock(activeBlockHandle.contentPos);
                 setBlockMenuOpen((current) => !current);
               }}
               onDragStart={(event) => {
@@ -1356,7 +1914,7 @@ export function RichEditor({
                 setDraggingBlockPos(activeBlockHandle.pos);
                 setBlockDragPreview({
                   top: activeBlockHandle.top,
-                  left: Math.max(activeBlockHandle.left + 36, 40),
+                  left: Math.max(activeBlockHandle.left + BLOCK_HANDLE_GUTTER, 40),
                   width: activeBlockHandle.width,
                   height: activeBlockHandle.height,
                   text: dragPositions.length > 1 ? `${dragPositions.length} selected blocks` : activeBlockHandle.text,
@@ -1375,16 +1933,37 @@ export function RichEditor({
 
             {blockMenuOpen ? (
               <div
-                className="absolute z-30 w-56 overflow-hidden rounded-xl border p-1 shadow-2xl"
+                className="absolute z-30 flex w-56 flex-col overflow-hidden rounded-xl border shadow-2xl"
                 style={{
                   top: activeBlockHandle.top + Math.max((activeBlockHandle.height - 28) / 2, 0),
-                  left: Math.max(activeBlockHandle.left + 32, 42),
+                  left: activeBlockGripLeft + 32,
                   borderColor: "var(--hairline-strong)",
                   backgroundColor: "var(--surface-card)",
                 }}
                 onMouseDown={(event) => event.preventDefault()}
+                onClick={(event) => event.stopPropagation()}
               >
-                {[
+                <div
+                  className="flex items-center justify-between border-b px-3 py-2"
+                  style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}
+                >
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--mute)" }}>
+                    Turn into
+                  </span>
+                  <button
+                    type="button"
+                    className="flex h-5 w-5 items-center justify-center rounded transition-colors hover:bg-[var(--surface-card)]"
+                    style={{ color: "var(--mute)" }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setBlockMenuOpen(false);
+                    }}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto p-1">
+                  {[
                   { label: "Text", icon: <RemoveFormatting size={14} />, type: "paragraph" as const },
                   { label: "Heading 1", icon: <Heading1 size={14} />, type: "h1" as const },
                   { label: "Heading 2", icon: <Heading2 size={14} />, type: "h2" as const },
@@ -1399,6 +1978,8 @@ export function RichEditor({
                   { label: "Callout", icon: <Info size={14} />, type: "callout" as const },
                   { label: "Toggle", icon: <ChevronRight size={14} />, type: "toggle" as const },
                   { label: "Table", icon: <Table size={14} />, type: "table" as const },
+                  { label: "2 columns", icon: <Columns2 size={14} />, type: "columns2" as const },
+                  { label: "3 columns", icon: <Columns3 size={14} />, type: "columns3" as const },
                   { label: "Video frame", icon: <Video size={14} />, type: "video" as const },
                   { label: "Audio", icon: <FileAudio size={14} />, type: "audio" as const },
                   { label: "File", icon: <File size={14} />, type: "file" as const },
@@ -1417,6 +1998,7 @@ export function RichEditor({
                     {item.label}
                   </button>
                 ))}
+                </div>
               </div>
             ) : null}
           </>
@@ -1433,6 +2015,16 @@ export function RichEditor({
             borderColor: "var(--hairline-strong)",
             backgroundColor: "var(--surface-card)",
           }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => {
+            e.stopPropagation();
+            dragStateRef.current = null;
+            if (marqueeRef.current) {
+              marqueeRef.current = null;
+              setMarqueeBox(null);
+            }
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
           <div
             className="flex cursor-move items-center justify-between rounded-t-2xl border-b px-3 py-2"
@@ -1702,6 +2294,24 @@ export function RichEditor({
           list-style-position: inside;
         }
         .rich-editor-content .rits-toggle-content { margin-top: 10px; padding-left: 18px; }
+        .rich-editor-content .rits-column-row {
+          display: grid;
+          grid-template-columns: repeat(var(--rits-columns, 2), minmax(0, 1fr));
+          gap: 18px;
+          margin: 0.9em 0;
+          align-items: start;
+        }
+        .rich-editor-content .rits-column-cell {
+          min-width: 0;
+          border-left: 1px solid var(--hairline);
+          padding-left: 14px;
+        }
+        .rich-editor-content .rits-column-cell:first-child {
+          border-left: 0;
+          padding-left: 0;
+        }
+        .rich-editor-content .rits-column-cell > :first-child { margin-top: 0; }
+        .rich-editor-content .rits-column-cell > :last-child { margin-bottom: 0; }
         .rich-editor-content .rits-table-frame {
           margin: 0.9em 0;
           overflow-x: auto;

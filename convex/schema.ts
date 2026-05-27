@@ -333,6 +333,7 @@ export default defineSchema({
     title: v.string(),
     content: v.string(),
     kind: v.optional(v.union(v.literal("folder"), v.literal("file"))),
+    fileType: v.optional(v.union(v.literal("text"), v.literal("database"))),
     parentId: v.optional(v.id("notes")),
     sortOrder: v.optional(v.number()),
     createdBy: v.optional(v.id("users")),

@@ -41,6 +41,7 @@ export const createNote = mutation({
     title: v.string(),
     content: v.string(),
     kind: v.optional(v.union(v.literal("folder"), v.literal("file"))),
+    fileType: v.optional(v.union(v.literal("text"), v.literal("database"))),
     parentId: v.optional(v.id("notes")),
     sortOrder: v.optional(v.number()),
     createdBy: v.optional(v.id("users")),
@@ -60,6 +61,7 @@ export const updateNote = mutation({
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     kind: v.optional(v.union(v.literal("folder"), v.literal("file"))),
+    fileType: v.optional(v.union(v.literal("text"), v.literal("database"))),
     parentId: v.optional(v.union(v.id("notes"), v.null())),
     sortOrder: v.optional(v.number()),
   },
@@ -69,6 +71,7 @@ export const updateNote = mutation({
       title?: string;
       content?: string;
       kind?: "folder" | "file";
+      fileType?: "text" | "database";
       sortOrder?: number;
       parentId?: Id<"notes"> | undefined;
       updatedAt: number;

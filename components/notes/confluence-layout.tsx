@@ -4,10 +4,11 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { 
   Copy, FileText, Trash2, Clock, Menu, ChevronRight,
-  ChevronDown, Folder, FolderPlus, FilePlus, Share2, FolderOpen
+  ChevronDown, Folder, FolderPlus, FilePlus, Share2, FolderOpen, Database
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { NoteEditor } from "@/components/notes/editor";
+import { DatabaseFileEditor, createDefaultDatabaseContent, getDatabasePreviewText, isDatabaseFileContent } from "@/components/notes/database-file-editor";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +17,8 @@ import { toast } from "sonner";
 type NoteDoc = Doc<"notes">;
 type Scope = "private" | "workspace";
 type NoteKind = "folder" | "file";
+type NoteFileType = "text" | "database";
+type CreateMode = "folder" | "file" | "database";
 type RoomOption = { id: string; label: string; meta: string };
 type DropIntent = "before" | "after" | "inside";
 type ConfirmOptions = {
@@ -33,6 +36,7 @@ type CreateNoteArgs = {
   content: string;
   createdBy?: Id<"users">;
   kind?: NoteKind;
+  fileType?: NoteFileType;
   parentId?: Id<"notes">;
   sortOrder?: number;
 };
@@ -41,6 +45,7 @@ type UpdateNoteArgs = {
   title?: string;
   content?: string;
   kind?: NoteKind;
+  fileType?: NoteFileType;
   parentId?: Id<"notes"> | null;
   sortOrder?: number;
 };
@@ -101,6 +106,23 @@ function sortNotes(items: NoteDoc[]) {
     if (orderDelta !== 0) return orderDelta;
     return left._creationTime - right._creationTime;
   });
+}
+
+function getNoteFileType(note: NoteDoc | null): NoteFileType {
+  if (!note || note.kind === "folder") return "text";
+  if (note.fileType === "database") return "database";
+  return isDatabaseFileContent(note.content) ? "database" : "text";
+}
+
+function getCreateLabel(mode: CreateMode) {
+  if (mode === "folder") return "Folder";
+  if (mode === "database") return "Database";
+  return "File";
+}
+
+function getNotePreviewText(note: NoteDoc) {
+  if (getNoteFileType(note) === "database") return getDatabasePreviewText(note.content);
+  return note.content ? note.content.replace(/<[^>]+>/g, "") : "Empty file";
 }
 
 function getInsertSortOrder(orderedSiblings: NoteDoc[], insertIndex: number) {
@@ -200,6 +222,7 @@ function NoteTreeItem({
 }: NoteTreeItemProps) {
   const children = sortNotes(allNotes.filter((n) => n.parentId === item._id));
   const isFolder = item.kind === "folder";
+  const isDatabaseFile = !isFolder && getNoteFileType(item) === "database";
   const isExpanded = expandedFolders.has(item._id);
   const isSelected = activeNoteId === item._id;
   const activeDrop = dropTarget?.id === item._id ? dropTarget.intent : null;
@@ -246,6 +269,8 @@ function NoteTreeItem({
             
             {isFolder ? (
               isExpanded ? <FolderOpen size={14} className="shrink-0 text-blue-400" /> : <Folder size={14} className="shrink-0 text-blue-400" />
+            ) : isDatabaseFile ? (
+              <Database size={14} className="shrink-0 text-[var(--accent-green)]" />
             ) : (
               <FileText size={14} className="shrink-0 text-[var(--stone)]" />
             )}
@@ -333,7 +358,7 @@ export function ConfluenceLayout({
   // Folder state
   const [expandedFolders, setExpandedFolders] = useState<Set<Id<"notes">>>(new Set());
   const [currentFolderId, setCurrentFolderId] = useState<Id<"notes"> | null>(null); // For gallery view
-  const [showCreate, setShowCreate] = useState<"folder" | "file" | null>(null);
+  const [showCreate, setShowCreate] = useState<CreateMode | null>(null);
   const [newTitle, setNewTitle] = useState("");
 
   const [previewNote, setPreviewNote] = useState<NoteDoc | null>(null);
@@ -347,12 +372,14 @@ export function ConfluenceLayout({
   
   const allNotes = notes ?? EMPTY_NOTES;
   const activeNote = allNotes.find((n) => n._id === selectedId);
+  const activeNoteFileType = getNoteFileType(activeNote ?? null);
   const urlPreviewNote = useMemo(() => {
     if (!initialUrlNoteId || dismissedUrlNoteId === initialUrlNoteId) return null;
     const note = allNotes.find((item) => item._id === initialUrlNoteId) ?? null;
     return note?.kind === "folder" ? null : note;
   }, [allNotes, dismissedUrlNoteId, initialUrlNoteId]);
   const activePreviewNote = previewNote ?? urlPreviewNote;
+  const activePreviewFileType = getNoteFileType(activePreviewNote);
 
   useEffect(() => {
     if (view !== "gallery" || !currentFolderId) return;
@@ -412,29 +439,32 @@ export function ConfluenceLayout({
   };
 
   const handleCreate = async () => {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !showCreate) return;
     try {
       const parentId = currentFolderId ?? undefined;
+      const isDatabase = showCreate === "database";
+      const initialContent = isDatabase ? createDefaultDatabaseContent() : "";
       const id = await createNote({ 
         scope, 
         workspaceId: scope === "workspace" ? workspaceId : undefined, 
         title: newTitle.trim(), 
-        content: "", 
+        content: initialContent, 
         createdBy: convexUser?._id,
         kind: showCreate === "folder" ? "folder" : "file",
+        fileType: showCreate === "folder" ? undefined : isDatabase ? "database" : "text",
         parentId
       });
       
       setNewTitle(""); 
       
-      if (showCreate === "file") {
-        handleSelect(id, "");
+      if (showCreate === "file" || showCreate === "database") {
+        handleSelect(id, initialContent);
         setView("sidebar");
       } else if (showCreate === "folder" && parentId) {
         setExpandedFolders(prev => new Set(prev).add(parentId));
       }
       setShowCreate(null);
-      toast.success(`${showCreate === "folder" ? "Folder" : "File"} created!`);
+      toast.success(`${getCreateLabel(showCreate)} created!`);
     } catch (e) {
       toast.error("Failed to create item.");
       console.error(e);
@@ -462,7 +492,9 @@ export function ConfluenceLayout({
         roomId: roomId as Id<"socialChatRooms">,
         shareType: "note",
         shareTitle: shareNote.title,
-        shareDescription: shareNote.content ? shareNote.content.replace(/<[^>]+>/g, '').substring(0, 100) : "",
+        shareDescription: getNoteFileType(shareNote) === "database"
+          ? getDatabasePreviewText(shareNote.content)
+          : shareNote.content ? shareNote.content.replace(/<[^>]+>/g, '').substring(0, 100) : "",
         shareMeta: JSON.stringify({ noteId: shareNote._id })
       });
       setShareNote(null);
@@ -640,7 +672,7 @@ export function ConfluenceLayout({
               <DialogHeader>
                 <div className="flex items-center gap-3 pr-11">
                   <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--charcoal)" }}>
-                    <FileText size={13} /> File
+                    {activePreviewFileType === "database" ? <Database size={13} /> : <FileText size={13} />} {activePreviewFileType === "database" ? "Database" : "File"}
                   </span>
                   {typeof activePreviewNote._creationTime === "number" ? (
                     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
@@ -664,15 +696,25 @@ export function ConfluenceLayout({
             </div>
 
             <div className="min-h-[420px] overflow-hidden" style={{ backgroundColor: "var(--canvas)", height: "min(860px, calc(96vh - 88px))" }}>
-              <NoteEditor
-                className="h-full w-full !rounded-none !border-0 shadow-none"
-                content={activePreviewNote.content}
-                minHeight="0px"
-                onChange={(value) => {
-                  updateNote({ id: activePreviewNote._id, content: value, title: activePreviewNote.title });
-                  setPreviewNote({ ...activePreviewNote, content: value });
-                }}
-              />
+              {activePreviewFileType === "database" ? (
+                <DatabaseFileEditor
+                  content={activePreviewNote.content}
+                  onChange={(value) => {
+                    updateNote({ id: activePreviewNote._id, content: value, title: activePreviewNote.title, fileType: "database" });
+                    setPreviewNote({ ...activePreviewNote, content: value });
+                  }}
+                />
+              ) : (
+                <NoteEditor
+                  className="h-full w-full !rounded-none !border-0 shadow-none"
+                  content={activePreviewNote.content}
+                  minHeight="0px"
+                  onChange={(value) => {
+                    updateNote({ id: activePreviewNote._id, content: value, title: activePreviewNote.title, fileType: "text" });
+                    setPreviewNote({ ...activePreviewNote, content: value });
+                  }}
+                />
+              )}
             </div>
           </DialogContent>
         ) : null}
@@ -704,6 +746,9 @@ export function ConfluenceLayout({
                   <button onClick={() => { setCurrentFolderId(null); setShowCreate("file"); }} className="p-1 rounded hover:bg-[var(--surface-elevated)] text-[var(--body)]" title="New Note">
                     <FilePlus size={16} />
                   </button>
+                  <button onClick={() => { setCurrentFolderId(null); setShowCreate("database"); }} className="p-1 rounded hover:bg-[var(--surface-elevated)] text-[var(--body)]" title="New Database">
+                    <Database size={16} />
+                  </button>
                   <button onClick={() => { setCurrentFolderId(null); setShowCreate("folder"); }} className="p-1 rounded hover:bg-[var(--surface-elevated)] text-[var(--body)]" title="New Folder">
                     <FolderPlus size={16} />
                   </button>
@@ -712,7 +757,7 @@ export function ConfluenceLayout({
 
               {showCreate && (
                 <div className="p-3 border-b z-10 relative bg-[var(--surface-card)]" style={{ borderColor: "var(--hairline-strong)" }}>
-                  <input autoFocus placeholder={`New ${showCreate}...`} value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+                  <input autoFocus placeholder={`New ${getCreateLabel(showCreate).toLowerCase()}...`} value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(null); }}
                     className="w-full bg-[var(--surface-elevated)] border border-[var(--hairline)] rounded-md px-3 py-1.5 text-sm text-[var(--ink)] mb-2 outline-none" />
                   <div className="flex gap-2">
@@ -784,15 +829,25 @@ export function ConfluenceLayout({
               )}
               {activeNote ? (
                 <div className="flex-1 overflow-hidden relative z-10 bg-[var(--surface-card)]">
-                  <NoteEditor 
-                    className="w-full h-full !border-0 !rounded-none shadow-none" 
-                    content={editContent} 
-                    minHeight="100%" 
-                    onChange={(value) => {
-                      setEditContent(value);
-                      updateNote({ id: activeNote._id, content: value, title: activeNote.title });
-                    }} 
-                  />
+                  {activeNoteFileType === "database" ? (
+                    <DatabaseFileEditor
+                      content={editContent}
+                      onChange={(value) => {
+                        setEditContent(value);
+                        updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "database" });
+                      }}
+                    />
+                  ) : (
+                    <NoteEditor 
+                      className="w-full h-full !border-0 !rounded-none shadow-none" 
+                      content={editContent} 
+                      minHeight="100%" 
+                      onChange={(value) => {
+                        setEditContent(value);
+                        updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "text" });
+                      }} 
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-center relative z-10">
@@ -820,12 +875,13 @@ export function ConfluenceLayout({
                 <div className="ml-auto flex items-center gap-2">
                   <button onClick={() => setShowCreate("folder")} className="px-3 py-1.5 rounded-md bg-[var(--surface-elevated)] text-[var(--body)] text-sm flex items-center gap-2"><FolderPlus size={16} /> New Folder</button>
                   <button onClick={() => setShowCreate("file")} className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm flex items-center gap-2"><FilePlus size={16} /> New File</button>
+                  <button onClick={() => setShowCreate("database")} className="px-3 py-1.5 rounded-md bg-[var(--accent-green)] text-[var(--canvas)] text-sm flex items-center gap-2"><Database size={16} /> New Database</button>
                 </div>
               </div>
 
               {showCreate && (
                 <div className="p-4 rounded-xl border z-10 relative mb-8 w-80" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
-                  <input autoFocus placeholder={`New ${showCreate}...`} value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+                  <input autoFocus placeholder={`New ${getCreateLabel(showCreate).toLowerCase()}...`} value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(null); }}
                     className="w-full bg-[var(--surface-elevated)] border border-[var(--hairline)] rounded-md px-3 py-2 text-sm text-[var(--ink)] mb-3 outline-none" />
                   <div className="flex gap-2">
@@ -903,8 +959,11 @@ export function ConfluenceLayout({
                         <Share2 size={14} />
                       </button>
                       <div className="flex h-full cursor-pointer flex-col p-4 pr-12" onClick={() => setPreviewNote(item)}>
-                        <h4 className="mb-2 line-clamp-1 text-base font-medium leading-snug text-[var(--ink)]">{item.title}</h4>
-                        <p className="line-clamp-6 text-xs text-[var(--charcoal)]">{item.content ? item.content.replace(/<[^>]+>/g, '') : "Empty file"}</p>
+                        <h4 className="mb-2 flex min-w-0 items-center gap-2 text-base font-medium leading-snug text-[var(--ink)]">
+                          {getNoteFileType(item) === "database" ? <Database size={15} className="shrink-0 text-[var(--accent-green)]" /> : <FileText size={15} className="shrink-0 text-[var(--stone)]" />}
+                          <span className="truncate">{item.title}</span>
+                        </h4>
+                        <p className="line-clamp-6 text-xs text-[var(--charcoal)]">{getNotePreviewText(item)}</p>
                       </div>
                     </div>
                   );

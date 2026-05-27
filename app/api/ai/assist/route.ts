@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       prompt?: string;
       context?: string;
-      contextType?: "note" | "idea" | "roadmap";
+      contextType?: "note" | "idea" | "roadmap" | "database-design";
     };
 
     const prompt = body.prompt?.trim();
@@ -46,24 +46,24 @@ export async function POST(request: NextRequest) {
     }
 
     const contextType = body.contextType ?? "note";
-    const contextLabel = contextType === "idea" ? "idea description" : contextType === "roadmap" ? "roadmap data" : "note";
+    const contextLabel = contextType === "idea" ? "idea description" : contextType === "roadmap" ? "roadmap data" : contextType === "database-design" ? "database blocks" : "note";
     const rawContext = (body.context ?? "").trim();
 
-    // Strip HTML tags for cleaner context unless it's a roadmap
-    const normalizedContext = contextType === "roadmap" ? rawContext : rawContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-    const plainContext = truncateText(normalizedContext, contextType === "roadmap" ? 5000 : 6500);
-    const safePrompt = truncateText(prompt, contextType === "roadmap" ? 2500 : 3500);
-    const maxTokens = contextType === "roadmap" ? 2200 : 1800;
+    // Strip HTML tags for cleaner context unless it's a roadmap or database-design
+    const normalizedContext = (contextType === "roadmap" || contextType === "database-design") ? rawContext : rawContext.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const plainContext = truncateText(normalizedContext, (contextType === "roadmap" || contextType === "database-design") ? 5000 : 6500);
+    const safePrompt = truncateText(prompt, (contextType === "roadmap" || contextType === "database-design") ? 2500 : 3500);
+    const maxTokens = contextType === "roadmap" ? 2200 : contextType === "database-design" ? 4000 : 1800;
 
     const systemPrompt = [
-      `You are an expert ${contextType === "roadmap" ? "roadmap generator" : "writing assistant"} embedded in a productivity app.`,
+      `You are an expert ${contextType === "roadmap" ? "roadmap generator" : contextType === "database-design" ? "UI and database designer" : "writing assistant"} embedded in a productivity app.`,
       `The user is currently editing a ${contextLabel}.`,
       plainContext
-        ? `Here is the current content of the ${contextLabel} (use this as context):\n\n"""\n${contextType === "roadmap" ? plainContext : plainContext.slice(0, 8000)}\n"""`
+        ? `Here is the current content of the ${contextLabel} (use this as context):\n\n"""\n${(contextType === "roadmap" || contextType === "database-design") ? plainContext : plainContext.slice(0, 8000)}\n"""`
         : `The ${contextLabel} is currently empty.`,
       ``,
-      `Follow the user's instruction precisely. Return only the requested content  no preamble, no meta commentary${contextType === "roadmap" ? "." : ", and absolutely no markdown code fences unless the user asks for code."}`,
-      contextType === "roadmap" ? "" : `Format your response using ONLY plain HTML tags (e.g. <p>, <strong>, <em>, <ul>, <li>, <h1>). DO NOT use Markdown formatting (like **, -, #). For nested lists, ensure strict HTML (the nested <ul> MUST be inside an <li> element).`,
+      `Follow the user's instruction precisely. Return only the requested content  no preamble, no meta commentary${(contextType === "roadmap" || contextType === "database-design") ? "." : ", and absolutely no markdown code fences unless the user asks for code."}`,
+      contextType === "database-design" ? `The user is requesting design changes to the provided JSON object. You must return ONLY a valid JSON ARRAY containing the updated 'blocks' array. Keep the 'id', 'fieldKey', and 'label' fields intact. Adjust 'x', 'y', 'w', 'h', 'shape', 'accent', 'kind' properties to beautify and format the layout. Do NOT wrap the JSON in markdown code blocks. Ensure the output is a raw JSON array of objects.` : contextType === "roadmap" ? "" : `Format your response using ONLY plain HTML tags (e.g. <p>, <strong>, <em>, <ul>, <li>, <h1>). DO NOT use Markdown formatting (like **, -, #). For nested lists, ensure strict HTML (the nested <ul> MUST be inside an <li> element).`,
       `If the user asks you to improve, rewrite, summarise, expand, or continue the existing content, do so relative to the context provided.`,
     ].filter(Boolean).join("\n");
 
@@ -94,7 +94,12 @@ export async function POST(request: NextRequest) {
     };
 
     let result = data.choices?.[0]?.message?.content?.trim() ?? "";
-    if (contextType !== "roadmap") {
+    if (contextType === "database-design") {
+      result = result
+        .replace(/^```(?:json)?\n?/i, "")
+        .replace(/\n?```$/i, "")
+        .trim();
+    } else if (contextType !== "roadmap") {
       result = result
         .replace(/^```(?:html|xml)?\n?/i, "")
         .replace(/\n?```$/i, "")

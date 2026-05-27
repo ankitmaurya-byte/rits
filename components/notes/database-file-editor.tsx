@@ -7,9 +7,11 @@ import {
   Copy,
   Diamond,
   Download,
+  Filter,
   History,
   Image as ImageIcon,
   Link2,
+  Loader2,
   Mail,
   Maximize2,
   MoreHorizontal,
@@ -17,6 +19,8 @@ import {
   Phone,
   Plus,
   Redo2,
+  Search,
+  Sparkles,
   Square,
   Tag,
   Trash2,
@@ -768,46 +772,87 @@ function timestampForFilename() {
 }
 
 export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProps) {
-  const [editorState, setEditorState] = useState(() => ({
-    sourceContent: content,
-    database: parseDatabaseContent(content),
-  }));
+  const [editorState, setEditorState] = useState(() => {
+    const db = parseDatabaseContent(content);
+    return {
+      sourceContent: content,
+      publishedDatabase: db,
+      draftDatabase: db,
+    };
+  });
   const [mode, setMode] = useState<DatabaseEditorMode>("view");
   const [importDialogFormat, setImportDialogFormat] = useState<"json" | "csv" | null>(null);
   const [importDialogMode, setImportDialogMode] = useState<DatabaseImportMode>("append");
   const [importDialogFile, setImportDialogFile] = useState<File | null>(null);
-  const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set(editorState.database.blocks[0] ? [editorState.database.blocks[0].id] : []));
+  const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set(editorState.publishedDatabase.blocks[0] ? [editorState.publishedDatabase.blocks[0].id] : []));
   const [marquee, setMarquee] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<CellContextMenu | null>(null);
   const [cellDraftState, setCellDraftState] = useState({ key: "", value: "" });
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
   const [snapGuides, setSnapGuides] = useState<{ x?: number, y?: number } | null>(null);
   const [history, setHistory] = useState<{ past: { db: DatabaseFileContent, desc: string }[], future: { db: DatabaseFileContent, desc: string }[] }>({ past: [], future: [] });
-  const [widthInput, setWidthInput] = useState(editorState.database.rowWidth?.toString() || "360");
-  const [heightInput, setHeightInput] = useState(editorState.database.rowHeight?.toString() || "160");
+  const [widthInput, setWidthInput] = useState(editorState.draftDatabase.rowWidth?.toString() || "360");
+  const [heightInput, setHeightInput] = useState(editorState.draftDatabase.rowHeight?.toString() || "160");
   const [storeHovered, setStoreHovered] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterField, setFilterField] = useState("all");
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
-  const databaseRef = useRef(editorState.database);
+  const databaseRef = useRef(editorState.draftDatabase);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<BlockInteraction | null>(null);
   const openLinkTimerRef = useRef<number | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    setWidthInput(editorState.database.rowWidth?.toString() || "360");
-    setHeightInput(editorState.database.rowHeight?.toString() || "160");
-  }, [editorState.database.rowWidth, editorState.database.rowHeight]);
-  let database = editorState.database;
+    setWidthInput(editorState.draftDatabase.rowWidth?.toString() || "360");
+    setHeightInput(editorState.draftDatabase.rowHeight?.toString() || "160");
+  }, [editorState.draftDatabase.rowWidth, editorState.draftDatabase.rowHeight]);
+  const modeRef = useRef(mode);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+
+  let publishedDatabase = editorState.publishedDatabase;
+  let draftDatabase = editorState.draftDatabase;
   if (editorState.sourceContent !== content) {
     const next = parseDatabaseContent(content);
-    database = next;
-    setEditorState({ sourceContent: content, database: next });
+    publishedDatabase = next;
+    draftDatabase = next;
+    setEditorState({ sourceContent: content, publishedDatabase: next, draftDatabase: next });
   }
+
+  const database = mode === "design" ? draftDatabase : publishedDatabase;
+
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+  const filteredRows = useMemo(() => {
+    if (!searchQuery.trim()) return database.rows;
+    const lowerQuery = searchQuery.toLowerCase();
+    
+    return database.rows.filter((row) => {
+      if (filterField === "all") {
+        return Object.values(row.values).some((val) => 
+          String(val).toLowerCase().includes(lowerQuery)
+        );
+      } else {
+        const val = row.values[filterField] || "";
+        return String(val).toLowerCase().includes(lowerQuery);
+      }
+    });
+  }, [database.rows, searchQuery, filterField]);
 
   useEffect(() => {
     databaseRef.current = database;
   }, [database]);
+
+  useEffect(() => {
+    const serialized = serializeDatabaseContent(editorState.publishedDatabase);
+    if (serialized !== editorState.sourceContent) {
+      onChangeRef.current(serialized);
+    }
+  }, [editorState.publishedDatabase, editorState.sourceContent]);
 
   useEffect(() => {
     return () => {
@@ -898,12 +943,14 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
 
   const updateDatabase = useCallback((updater: (current: DatabaseFileContent) => DatabaseFileContent, commitDesc: string | false = "Update database") => {
     setEditorState((prev) => {
-      const next = updater(prev.database);
+      const nextDraft = updater(prev.draftDatabase);
+      const nextPublished = modeRef.current === "view" ? updater(prev.publishedDatabase) : prev.publishedDatabase;
+      
       if (commitDesc) {
-        setHistory(h => ({ past: [...h.past, { db: prev.database, desc: commitDesc }].slice(-50), future: [] }));
+        setHistory(h => ({ past: [...h.past, { db: prev.draftDatabase, desc: commitDesc }].slice(-50), future: [] }));
       }
-      databaseRef.current = next;
-      return { ...prev, database: next };
+      databaseRef.current = modeRef.current === "design" ? nextDraft : nextPublished;
+      return { ...prev, draftDatabase: nextDraft, publishedDatabase: nextPublished };
     });
   }, []);
 
@@ -931,8 +978,11 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
       if (h.past.length === 0) return h;
       const prev = h.past[h.past.length - 1];
       const currentDb = databaseRef.current;
-      databaseRef.current = prev.db;
-      setEditorState(e => ({ ...e, database: prev.db }));
+      setEditorState(e => ({
+        ...e,
+        draftDatabase: prev.db,
+        publishedDatabase: modeRef.current === "view" ? prev.db : e.publishedDatabase
+      }));
       return {
         past: h.past.slice(0, -1),
         future: [{ db: currentDb, desc: prev.desc }, ...h.future]
@@ -945,8 +995,11 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
       if (h.future.length === 0) return h;
       const next = h.future[0];
       const currentDb = databaseRef.current;
-      databaseRef.current = next.db;
-      setEditorState(e => ({ ...e, database: next.db }));
+      setEditorState(e => ({
+        ...e,
+        draftDatabase: next.db,
+        publishedDatabase: modeRef.current === "view" ? next.db : e.publishedDatabase
+      }));
       return {
         past: [...h.past, { db: currentDb, desc: next.desc }],
         future: h.future.slice(1)
@@ -1446,6 +1499,81 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
     toast.success("Row deleted.");
   };
 
+  const handleAiSubmit = async () => {
+    if (!aiPrompt.trim() || isAiLoading) return;
+    setIsAiLoading(true);
+    try {
+      const response = await fetch("/api/ai/assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          context: JSON.stringify({
+            rowWidth: databaseRef.current.rowWidth,
+            rowHeight: databaseRef.current.rowHeight,
+            blocks: databaseRef.current.blocks
+          }),
+          contextType: "database-design"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get AI response");
+      }
+
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+
+      let textResult = data.result.trim();
+      let newBlocks;
+      try {
+        const startIdx = textResult.indexOf('[');
+        const endIdx = textResult.lastIndexOf(']');
+        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+          textResult = textResult.substring(startIdx, endIdx + 1);
+        }
+        newBlocks = JSON.parse(textResult);
+      } catch (e) {
+        throw new Error("AI returned malformed JSON");
+      }
+
+      if (!Array.isArray(newBlocks)) {
+        if (newBlocks.blocks && Array.isArray(newBlocks.blocks)) {
+          newBlocks = newBlocks.blocks;
+        } else {
+          throw new Error("Invalid AI response format");
+        }
+      }
+
+      updateDatabase(current => {
+        // Map new blocks keeping the original ID if they match fieldKey to avoid complete recreation
+        const updatedBlocks = newBlocks.map((b: any) => {
+          const existing = current.blocks.find(eb => eb.fieldKey === b.fieldKey) || {};
+          return {
+            ...existing,
+            ...b,
+            id: existing.id || b.id || createId("block"),
+            x: Math.max(0, Number(b.x) || 0),
+            y: Math.max(0, Number(b.y) || 0),
+            w: Math.max(MIN_BLOCK_SIZE, Number(b.w) || MIN_BLOCK_SIZE),
+            h: Math.max(MIN_BLOCK_SIZE, Number(b.h) || MIN_BLOCK_SIZE),
+          };
+        });
+        return {
+          ...current,
+          blocks: updatedBlocks
+        };
+      }, "AI formatting");
+      
+      setAiPrompt("");
+      toast.success("AI formatting applied");
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong with AI formatting");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   const updateRowValue = (rowId: string, fieldKey: string, value: string) => {
     updateDatabase((current) => ({
       ...current,
@@ -1599,6 +1727,39 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
           </button>
         </div>
 
+        {mode === "view" ? (
+          <div className="ml-4 flex items-center gap-2">
+            <div className="relative flex items-center">
+              <Search size={14} className="absolute left-2.5 text-[var(--mute)]" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 w-48 rounded-md border bg-[var(--surface-elevated)] pl-8 pr-3 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--mute)] transition-colors focus:border-[var(--ink)]"
+                style={{ borderColor: "var(--hairline)" }}
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="btn-outline flex h-8 items-center gap-1.5 px-2.5 text-xs" title="Filter by field">
+                  <Filter size={14} />
+                  <span className="max-w-[100px] truncate">{filterField === "all" ? "All fields" : (database.blocks.find(b => b.fieldKey === filterField)?.label || filterField)}</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48 max-h-[300px] overflow-auto">
+                <DropdownMenuItem onSelect={() => setFilterField("all")}>All fields</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {database.blocks.map(b => (
+                  <DropdownMenuItem key={b.id} onSelect={() => setFilterField(b.fieldKey)}>
+                    {b.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
+
         {mode === "design" ? (
           <div className="flex items-center gap-1 border-l pl-3" style={{ borderColor: "var(--hairline-strong)" }}>
             <div className="flex items-center gap-1.5">
@@ -1635,79 +1796,129 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
           </div>
         ) : null}
 
-        <button type="button" onClick={addRow} className="btn-outline h-9 px-3 text-xs ml-auto">
-          <Plus size={14} /> Add row
-        </button>
+        {mode === "view" && (
+          <button type="button" onClick={addRow} className="btn-outline h-9 px-3 text-xs ml-auto">
+            <Plus size={14} /> Add row
+          </button>
+        )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="btn-outline h-9 px-3 text-xs">
-              <History size={14} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <div className="px-2 py-1.5 text-xs font-semibold text-[var(--mute)]">Past</div>
-            {history.past.length === 0 ? <div className="px-2 py-1 text-xs text-[var(--mute)]">No past history</div> : null}
-            {[...history.past].reverse().slice(0, 10).map((h, i) => (
-              <DropdownMenuItem key={i} onSelect={undo}>
-                <Undo2 size={14} className="mr-2" /> {h.desc}
-              </DropdownMenuItem>
-            ))}
-            {history.future.length > 0 && (
-              <>
-                <DropdownMenuSeparator />
-                <div className="px-2 py-1.5 text-xs font-semibold text-[var(--mute)]">Future</div>
-                {history.future.slice(0, 10).map((h, i) => (
-                  <DropdownMenuItem key={i} onSelect={redo}>
-                    <Redo2 size={14} className="mr-2" /> {h.desc}
+        {mode === "design" && (
+          <>
+            <div className="ml-auto" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="btn-outline h-9 px-3 text-xs">
+                  <History size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <div className="px-2 py-1.5 text-xs font-semibold text-[var(--mute)]">Past</div>
+                {history.past.length === 0 ? <div className="px-2 py-1 text-xs text-[var(--mute)]">No past history</div> : null}
+                {[...history.past].reverse().slice(0, 10).map((h, i) => (
+                  <DropdownMenuItem key={i} onSelect={undo}>
+                    <Undo2 size={14} className="mr-2" /> {h.desc}
                   </DropdownMenuItem>
                 ))}
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {history.future.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-1.5 text-xs font-semibold text-[var(--mute)]">Future</div>
+                    {history.future.slice(0, 10).map((h, i) => (
+                      <DropdownMenuItem key={i} onSelect={redo}>
+                        <Redo2 size={14} className="mr-2" /> {h.desc}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="btn-outline h-9 px-3 text-xs">
-              <Download size={14} /> Export
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuItem onSelect={handleExportJson}><Download size={14} /> JSON</DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleExportCsv}><Download size={14} /> CSV</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {mode === "view" && (
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="btn-outline h-9 px-3 text-xs">
+                  <Download size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-44">
+                <DropdownMenuItem onSelect={handleExportJson}><Download size={14} /> JSON</DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleExportCsv}><Download size={14} /> CSV</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="btn-outline h-9 px-3 text-xs">
-              <Upload size={14} /> Import
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-44">
-            <DropdownMenuItem onSelect={() => openImportDialog("json")}><Upload size={14} /> JSON</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => openImportDialog("csv")}><Upload size={14} /> CSV</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className="btn-outline h-9 px-3 text-xs">
+                  <Upload size={14} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-44">
+                <DropdownMenuItem onSelect={() => openImportDialog("json")}><Upload size={14} /> JSON</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => openImportDialog("csv")}><Upload size={14} /> CSV</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
 
-        <button type="button" onClick={() => { onChange(serializeDatabaseContent(database)); toast.success("Changes applied."); }} className="btn-primary h-9 px-4 text-xs font-semibold">
-          Apply
-        </button>
+        {mode === "design" && (
+          <button 
+            type="button" 
+            onClick={() => { 
+              setEditorState(prev => {
+                const next = { ...prev, publishedDatabase: prev.draftDatabase };
+                onChange(serializeDatabaseContent(prev.draftDatabase));
+                return next;
+              });
+              toast.success("Changes applied."); 
+            }} 
+            className="btn-primary h-9 px-4 text-xs font-semibold"
+          >
+            Apply
+          </button>
+        )}
       </div>
 
       {mode === "design" ? (
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="flex-1 overflow-auto bg-[var(--surface)] p-6 md:p-12">
-            <div className="mb-4 flex flex-wrap gap-2">
-              {BLOCK_KIND_OPTIONS.map((option) => {
-                const Icon = option.icon;
-                return (
-                  <button key={option.kind} type="button" onClick={() => addBlock(option.kind)} className="btn-outline h-9 px-3 text-xs">
-                    <Icon size={14} /> {option.label}
-                  </button>
-                );
-              })}
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap gap-2">
+                {BLOCK_KIND_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <button key={option.kind} type="button" onClick={() => addBlock(option.kind)} className="btn-outline h-9 px-3 text-xs">
+                      <Icon size={14} /> {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="relative flex items-center">
+                  <Sparkles size={14} className="absolute left-2.5 text-[var(--accent-purple)]" />
+                  <input
+                    type="text"
+                    placeholder="Ask AI to format or design..."
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAiSubmit()}
+                    disabled={isAiLoading}
+                    className="h-9 w-72 rounded-md border bg-[var(--surface-elevated)] pl-8 pr-3 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--mute)] transition-colors focus:border-[var(--ink)] disabled:opacity-50"
+                    style={{ borderColor: "var(--hairline)" }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAiSubmit}
+                  disabled={isAiLoading || !aiPrompt.trim()}
+                  className="btn-primary h-9 px-3 text-xs min-w-[70px] justify-center"
+                >
+                  {isAiLoading ? <Loader2 size={14} className="animate-spin" /> : "Apply"}
+                </button>
+              </div>
             </div>
 
             <div
@@ -1987,9 +2198,9 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
       ) : (
         <div className="min-h-0 flex-1 overflow-auto p-5">
           <div style={rowGridStyle}>
-            {database.rows.map((row, index) => {
+            {filteredRows.map((row, index) => {
               const isCollapsed = collapsedRows.has(row.id);
-              const prevIsCollapsed = index > 0 && collapsedRows.has(database.rows[index - 1].id);
+              const prevIsCollapsed = index > 0 && collapsedRows.has(filteredRows[index - 1].id);
               const showHeader = isCollapsed && !prevIsCollapsed;
 
               return (
@@ -2090,6 +2301,13 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
             <div className="flex h-full min-h-[220px] items-center justify-center">
               <button type="button" onClick={addRow} className="btn-primary">
                 <Plus size={15} /> Add row
+              </button>
+            </div>
+          ) : filteredRows.length === 0 ? (
+            <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3">
+              <p className="text-sm font-medium" style={{ color: "var(--mute)" }}>No rows match your search.</p>
+              <button type="button" onClick={() => { setSearchQuery(""); setFilterField("all"); }} className="btn-outline h-8 px-3 text-xs">
+                Clear filters
               </button>
             </div>
           ) : null}

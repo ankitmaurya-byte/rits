@@ -82,8 +82,8 @@ type ConfluenceLayoutProps = {
 
 const ORDER_GAP = 1024;
 const EMPTY_NOTES: NoteDoc[] = [];
-const SIDEBAR_DEFAULT_WIDTH = 288;
-const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_DEFAULT_WIDTH = 240;
+const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 520;
 
 function clampSidebarWidth(width: number) {

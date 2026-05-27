@@ -7,6 +7,7 @@ import {
   Copy,
   Diamond,
   Download,
+  History,
   Image as ImageIcon,
   Link2,
   Mail,
@@ -15,12 +16,16 @@ import {
   Move,
   Phone,
   Plus,
+  Redo2,
   Square,
   Tag,
   Trash2,
   Type,
+  Undo2,
   Upload,
   X,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -55,6 +60,7 @@ type DatabaseBlock = {
   accent: string;
   keyRole?: DatabaseKeyRole;
   foreignReference?: string;
+  stored?: boolean;
 };
 
 type DatabaseRow = {
@@ -79,11 +85,13 @@ type DatabaseFileEditorProps = {
 };
 
 type BlockInteraction = {
-  blockId: string;
-  mode: "move" | "resize";
+  blockIds: string[];
+  mode: "move" | "resize" | "marquee";
   startClientX: number;
   startClientY: number;
-  startBlock: DatabaseBlock;
+  startBlocks: DatabaseBlock[];
+  startDatabase: DatabaseFileContent;
+  startSelectedIds?: Set<string>;
 };
 
 type CellContextMenu = {
@@ -157,7 +165,7 @@ function checkOverlap(b1: { x: number; y: number; w: number; h: number }, b2: { 
 function findFreeSpot(blocks: DatabaseBlock[], ignoreId: string, startX: number, startY: number, w: number, h: number) {
   let x = Math.max(0, startX);
   let y = Math.max(0, startY);
-  
+
   let colliding = true;
   let iters = 0;
   while (colliding && iters < 100) {
@@ -170,7 +178,7 @@ function findFreeSpot(blocks: DatabaseBlock[], ignoreId: string, startX: number,
         const pushLeft = x + w - b.x;
         const pushDown = b.y + b.h - y;
         const pushUp = y + h - b.y;
-        
+
         const min = Math.min(pushRight, pushLeft, pushDown, pushUp);
         if (min === pushRight) x = b.x + b.w + 1;
         else if (min === pushLeft) x = Math.max(0, b.x - w - 1);
@@ -186,7 +194,7 @@ function findFreeSpot(blocks: DatabaseBlock[], ignoreId: string, startX: number,
 function getSnap(val: number, size: number, max: number, blocks: DatabaseBlock[], ignoreId: string, isX: boolean) {
   const threshold = 12;
   const targets = new Set<number>([0, max / 2]);
-  
+
   for (const b of blocks) {
     if (b.id === ignoreId) continue;
     if (isX) {
@@ -302,6 +310,7 @@ function normalizeDatabaseContent(value: Partial<DatabaseFileContent> | null): D
       accent: typeof block.accent === "string" ? block.accent : ACCENTS[index % ACCENTS.length],
       keyRole: isKeyRole(block.keyRole) ? block.keyRole : undefined,
       foreignReference: typeof block.foreignReference === "string" ? block.foreignReference : undefined,
+      stored: Boolean(block.stored),
     }))
     : fallback.blocks;
 
@@ -767,11 +776,17 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
   const [importDialogFormat, setImportDialogFormat] = useState<"json" | "csv" | null>(null);
   const [importDialogMode, setImportDialogMode] = useState<DatabaseImportMode>("append");
   const [importDialogFile, setImportDialogFile] = useState<File | null>(null);
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(editorState.database.blocks[0]?.id ?? null);
+  const [selectedBlockIds, setSelectedBlockIds] = useState<Set<string>>(new Set(editorState.database.blocks[0] ? [editorState.database.blocks[0].id] : []));
+  const [marquee, setMarquee] = useState<{ x: number, y: number, w: number, h: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<CellContextMenu | null>(null);
   const [cellDraftState, setCellDraftState] = useState({ key: "", value: "" });
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
   const [snapGuides, setSnapGuides] = useState<{ x?: number, y?: number } | null>(null);
+  const [history, setHistory] = useState<{ past: { db: DatabaseFileContent, desc: string }[], future: { db: DatabaseFileContent, desc: string }[] }>({ past: [], future: [] });
+  const [widthInput, setWidthInput] = useState(editorState.database.rowWidth?.toString() || "360");
+  const [heightInput, setHeightInput] = useState(editorState.database.rowHeight?.toString() || "160");
+  const [storeHovered, setStoreHovered] = useState(false);
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
   const databaseRef = useRef(editorState.database);
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -779,6 +794,10 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
   const openLinkTimerRef = useRef<number | null>(null);
   const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    setWidthInput(editorState.database.rowWidth?.toString() || "360");
+    setHeightInput(editorState.database.rowHeight?.toString() || "160");
+  }, [editorState.database.rowWidth, editorState.database.rowHeight]);
   let database = editorState.database;
   if (editorState.sourceContent !== content) {
     const next = parseDatabaseContent(content);
@@ -818,9 +837,14 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
     };
   }, [contextMenu]);
 
+
   const selectedBlock = useMemo(
-    () => database.blocks.find((block) => block.id === selectedBlockId) ?? null,
-    [database.blocks, selectedBlockId],
+    () => {
+      if (selectedBlockIds.size === 0) return null;
+      const firstId = Array.from(selectedBlockIds)[0];
+      return database.blocks.find((block) => block.id === firstId) ?? null;
+    },
+    [database.blocks, selectedBlockIds],
   );
 
   const activeCell = useMemo(() => {
@@ -872,13 +896,79 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
     }, 220);
   };
 
-  const updateDatabase = useCallback((updater: (current: DatabaseFileContent) => DatabaseFileContent, commit = true) => {
-    const next = updater(databaseRef.current);
-    const serialized = commit ? serializeDatabaseContent(next) : content;
-    databaseRef.current = next;
-    setEditorState({ sourceContent: serialized, database: next });
-    if (commit) onChange(serialized);
-  }, [content, onChange]);
+  const updateDatabase = useCallback((updater: (current: DatabaseFileContent) => DatabaseFileContent, commitDesc: string | false = "Update database") => {
+    setEditorState((prev) => {
+      const next = updater(prev.database);
+      if (commitDesc) {
+        setHistory(h => ({ past: [...h.past, { db: prev.database, desc: commitDesc }].slice(-50), future: [] }));
+      }
+      databaseRef.current = next;
+      return { ...prev, database: next };
+    });
+  }, []);
+
+  const applyCanvasResize = () => {
+    const w = parseInt(widthInput, 10);
+    const h = parseInt(heightInput, 10);
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+
+    if (w !== databaseRef.current.rowWidth || h !== databaseRef.current.rowHeight) {
+      updateDatabase((current) => {
+        let nextBlocks = [...current.blocks];
+        nextBlocks = nextBlocks.map(b => {
+          if (!b.stored && (b.x + b.w > w || b.y + b.h > h)) {
+            return { ...b, stored: true };
+          }
+          return b;
+        });
+        return { ...current, rowWidth: w, rowHeight: h, blocks: nextBlocks };
+      }, "Resize canvas");
+    }
+  };
+
+  const undo = useCallback(() => {
+    setHistory(h => {
+      if (h.past.length === 0) return h;
+      const prev = h.past[h.past.length - 1];
+      const currentDb = databaseRef.current;
+      databaseRef.current = prev.db;
+      setEditorState(e => ({ ...e, database: prev.db }));
+      return {
+        past: h.past.slice(0, -1),
+        future: [{ db: currentDb, desc: prev.desc }, ...h.future]
+      };
+    });
+  }, []);
+
+  const redo = useCallback(() => {
+    setHistory(h => {
+      if (h.future.length === 0) return h;
+      const next = h.future[0];
+      const currentDb = databaseRef.current;
+      databaseRef.current = next.db;
+      setEditorState(e => ({ ...e, database: next.db }));
+      return {
+        past: [...h.past, { db: currentDb, desc: next.desc }],
+        future: h.future.slice(1)
+      };
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA" || document.activeElement?.tagName === "SELECT") return;
+
+      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        undo();
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo, redo]);
 
   const handleExportJson = () => {
     downloadTextFile(`rits-database-${timestampForFilename()}.json`, JSON.stringify(database, null, 2), "application/json;charset=utf-8");
@@ -923,45 +1013,95 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
       if (!interaction || !canvas) return;
 
       const rect = canvas.getBoundingClientRect();
-      const computedRowWidth = Math.max(360, ...databaseRef.current.blocks.map(b => b.x + b.w + 24));
-      const computedRowHeight = Math.max(160, ...databaseRef.current.blocks.map(b => b.y + b.h + 24));
-      const scale = computedRowWidth / Math.max(rect.width, 1);
+      const scale = databaseRef.current.rowWidth / Math.max(rect.width, 1);
+
+      if (interaction.mode === "marquee") {
+        const startX = (interaction.startClientX - rect.left) * scale;
+        const startY = (interaction.startClientY - rect.top) * scale;
+        const currentX = (event.clientX - rect.left) * scale;
+        const currentY = (event.clientY - rect.top) * scale;
+
+        const mqX = Math.min(startX, currentX);
+        const mqY = Math.min(startY, currentY);
+        const mqW = Math.abs(currentX - startX);
+        const mqH = Math.abs(currentY - startY);
+
+        setMarquee({ x: mqX, y: mqY, w: mqW, h: mqH });
+
+        const newSelection = new Set(interaction.startSelectedIds || []);
+        for (const b of databaseRef.current.blocks) {
+          if (b.stored) continue;
+          if (
+            b.x < mqX + mqW &&
+            b.x + b.w > mqX &&
+            b.y < mqY + mqH &&
+            b.y + b.h > mqY
+          ) {
+            newSelection.add(b.id);
+          }
+        }
+        setSelectedBlockIds(newSelection);
+        return;
+      }
+
       const dx = (event.clientX - interaction.startClientX) * scale;
       const dy = event.clientY - interaction.startClientY;
 
       let nextSnapGuides: { x?: number, y?: number } | null = null;
 
-      updateDatabase((current) => {
-        const block = current.blocks.find(b => b.id === interaction.blockId);
-        if (!block) return current;
+      const storeElem = document.getElementById("store-area");
+      let isStoreHovered = false;
+      if (storeElem) {
+        const sr = storeElem.getBoundingClientRect();
+        isStoreHovered = event.clientX >= sr.left && event.clientX <= sr.right && event.clientY >= sr.top && event.clientY <= sr.bottom;
+      }
+      setStoreHovered(isStoreHovered);
 
+      updateDatabase((current) => {
         const nextBlocks = current.blocks.map(b => ({ ...b }));
-        const draggedIndex = nextBlocks.findIndex(b => b.id === block.id);
 
         if (interaction.mode === "move") {
-          const maxW = Math.max(360, ...current.blocks.filter(b => b.id !== block.id).map(b => b.x + b.w + 24));
-          const maxH = Math.max(160, ...current.blocks.filter(b => b.id !== block.id).map(b => b.y + b.h + 24));
-          let targetX = clampNumber(interaction.startBlock.x + dx, 0, maxW - block.w);
-          let targetY = clampNumber(interaction.startBlock.y + dy, 0, maxH - block.h);
-          
-          const snapX = getSnap(targetX, block.w, maxW, current.blocks, block.id, true);
-          const snapY = getSnap(targetY, block.h, maxH, current.blocks, block.id, false);
-          
-          if (snapX.line !== undefined || snapY.line !== undefined) {
-            nextSnapGuides = { x: snapX.line, y: snapY.line };
-          }
-          
-          targetX = clampNumber(snapX.value, 0, maxW - block.w);
-          targetY = clampNumber(snapY.value, 0, maxH - block.h);
+          const maxW = current.rowWidth;
+          const maxH = current.rowHeight;
 
-          nextBlocks[draggedIndex] = { ...block, x: targetX, y: targetY };
+          let deltaX = dx;
+          let deltaY = dy;
+
+          if (interaction.startBlocks.length === 1) {
+            const sb = interaction.startBlocks[0];
+            let targetX = clampNumber(sb.x + dx, 0, maxW - sb.w);
+            let targetY = clampNumber(sb.y + dy, 0, maxH - sb.h);
+            const snapX = getSnap(targetX, sb.w, maxW, current.blocks, sb.id, true);
+            const snapY = getSnap(targetY, sb.h, maxH, current.blocks, sb.id, false);
+            if (snapX.line !== undefined || snapY.line !== undefined) {
+              nextSnapGuides = { x: snapX.line, y: snapY.line };
+            }
+            deltaX = clampNumber(snapX.value, 0, maxW - sb.w) - sb.x;
+            deltaY = clampNumber(snapY.value, 0, maxH - sb.h) - sb.y;
+          }
+
+          const draggedIndices = new Set<number>();
+
+          interaction.startBlocks.forEach(sb => {
+            const idx = nextBlocks.findIndex(b => b.id === sb.id);
+            if (idx >= 0) {
+              draggedIndices.add(idx);
+              let targetX = sb.x + deltaX;
+              let targetY = sb.y + deltaY;
+
+              targetX = clampNumber(targetX, 0, maxW - sb.w);
+              targetY = clampNumber(targetY, 0, maxH - sb.h);
+
+              nextBlocks[idx] = { ...nextBlocks[idx], x: targetX, y: targetY };
+            }
+          });
 
           let resolvedAll = false;
           let iters = 0;
           while (!resolvedAll && iters < 20) {
             resolvedAll = true;
             for (let i = 0; i < nextBlocks.length; i++) {
-              if (i === draggedIndex) continue;
+              if (draggedIndices.has(i)) continue;
               const b = nextBlocks[i];
               const free = findFreeSpot(nextBlocks, b.id, b.x, b.y, b.w, b.h);
               if (free.x !== b.x || free.y !== b.y) {
@@ -972,8 +1112,13 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
             iters++;
           }
         } else {
-          const targetW = Math.max(MIN_BLOCK_SIZE, interaction.startBlock.w + dx);
-          const targetH = Math.max(MIN_BLOCK_SIZE, interaction.startBlock.h + dy);
+          const sb = interaction.startBlocks[0];
+          if (!sb) return current;
+          const draggedIndex = nextBlocks.findIndex(b => b.id === sb.id);
+          if (draggedIndex < 0) return current;
+
+          const targetW = Math.max(MIN_BLOCK_SIZE, sb.w + dx);
+          const targetH = Math.max(MIN_BLOCK_SIZE, sb.h + dy);
 
           let bestW = targetW;
           let bestH = targetH;
@@ -983,18 +1128,18 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
           let snapYLine: number | undefined;
 
           for (const b of current.blocks) {
-            if (b.id === block.id) continue;
+            if (b.id === sb.id) continue;
             for (const t of [b.x, b.x + b.w]) {
-              if (Math.abs(block.x + targetW - t) < minDW) {
-                minDW = Math.abs(block.x + targetW - t);
-                bestW = t - block.x;
+              if (Math.abs(sb.x + targetW - t) < minDW) {
+                minDW = Math.abs(sb.x + targetW - t);
+                bestW = t - sb.x;
                 snapXLine = t;
               }
             }
             for (const t of [b.y, b.y + b.h]) {
-              if (Math.abs(block.y + targetH - t) < minDH) {
-                minDH = Math.abs(block.y + targetH - t);
-                bestH = t - block.y;
+              if (Math.abs(sb.y + targetH - t) < minDH) {
+                minDH = Math.abs(sb.y + targetH - t);
+                bestH = t - sb.y;
                 snapYLine = t;
               }
             }
@@ -1005,7 +1150,7 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
           }
 
           nextBlocks[draggedIndex] = {
-            ...block,
+            ...nextBlocks[draggedIndex],
             w: Math.max(MIN_BLOCK_SIZE, bestW),
             h: Math.max(MIN_BLOCK_SIZE, bestH),
           };
@@ -1014,14 +1159,39 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
         return { ...current, blocks: nextBlocks };
       }, false);
 
-      setSnapGuides(nextSnapGuides);
+      if (interaction.mode !== "move" || interaction.startBlocks.length === 1) {
+        setSnapGuides(nextSnapGuides);
+      }
     };
 
-    const handlePointerUp = () => {
+    const handlePointerUp = (event: PointerEvent) => {
       if (!interactionRef.current) return;
+      const { startDatabase, blockIds, mode } = interactionRef.current;
+
+      if (mode === "marquee") {
+        interactionRef.current = null;
+        setMarquee(null);
+        return;
+      }
+
+      const storeElem = document.getElementById("store-area");
+      let droppedInStore = false;
+      if (storeElem) {
+        const sr = storeElem.getBoundingClientRect();
+        droppedInStore = event.clientX >= sr.left && event.clientX <= sr.right && event.clientY >= sr.top && event.clientY <= sr.bottom;
+      }
+
+      if (droppedInStore) {
+        updateDatabase((current) => {
+          return { ...current, blocks: current.blocks.map(b => blockIds.includes(b.id) ? { ...b, stored: true } : b) };
+        }, "Store block");
+      } else {
+        setHistory(h => ({ past: [...h.past, { db: startDatabase, desc: mode === "move" ? "Move block" : "Resize block" }].slice(-50), future: [] }));
+      }
+
       interactionRef.current = null;
       setSnapGuides(null);
-      onChange(serializeDatabaseContent(databaseRef.current));
+      setStoreHovered(false);
     };
 
     window.addEventListener("pointermove", handlePointerMove);
@@ -1033,18 +1203,92 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
     };
   }, [onChange, updateDatabase]);
 
+  const handleCanvasPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (mode !== "design") return;
+    if (event.target !== canvasRef.current) return;
+
+    event.preventDefault();
+
+    if (!event.ctrlKey && !event.metaKey) {
+      setSelectedBlockIds(new Set());
+    }
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scale = databaseRef.current.rowWidth / Math.max(rect.width, 1);
+    const startX = (event.clientX - rect.left) * scale;
+    const startY = (event.clientY - rect.top) * scale;
+
+    setMarquee({ x: startX, y: startY, w: 0, h: 0 });
+
+    interactionRef.current = {
+      blockIds: [],
+      mode: "marquee",
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startBlocks: [],
+      startDatabase: databaseRef.current,
+      startSelectedIds: event.ctrlKey || event.metaKey ? new Set(selectedBlockIds) : new Set()
+    };
+  };
+
   const startBlockInteraction = (event: ReactPointerEvent<HTMLDivElement>, block: DatabaseBlock, interactionMode: "move" | "resize") => {
     if (mode !== "design") return;
     event.preventDefault();
     event.stopPropagation();
-    setSelectedBlockId(block.id);
+
+    let newSelection = new Set(selectedBlockIds);
+    if (interactionMode === "move") {
+      if (event.ctrlKey || event.metaKey) {
+        if (newSelection.has(block.id)) newSelection.delete(block.id);
+        else newSelection.add(block.id);
+      } else if (!newSelection.has(block.id)) {
+        newSelection = new Set([block.id]);
+      }
+    } else {
+      newSelection = new Set([block.id]);
+    }
+
+    setSelectedBlockIds(newSelection);
+
+    const interactIds = Array.from(newSelection.has(block.id) ? newSelection : new Set([block.id]));
+
     interactionRef.current = {
-      blockId: block.id,
+      blockIds: interactIds,
       mode: interactionMode,
       startClientX: event.clientX,
       startClientY: event.clientY,
-      startBlock: block,
+      startBlocks: databaseRef.current.blocks.filter(b => interactIds.includes(b.id)),
+      startDatabase: databaseRef.current,
     };
+  };
+
+  const startStoreBlockDrag = (event: ReactPointerEvent<HTMLDivElement>, block: DatabaseBlock) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scale = databaseRef.current.rowWidth / Math.max(rect.width, 1);
+
+    const initialX = (event.clientX - rect.left) * scale - (block.w / 2);
+    const initialY = (event.clientY - rect.top) * scale - (block.h / 2);
+
+    const startDb = databaseRef.current;
+
+    updateDatabase((current) => {
+      return { ...current, blocks: current.blocks.map(b => b.id === block.id ? { ...b, stored: false, x: initialX, y: initialY } : b) };
+    }, false);
+
+    interactionRef.current = {
+      blockIds: [block.id],
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startBlocks: [{ ...block, x: initialX, y: initialY }],
+      mode: "move",
+      startDatabase: startDb,
+    };
+    setSelectedBlockIds(new Set([block.id]));
   };
 
   const addBlock = (kind: DatabaseBlockKind) => {
@@ -1057,7 +1301,7 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
       const targetY = 24 + ((current.blocks.length * 24) % Math.max(80, computedRowHeight - 90));
       const targetW = kind === "textarea" ? 220 : kind === "image" ? 160 : 180;
       const targetH = kind === "textarea" ? 120 : kind === "image" ? 120 : 52;
-      
+
       const free = findFreeSpot(current.blocks, "", targetX, targetY, targetW, targetH);
 
       const block: DatabaseBlock = {
@@ -1073,7 +1317,7 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
         accent: ACCENTS[current.blocks.length % ACCENTS.length],
       };
 
-      setSelectedBlockId(block.id);
+      setSelectedBlockIds(new Set([block.id]));
       return {
         ...current,
         blocks: [...current.blocks, block],
@@ -1110,42 +1354,60 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
     }));
   };
 
-  const duplicateBlock = (block: DatabaseBlock) => {
+  const duplicateBlocks = (blockIds: string[]) => {
+    if (blockIds.length === 0) return;
     updateDatabase((current) => {
-      const fieldKey = uniqueFieldKey(`${block.label} copy`, current.blocks);
-      const clone: DatabaseBlock = {
-        ...block,
-        id: createId("block"),
-        label: `${block.label} copy`,
-        fieldKey,
-        keyRole: undefined,
-        foreignReference: undefined,
-        x: Math.max(0, block.x + 24),
-        y: Math.max(0, block.y + 24),
-      };
-      const free = findFreeSpot(current.blocks, "", clone.x, clone.y, clone.w, clone.h);
-      clone.x = free.x;
-      clone.y = free.y;
-      
-      setSelectedBlockId(clone.id);
-      return {
-        ...current,
-        blocks: [...current.blocks, clone],
-        rows: current.rows.map((row) => ({ ...row, values: { ...row.values, [fieldKey]: row.values[block.fieldKey] ?? "" } })),
-      };
+      let nextBlocks = [...current.blocks];
+      let nextRows = [...current.rows];
+      const newSelectedIds = new Set<string>();
+
+      for (const id of blockIds) {
+        const block = current.blocks.find(b => b.id === id);
+        if (!block) continue;
+        const fieldKey = uniqueFieldKey(`${block.label} copy`, nextBlocks);
+        const clone: DatabaseBlock = {
+          ...block,
+          id: createId("block"),
+          label: `${block.label} copy`,
+          fieldKey,
+          keyRole: undefined,
+          foreignReference: undefined,
+          x: Math.max(0, block.x + 24),
+          y: Math.max(0, block.y + 24),
+        };
+        const free = findFreeSpot(nextBlocks, "", clone.x, clone.y, clone.w, clone.h);
+        clone.x = free.x;
+        clone.y = free.y;
+
+        nextBlocks.push(clone);
+        newSelectedIds.add(clone.id);
+
+        nextRows = nextRows.map(row => ({ ...row, values: { ...row.values, [fieldKey]: row.values[block.fieldKey] ?? "" } }));
+      }
+      setSelectedBlockIds(newSelectedIds);
+      return { ...current, blocks: nextBlocks, rows: nextRows };
     });
   };
 
-  const deleteBlock = (block: DatabaseBlock) => {
-    updateDatabase((current) => ({
-      ...current,
-      blocks: current.blocks.filter((item) => item.id !== block.id),
-      rows: current.rows.map((row) => {
-        const values = Object.fromEntries(Object.entries(row.values).filter(([fieldKey]) => fieldKey !== block.fieldKey));
-        return { ...row, values };
-      }),
-    }));
-    setSelectedBlockId(database.blocks.find((item) => item.id !== block.id)?.id ?? null);
+  const deleteBlocks = (blockIds: string[]) => {
+    if (blockIds.length === 0) return;
+    const idSet = new Set(blockIds);
+    updateDatabase((current) => {
+      const removedFieldKeys = current.blocks.filter(b => idSet.has(b.id)).map(b => b.fieldKey);
+      return {
+        ...current,
+        blocks: current.blocks.filter((item) => !idSet.has(item.id)),
+        rows: current.rows.map((row) => {
+          const values = Object.fromEntries(Object.entries(row.values).filter(([fieldKey]) => !removedFieldKeys.includes(fieldKey)));
+          return { ...row, values };
+        }),
+      };
+    });
+    setSelectedBlockIds(prev => {
+      const next = new Set(prev);
+      blockIds.forEach(id => next.delete(id));
+      return next;
+    });
   };
 
   const addRow = () => {
@@ -1249,7 +1511,9 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
   };
 
   const renderBlock = (block: DatabaseBlock, row?: DatabaseRow) => {
-    const isSelected = selectedBlockId === block.id;
+    const isSelected = selectedBlockIds.has(block.id);
+    if (block.stored) return null;
+
     const isEditableCell = mode === "view" && row;
     const blockStyle: CSSProperties = {
       ...getBlockPositionStyle(block),
@@ -1269,9 +1533,18 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
         style={blockStyle}
         onPointerDown={(event) => startBlockInteraction(event, block, "move")}
         onContextMenu={(event) => openCellContextMenu(event, block, row)}
-        onClick={() => {
+        onClick={(e) => {
           if (mode === "design") {
-            setSelectedBlockId(block.id);
+            if (e.ctrlKey || e.metaKey) {
+              setSelectedBlockIds(prev => {
+                const next = new Set(prev);
+                if (next.has(block.id)) next.delete(block.id);
+                else next.add(block.id);
+                return next;
+              });
+            } else {
+              setSelectedBlockIds(new Set([block.id]));
+            }
             return;
           }
           if (row) scheduleBlockLinkOpen(block, row);
@@ -1298,7 +1571,7 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
         {renderBlockValue(block, row)}
         {mode === "design" ? (
           <div
-            className="absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize border-l border-t bg-[var(--surface-elevated)]"
+            className="absolute bottom-0 right-0 h-5 w-5 cursor-nwse-resize border-l border-t bg-[var(--surface-elevated)] opacity-0 transition-opacity group-hover/database-block:opacity-100"
             style={{ borderColor: "var(--hairline-strong)" }}
             onPointerDown={(event) => startBlockInteraction(event, block, "resize")}
           />
@@ -1306,9 +1579,6 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
       </div>
     );
   };
-
-  const computedRowWidth = Math.max(360, ...database.blocks.map(b => b.x + b.w + 24));
-  const computedRowHeight = Math.max(160, ...database.blocks.map(b => b.y + b.h + 24));
 
   const rowGridStyle: CSSProperties = {
     display: "flex",
@@ -1329,9 +1599,73 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
           </button>
         </div>
 
-        <button type="button" onClick={addRow} className="btn-outline h-9 px-3 text-xs">
+        {mode === "design" ? (
+          <div className="flex items-center gap-1 border-l pl-3" style={{ borderColor: "var(--hairline-strong)" }}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium" style={{ color: "var(--mute)" }}>W</span>
+              <input
+                value={widthInput}
+                onChange={(e) => setWidthInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") applyCanvasResize(); }}
+                className="h-8 w-16 rounded-md border bg-transparent px-2 text-xs font-medium outline-none"
+                style={{ borderColor: "var(--hairline)", color: "var(--ink)" }}
+              />
+            </div>
+            <div className="flex items-center gap-1.5 ml-1">
+              <span className="text-xs font-medium" style={{ color: "var(--mute)" }}>H</span>
+              <input
+                value={heightInput}
+                onChange={(e) => setHeightInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") applyCanvasResize(); }}
+                className="h-8 w-16 rounded-md border bg-transparent px-2 text-xs font-medium outline-none"
+                style={{ borderColor: "var(--hairline)", color: "var(--ink)" }}
+              />
+            </div>
+            {widthInput !== database.rowWidth.toString() || heightInput !== database.rowHeight.toString() ? (
+              <button
+                type="button"
+                onClick={applyCanvasResize}
+                className="flex h-8 w-8 items-center justify-center rounded-md border bg-[var(--surface-elevated)] hover:bg-[var(--surface-card)] text-[var(--charcoal)] hover:text-[var(--ink)] transition-colors ml-1"
+                style={{ borderColor: "var(--hairline)" }}
+                title="Apply dimensions"
+              >
+                <Check size={14} />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        <button type="button" onClick={addRow} className="btn-outline h-9 px-3 text-xs ml-auto">
           <Plus size={14} /> Add row
         </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="btn-outline h-9 px-3 text-xs">
+              <History size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <div className="px-2 py-1.5 text-xs font-semibold text-[var(--mute)]">Past</div>
+            {history.past.length === 0 ? <div className="px-2 py-1 text-xs text-[var(--mute)]">No past history</div> : null}
+            {[...history.past].reverse().slice(0, 10).map((h, i) => (
+              <DropdownMenuItem key={i} onSelect={undo}>
+                <Undo2 size={14} className="mr-2" /> {h.desc}
+              </DropdownMenuItem>
+            ))}
+            {history.future.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1.5 text-xs font-semibold text-[var(--mute)]">Future</div>
+                {history.future.slice(0, 10).map((h, i) => (
+                  <DropdownMenuItem key={i} onSelect={redo}>
+                    <Redo2 size={14} className="mr-2" /> {h.desc}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1356,11 +1690,15 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
             <DropdownMenuItem onSelect={() => openImportDialog("csv")}><Upload size={14} /> CSV</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <button type="button" onClick={() => { onChange(serializeDatabaseContent(database)); toast.success("Changes applied."); }} className="btn-primary h-9 px-4 text-xs font-semibold">
+          Apply
+        </button>
       </div>
 
       {mode === "design" ? (
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] overflow-hidden max-lg:grid-cols-1">
-          <div className="min-h-0 overflow-auto p-5">
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex-1 overflow-auto bg-[var(--surface)] p-6 md:p-12">
             <div className="mb-4 flex flex-wrap gap-2">
               {BLOCK_KIND_OPTIONS.map((option) => {
                 const Icon = option.icon;
@@ -1374,16 +1712,24 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
 
             <div
               ref={canvasRef}
-              className="relative border bg-[var(--surface-deep)] shadow-sm"
+              className="relative mx-auto rounded-lg border-2 border-dashed bg-[var(--canvas)] shadow-sm"
               style={{
-                width: `${computedRowWidth}px`,
+                width: `${database.rowWidth}px`,
                 maxWidth: "none",
-                height: `${computedRowHeight}px`,
+                height: `${database.rowHeight}px`,
                 borderColor: "var(--hairline-strong)",
               }}
+              onPointerDown={handleCanvasPointerDown}
             >
               {database.blocks.map((block) => renderBlock(block))}
-              
+
+              {marquee && (
+                <div
+                  className="absolute border bg-blue-500/20 z-50 pointer-events-none"
+                  style={{ borderColor: "var(--accent-blue)", left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
+                />
+              )}
+
               {snapGuides?.x !== undefined && (
                 <div className="pointer-events-none absolute bottom-0 top-0 z-40 border-l border-dashed border-[var(--accent-blue)]" style={{ left: snapGuides.x }} />
               )}
@@ -1393,16 +1739,85 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
             </div>
           </div>
 
-          <aside className="min-h-0 overflow-auto border-l p-4 max-lg:border-l-0 max-lg:border-t" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-card)" }}>
-            {selectedBlock ? (
+          <aside className={`min-h-0 shrink-0 overflow-auto border-l bg-[var(--surface-card)] transition-all ${isSidebarExpanded ? "w-[320px] p-4 max-lg:border-l-0 max-lg:border-t" : "w-14 p-2 flex flex-col items-center"}`} style={{ borderColor: "var(--hairline-strong)" }}>
+            <button onClick={() => setIsSidebarExpanded(!isSidebarExpanded)} className="mb-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[var(--charcoal)] hover:bg-[var(--surface-elevated)]" title={isSidebarExpanded ? "Collapse sidebar" : "Expand sidebar"}>
+              {isSidebarExpanded ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+            </button>
+
+            {!isSidebarExpanded && selectedBlock && (
+              <div className="flex w-full flex-col gap-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--surface-elevated)] text-[var(--ink)]" title="Type" style={{ borderColor: "var(--hairline)" }}>
+                      {(() => { const Icon = BLOCK_KIND_OPTIONS.find(o => o.kind === selectedBlock.kind)?.icon || Type; return <Icon size={16} />; })()}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="left" align="start">
+                    {BLOCK_KIND_OPTIONS.map(option => {
+                      const Icon = option.icon;
+                      return <DropdownMenuItem key={option.kind} onSelect={() => updateBlock(selectedBlock.id, { kind: option.kind })}><Icon size={14} className="mr-2" /> {option.label}</DropdownMenuItem>
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--surface-elevated)] text-[var(--charcoal)]" title="Shape" style={{ borderColor: "var(--hairline)" }}>
+                      {(() => { const Icon = SHAPE_OPTIONS.find(o => o.shape === selectedBlock.shape)?.icon || Square; return <Icon size={16} />; })()}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="left" align="start">
+                    {SHAPE_OPTIONS.map(option => {
+                      const Icon = option.icon;
+                      return <DropdownMenuItem key={option.shape} onSelect={() => updateBlock(selectedBlock.id, { shape: option.shape })}><Icon size={14} className="mr-2" /> {option.label}</DropdownMenuItem>
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--surface-elevated)]" title="Color" style={{ borderColor: "var(--hairline)" }}>
+                      <div className="h-5 w-5 rounded-full" style={{ backgroundColor: selectedBlock.accent }} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="left" align="start" className="flex w-36 flex-wrap gap-2 p-2">
+                    {ACCENTS.map(accent => (
+                      <button key={accent} type="button" onClick={() => updateBlock(selectedBlock.id, { accent })} className="h-6 w-6 rounded-full border" style={{ backgroundColor: accent, borderColor: selectedBlock.accent === accent ? "var(--ink)" : "var(--hairline-strong)" }} />
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--surface-elevated)] text-[10px] font-bold uppercase tracking-wider" title="Key Role" style={{ borderColor: "var(--hairline)", color: selectedBlock.keyRole === "primary" ? "var(--accent-yellow)" : selectedBlock.keyRole === "foreign" ? "var(--accent-purple)" : "var(--charcoal)" }}>
+                      {selectedBlock.keyRole === "primary" ? "PK" : selectedBlock.keyRole === "foreign" ? "FK" : "-"}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="left" align="start">
+                    <DropdownMenuItem onSelect={() => updateBlockKeyRole(selectedBlock.id, undefined)}>None</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => updateBlockKeyRole(selectedBlock.id, "primary")}>Primary Key</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => updateBlockKeyRole(selectedBlock.id, "foreign")}>Foreign Key</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <button type="button" onClick={() => duplicateBlocks(Array.from(selectedBlockIds))} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--surface-elevated)] text-[var(--charcoal)] hover:text-[var(--ink)]" title="Clone selected block(s)" style={{ borderColor: "var(--hairline)" }}>
+                  <Copy size={16} />
+                </button>
+                <button type="button" onClick={() => deleteBlocks(Array.from(selectedBlockIds))} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-[var(--surface-elevated)] text-[var(--accent-red)]" title="Delete selected block(s)" style={{ borderColor: "var(--hairline)" }}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
+
+            {isSidebarExpanded && selectedBlock ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>Block</span>
                   <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => duplicateBlock(selectedBlock)} className="rounded-md p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--charcoal)" }} title="Clone block">
+                    <button type="button" onClick={() => duplicateBlocks(Array.from(selectedBlockIds))} className="rounded-md p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--charcoal)" }} title="Clone selected block(s)">
                       <Copy size={14} />
                     </button>
-                    <button type="button" onClick={() => deleteBlock(selectedBlock)} className="rounded-md p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--accent-red)" }} title="Delete block">
+                    <button type="button" onClick={() => deleteBlocks(Array.from(selectedBlockIds))} className="rounded-md p-2 hover:bg-[var(--surface-elevated)]" style={{ color: "var(--accent-red)" }} title="Delete selected block(s)">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -1503,10 +1918,70 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
                     </label>
                   ))}
                 </div>
+
+                <div className="mt-8 border-t pt-4" style={{ borderColor: "var(--hairline-strong)" }}>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--mute)" }}>
+                    Store Area
+                  </span>
+
+                  <div
+                    id="store-area"
+                    className={`mt-4 flex min-h-[120px] flex-col items-center justify-center rounded-lg border-2 border-dashed transition-colors ${storeHovered ? 'border-[var(--accent-blue)] bg-[var(--accent-blue)]/10' : 'border-[var(--hairline-strong)]'}`}
+                  >
+                    {database.blocks.filter(b => b.stored).length === 0 ? (
+                      <span className="text-xs font-semibold text-center px-4" style={{ color: "var(--mute)" }}>Drag items here to store</span>
+                    ) : (
+                      <div className="flex w-full flex-col gap-2 p-2">
+                        {database.blocks.filter(b => b.stored).map((b) => (
+                          <div
+                            key={b.id}
+                            className="group flex cursor-grab items-center gap-2 rounded-md border bg-[var(--canvas)] p-2 text-xs active:cursor-grabbing"
+                            style={{ borderColor: "var(--hairline)" }}
+                            onPointerDown={(e) => startStoreBlockDrag(e, b)}
+                          >
+                            <span className="flex-1 truncate font-medium text-[var(--ink)]">{b.label}</span>
+                            <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); duplicateBlocks([b.id]); }}
+                                className="text-[var(--charcoal)] hover:text-[var(--ink)]"
+                                title="Clone block"
+                              >
+                                <Copy size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); deleteBlocks([b.id]); }}
+                                className="text-[var(--accent-red)] hover:text-[var(--accent-red)]"
+                                title="Delete block"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateDatabase((current) => {
+                                    const free = findFreeSpot(current.blocks.filter(x => !x.stored), b.id, 0, 0, b.w, b.h);
+                                    return { ...current, blocks: current.blocks.map(x => x.id === b.id ? { ...x, stored: false, x: free.x, y: free.y } : x) };
+                                  }, "Restore block");
+                                }}
+                                className="text-[var(--accent-blue)] hover:text-[var(--accent-blue)]"
+                                title="Add to canvas"
+                              >
+                                <Plus size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            ) : (
+            ) : isSidebarExpanded ? (
               <div className="py-10 text-center text-sm" style={{ color: "var(--charcoal)" }}>No block selected.</div>
-            )}
+            ) : null}
           </aside>
         </div>
       ) : (
@@ -1548,7 +2023,7 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
                         {index + 1}
                       </button>
                     </div>
-                    
+
                     {isCollapsed ? (
                       <div className="group/database-row flex flex-1 items-center gap-4 border-b py-2 transition-colors hover:bg-[var(--surface-elevated)]" style={{ borderColor: "var(--hairline)" }}>
                         {database.blocks.map((b) => (
@@ -1581,9 +2056,9 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
                       <div
                         className="group/database-row relative shrink-0 border bg-[var(--surface-deep)] shadow-sm"
                         style={{
-                          width: `${computedRowWidth}px`,
+                          width: `${database.rowWidth}px`,
                           maxWidth: "none",
-                          height: `${computedRowHeight}px`,
+                          height: `${database.rowHeight}px`,
                           borderColor: "var(--hairline-strong)",
                         }}
                       >

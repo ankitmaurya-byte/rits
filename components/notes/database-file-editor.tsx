@@ -1548,7 +1548,7 @@ export function DatabaseFileEditor({ content, onChange }: DatabaseFileEditorProp
       updateDatabase(current => {
         // Map new blocks keeping the original ID if they match fieldKey to avoid complete recreation
         const updatedBlocks = newBlocks.map((b: any) => {
-          const existing = current.blocks.find(eb => eb.fieldKey === b.fieldKey) || {};
+          const existing: Partial<DatabaseBlock> = current.blocks.find((eb) => eb.fieldKey === b.fieldKey) || {};
           return {
             ...existing,
             ...b,

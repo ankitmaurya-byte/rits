@@ -131,13 +131,39 @@ export const updateTodo = mutation({
     priority: v.optional(v.string()),
     status: v.optional(v.string()),
     groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
+    assignedTo: v.optional(v.union(v.id("users"), v.null())),
   },
   handler: async (ctx, args) => {
     const { id, ...fields } = args;
+    const existingTodo = await ctx.db.get(id);
+    if (!existingTodo) throw new ConvexError("Todo not found");
+
     if (fields.status) {
       Object.assign(fields, { completed: fields.status === "completed" });
     }
-    return await ctx.db.patch(id, { ...fields, updatedAt: Date.now() });
+
+    if (
+      fields.assignedTo !== undefined &&
+      fields.assignedTo !== null &&
+      fields.assignedTo !== existingTodo.assignedTo
+    ) {
+      await ctx.db.insert("notifications", {
+        userId: fields.assignedTo,
+        title: "New Task Assigned",
+        message: `You have been assigned to task: "${fields.title ?? existingTodo.title}"`,
+        type: "task_assigned",
+        isRead: false,
+        link: `/todos`,
+        createdAt: Date.now(),
+      });
+    }
+
+    const patchedFields: any = { ...fields, updatedAt: Date.now() };
+    if (patchedFields.assignedTo === null) {
+      patchedFields.assignedTo = undefined;
+    }
+
+    return await ctx.db.patch(id, patchedFields);
   },
 });
 

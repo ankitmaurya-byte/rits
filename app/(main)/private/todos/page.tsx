@@ -8,9 +8,11 @@ import { useUser } from "@clerk/nextjs";
 import { Plus, Circle, Clock, CheckCircle2, ChevronDown, ChevronRight, GripVertical, Pencil, Trash2, X, Sparkles, AlertCircle, ListTodo, CheckSquare, XCircle, AlertTriangle, PlayCircle, Palette, Activity, Minus } from "lucide-react";
 import { toast } from "sonner";
 import { TodoCard } from "@/components/todos/todo-card";
+import { BoardSettingsModal } from "@/components/todos/board-settings-modal";
 import { TodoExcelSheetsView } from "@/components/todos/todo-excel-sheets-view";
 import { SheetView } from "@/components/todos/sheet-view";
 import { TodoSheetView } from "@/components/todos/todo-sheet-view";
+import { Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +23,12 @@ import {
   DropdownMenuSubContent,
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   DndContext, closestCorners, PointerSensor, useSensor, useSensors,
   DragEndEvent, DragOverlay, useDroppable,
@@ -46,7 +54,14 @@ export default function PrivateTodosPage() {
     api.todoGroups.getPrivateGroups,
     convexUser ? { createdBy: convexUser._id } : "skip"
   );
+  const boards = useQuery(
+    api.kanbanBoards.getBoards,
+    convexUser ? { scope: "private", createdBy: convexUser._id } : "skip"
+  );
   const workspaces = useQuery(api.workspaces.getMyWorkspaces, user ? { clerkId: user.id } : "skip");
+  const createBoard = useMutation(api.kanbanBoards.createBoard);
+  const updateBoard = useMutation(api.kanbanBoards.updateBoard);
+  const deleteBoardMutation = useMutation(api.kanbanBoards.deleteBoard);
   const createTodo = useMutation(api.todos.createTodo);
   const updateTodo = useMutation(api.todos.updateTodo);
   const deleteTodo = useMutation(api.todos.deleteTodo);
@@ -56,6 +71,7 @@ export default function PrivateTodosPage() {
   const deletePrivateGroup = useMutation(api.todoGroups.deletePrivateGroup);
 
   const [creatingInStatus, setCreatingInStatus] = useState<string | null>(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [activeTask, setActiveTask] = useState<any | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -72,13 +88,24 @@ export default function PrivateTodosPage() {
   const laneRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const laneHeaderRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [offscreenGroups, setOffscreenGroups] = useState<{ top: Array<{ id: string; name: string }>; bottom: Array<{ id: string; name: string }> }>({ top: [], bottom: [] });
+  const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
+
+  const activeBoard = boards?.find(b => b._id === activeBoardId) || null;
+
+  const filteredTodos = useMemo(() => {
+    return todos?.filter(t => t.boardId === (activeBoardId || undefined)) || [];
+  }, [todos, activeBoardId]);
+  
+  const filteredGroups = useMemo(() => {
+    return groups?.filter(g => g.boardId === (activeBoardId || undefined)) || [];
+  }, [groups, activeBoardId]);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   const swimlanes = useMemo(() => {
     const lanes: Array<{ id: string; name: string; columns: any[] }> = [];
-    if (groups) {
-      lanes.push(...groups.map(g => {
+    if (filteredGroups) {
+      lanes.push(...filteredGroups.map(g => {
         let cols = g.columns;
         if (!cols || cols.length === 0) {
           cols = STATUSES.map(s => ({
@@ -96,7 +123,7 @@ export default function PrivateTodosPage() {
       columns: STATUSES.map(s => ({ id: s.id, label: s.label, color: s.color }))
     });
     return lanes;
-  }, [groups]);
+  }, [filteredGroups]);
 
   const toggleCollapse = (id: string) => {
     setCollapsedGroups((prev) => {
@@ -110,7 +137,7 @@ export default function PrivateTodosPage() {
   const handleCreate = async (groupId: string, status: string) => {
     if (!convexUser || !newTitle.trim()) { setCreatingInStatus(null); return; }
     try {
-      await createTodo({ scope: "private", title: newTitle.trim(), priority: "medium", status, groupId: groupId === "no-group" ? null : (groupId as any), createdBy: convexUser._id });
+      await createTodo({ scope: "private", title: newTitle.trim(), priority: "medium", status, groupId: groupId === "no-group" ? null : (groupId as any), createdBy: convexUser._id, boardId: (activeBoardId || undefined) as any });
       setNewTitle(""); setCreatingInStatus(null); toast.success("Task added.");
     } catch { toast.error("Failed to add task."); }
   };
@@ -131,6 +158,7 @@ export default function PrivateTodosPage() {
       status: input.status,
       groupId: (input.groupId ?? null) as any,
       createdBy: convexUser._id,
+      boardId: (activeBoardId || undefined) as any,
     });
     toast.success("Task added.");
   };
@@ -193,6 +221,7 @@ export default function PrivateTodosPage() {
         status,
         groupId: groupId === "no-group" ? null : (groupId as any),
         createdBy: convexUser._id,
+        boardId: (activeBoardId || undefined) as any,
       });
       setAiPrompt("");
       setCreatingAiInStatus(null);
@@ -204,11 +233,48 @@ export default function PrivateTodosPage() {
     }
   };
 
+  const handleCreateBoard = async () => {
+    if (!convexUser) return;
+    const name = window.prompt("New board name:");
+    if (!name?.trim()) return;
+    try {
+      const id = await createBoard({ scope: "private", createdBy: convexUser._id, name: name.trim() });
+      setActiveBoardId(id);
+      toast.success("Board created.");
+    } catch {
+      toast.error("Failed to create board.");
+    }
+  };
+
+  const handleEditBoard = async () => {
+    if (!activeBoardId) return;
+    const name = window.prompt("Edit board name:", activeBoard?.name);
+    if (!name?.trim() || name === activeBoard?.name) return;
+    try {
+      await updateBoard({ boardId: activeBoardId as any, name: name.trim() });
+      toast.success("Board renamed.");
+    } catch {
+      toast.error("Failed to rename board.");
+    }
+  };
+
+  const handleDeleteBoard = async () => {
+    if (!activeBoardId) return;
+    if (!window.confirm("Delete this board? All groups and tasks inside will be deleted.")) return;
+    try {
+      await deleteBoardMutation({ boardId: activeBoardId as any });
+      setActiveBoardId(null);
+      toast.success("Board deleted.");
+    } catch {
+      toast.error("Failed to delete board.");
+    }
+  };
+
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveTask(null);
     const { active, over } = event;
     if (!over) return;
-    const task = todos?.find((t) => t._id === active.id);
+    const task = filteredTodos?.find((t) => t._id === active.id);
     if (!task) return;
 
     const [overGroupId, overStatus] = String(over.id).split("::");
@@ -223,7 +289,7 @@ export default function PrivateTodosPage() {
   const handleCreateGroup = async () => {
     if (!convexUser || !newGroupName.trim()) return;
     try {
-      await createGroup({ name: newGroupName.trim(), createdBy: convexUser._id });
+      await createGroup({ name: newGroupName.trim(), createdBy: convexUser._id, boardId: (activeBoardId || undefined) as any });
       setNewGroupName("");
       setShowCreateGroup(false);
       toast.success("Group created");
@@ -284,9 +350,13 @@ export default function PrivateTodosPage() {
       if (firstLane && !topGroups.some((group) => group.id === firstLane.id)) {
         topGroups.unshift({ id: firstLane.id, name: firstLane.name });
       }
-      setOffscreenGroups({
-        top: topGroups,
-        bottom: bottom.map(({ id, name }) => ({ id, name })),
+      setOffscreenGroups((prev) => {
+        const next = {
+          top: topGroups,
+          bottom: bottom.map(({ id, name }) => ({ id, name })),
+        };
+        if (JSON.stringify(prev) === JSON.stringify(next)) return prev;
+        return next;
       });
     };
 
@@ -297,7 +367,7 @@ export default function PrivateTodosPage() {
       container.removeEventListener("scroll", measure);
       window.removeEventListener("resize", measure);
     };
-  }, [swimlanes, collapsedGroups, todos, viewMode]);
+  }, [swimlanes, collapsedGroups, filteredTodos, viewMode]);
 
   const scrollLaneToCenter = (laneId: string) => {
     const container = boardScrollRef.current;
@@ -366,8 +436,59 @@ export default function PrivateTodosPage() {
     <div className="page-container animate-fade-in-up relative h-full flex flex-col max-w-none overflow-hidden" style={{ paddingTop: 12, paddingBottom: 12 }}>
       {/* Header */}
       <div className="page-header border-b pb-4 mb-4 relative z-10 shrink-0 flex items-center justify-between" style={{ borderColor: "var(--hairline-strong)" }}>
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>Kanban board</h2>
+        <div className="flex items-center gap-1">
+          <ContextMenu>
+            <DropdownMenu>
+              <ContextMenuTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button 
+                    className="flex items-center gap-2 text-2xl font-semibold tracking-tight transition-colors hover:opacity-80 outline-none" 
+                    style={{ color: "var(--ink)" }}
+                    onDoubleClick={handleEditBoard}
+                  >
+                    {activeBoard ? activeBoard.name : "Kanban board"}
+                    <ChevronDown size={18} style={{ color: "var(--mute)" }} />
+                  </button>
+                </DropdownMenuTrigger>
+              </ContextMenuTrigger>
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem onSelect={() => setActiveBoardId(null)}>
+                  Main Kanban
+                </DropdownMenuItem>
+                {boards?.map(b => (
+                  <DropdownMenuItem key={b._id} onSelect={() => setActiveBoardId(b._id)}>
+                    {b.name}
+                  </DropdownMenuItem>
+                ))}
+                <div className="h-px mx-1 my-1" style={{ backgroundColor: "var(--hairline)" }} />
+                <DropdownMenuItem onSelect={handleCreateBoard}>
+                  <Plus size={14} className="mr-2" /> Create new board
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {activeBoardId && (
+              <ContextMenuContent>
+                <ContextMenuItem onSelect={handleEditBoard}>
+                  <Pencil size={14} className="mr-2" /> Edit name
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => setSettingsModalOpen(true)}>
+                  <Settings size={14} className="mr-2" /> Settings
+                </ContextMenuItem>
+                <ContextMenuItem className="text-red-500" onSelect={handleDeleteBoard}>
+                  <Trash2 size={14} className="mr-2" /> Delete board
+                </ContextMenuItem>
+              </ContextMenuContent>
+            )}
+          </ContextMenu>
+          {activeBoardId && (
+            <button 
+              className="p-1.5 ml-2 rounded-md hover:bg-[var(--surface-elevated)] transition-colors text-[var(--mute)] hover:text-[var(--ink)]"
+              onClick={() => setSettingsModalOpen(true)}
+              title="Board Settings"
+            >
+              <Settings size={18} />
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
@@ -392,18 +513,18 @@ export default function PrivateTodosPage() {
 
       {viewMode === "table" ? (
         <TodoSheetView
-          todos={todos}
+          todos={filteredTodos}
           statuses={STATUSES}
-          groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []}
+          groupOptions={filteredGroups?.map((group) => ({ id: group._id, label: group.name })) ?? []}
           onCreateTodo={async (input) => { await handleCreateFromSheet(input); }}
           onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}
           onDeleteTodo={async (id) => { await deleteTodo({ id }); }}
         />
       ) : viewMode === "sheet" ? (
         <SheetView
-          todos={todos}
+          todos={filteredTodos}
           statuses={STATUSES}
-          groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []}
+          groupOptions={filteredGroups?.map((group) => ({ id: group._id, label: group.name })) ?? []}
           onCreateTodo={async (input) => {
             if (!convexUser) throw new Error("User not loaded");
             const createdId = await createTodo({
@@ -415,6 +536,7 @@ export default function PrivateTodosPage() {
               status: input.status,
               groupId: (input.groupId ?? null) as any,
               createdBy: convexUser._id,
+              boardId: (activeBoardId || undefined) as any,
             });
             toast.success("Task added.");
             return createdId;
@@ -446,7 +568,7 @@ export default function PrivateTodosPage() {
             <div ref={boardScrollRef} className="flex flex-col gap-4 overflow-y-auto pb-2 flex-1 min-h-0">
               <div className="flex flex-col gap-6">
                 {swimlanes.map((lane) => {
-                  const laneTasks = todos?.filter((task) => (task.groupId || "no-group") === lane.id) || [];
+                  const laneTasks = filteredTodos?.filter((task) => (task.groupId || "no-group") === lane.id) || [];
                   const isCollapsed = collapsedGroups.has(lane.id);
 
                   const N = lane.columns.length;
@@ -788,7 +910,7 @@ export default function PrivateTodosPage() {
               <DragOverlay zIndex={9999} dropAnimation={null}>
                 {activeTask ? (
                   <div className="pointer-events-none w-[320px]">
-                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={groups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="private" />
+                    <TodoCard task={activeTask} statuses={STATUSES} isOverlay groupOptions={filteredGroups?.map((group) => ({ id: group._id, label: group.name })) ?? []} workspaceOptions={workspaceOptions} currentScope="private" />
                   </div>
                 ) : null}
               </DragOverlay>,
@@ -796,6 +918,16 @@ export default function PrivateTodosPage() {
             )
             : null}
         </DndContext>
+      )}
+
+      {activeBoardId && activeBoard && (
+        <BoardSettingsModal 
+          boardId={activeBoardId as Id<"kanbanBoards">}
+          boardType="kanbanBoards"
+          isOpen={settingsModalOpen}
+          onClose={() => setSettingsModalOpen(false)}
+          isPublished={activeBoard.isPublished}
+        />
       )}
 
       {showCreateGroup && (

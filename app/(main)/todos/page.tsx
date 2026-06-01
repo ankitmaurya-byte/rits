@@ -11,6 +11,24 @@ import { TodoCard } from "@/components/todos/todo-card";
 import { TodoExcelSheetsView } from "@/components/todos/todo-excel-sheets-view";
 import { SheetView } from "@/components/todos/sheet-view";
 import { TodoSheetView } from "@/components/todos/todo-sheet-view";
+import { BoardSettingsModal } from "@/components/todos/board-settings-modal";
+import { useUser } from "@clerk/nextjs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { ChevronDown, Search, MoreHorizontal, Edit, Trash2, Share, UserPlus, Settings } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 import {
   DndContext,
@@ -33,19 +51,31 @@ const STATUSES = [
 
 export default function TodosPage() {
   const { workspaceId, isLoading } = useWorkspace();
+  const { user } = useUser();
 
   const todos = useQuery(api.todos.getTodos, workspaceId ? { workspaceId } : "skip");
+  const groups = useQuery(api.todoGroups.getGroups, workspaceId ? { workspaceId } : "skip");
+  const members = (useQuery(api.workspaces.getWorkspaceMembers, workspaceId && user ? { workspaceId, clerkId: user.id } : "skip") ?? []);
+
   const createTodo = useMutation(api.todos.createTodo);
   const updateTodo = useMutation(api.todos.updateTodo);
   const deleteTodo = useMutation(api.todos.deleteTodo);
+  const createGroup = useMutation(api.todoGroups.createGroup);
+  const updateGroup = useMutation(api.todoGroups.updateWorkspaceGroup);
+  const deleteGroup = useMutation(api.todoGroups.deleteWorkspaceGroup);
 
   const [creatingInStatus, setCreatingInStatus] = useState<string | null>(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [activeTask, setActiveTask] = useState<any | null>(null);
   const [creatingAiInStatus, setCreatingAiInStatus] = useState<string | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isAiCreating, setIsAiCreating] = useState(false);
   const [viewMode, setViewMode] = useState<"board" | "table" | "sheet" | "excelSheets">("board");
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const activeGroup = groups?.find(g => g._id === activeGroupId) || null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -62,7 +92,7 @@ export default function TodosPage() {
     }
     
     try {
-      await createTodo({ workspaceId, scope: "workspace", title: newTitle.trim(), priority: "medium", status });
+      await createTodo({ workspaceId, scope: "workspace", title: newTitle.trim(), priority: "medium", status, groupId: activeGroupId as any });
       setNewTitle("");
       setCreatingInStatus(null);
       toast.success("Task added.");
@@ -104,6 +134,7 @@ export default function TodosPage() {
         customFields: data.todo.customFields,
         priority: data.todo.priority,
         status,
+        groupId: activeGroupId as any,
       });
       setAiPrompt("");
       setCreatingAiInStatus(null);
@@ -170,10 +201,54 @@ export default function TodosPage() {
     );
   }
 
+  const filteredTodos = todos?.filter(t => {
+    if (activeGroupId && t.groupId !== activeGroupId) return false;
+    if (!activeGroupId && t.groupId) return false;
+    if (searchQuery && !t.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+
   const tasksByStatus = {
-    "todo": todos?.filter((t) => t.status === "todo" || (!t.status && !t.completed)) ?? [],
-    "in-progress": todos?.filter((t) => t.status === "in-progress") ?? [],
-    "completed": todos?.filter((t) => t.status === "completed" || t.completed) ?? [],
+    "todo": filteredTodos?.filter((t) => t.status === "todo" || (!t.status && !t.completed)) ?? [],
+    "in-progress": filteredTodos?.filter((t) => t.status === "in-progress") ?? [],
+    "completed": filteredTodos?.filter((t) => t.status === "completed" || t.completed) ?? [],
+  };
+
+  const handleCreateBoard = async () => {
+    if (!workspaceId || !user) return;
+    const name = prompt("Board name:");
+    if (!name?.trim()) return;
+    try {
+      const id = await createGroup({ workspaceId, name: name.trim(), clerkId: user.id });
+      setActiveGroupId(id);
+      toast.success("Board created.");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to create board.");
+    }
+  };
+
+  const handleEditBoard = async () => {
+    if (!activeGroupId || !user) return;
+    const name = prompt("New board name:", activeGroup?.name);
+    if (!name?.trim()) return;
+    try {
+      await updateGroup({ groupId: activeGroupId as any, clerkId: user.id, name: name.trim() });
+      toast.success("Board updated.");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update board.");
+    }
+  };
+
+  const handleDeleteBoard = async () => {
+    if (!activeGroupId || !user) return;
+    if (!confirm("Are you sure you want to delete this board? Tasks will become unassigned.")) return;
+    try {
+      await deleteGroup({ groupId: activeGroupId as any, clerkId: user.id });
+      setActiveGroupId(null);
+      toast.success("Board deleted.");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete board.");
+    }
   };
 
   return (
@@ -189,11 +264,73 @@ export default function TodosPage() {
                 <line x1="9" y1="3" x2="9" y2="21"/>
               </svg>
             </div>
-            <h2 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--ink)" }}>
-              Kanban board
-            </h2>
+            <div className="flex items-center gap-1">
+              <ContextMenu>
+                <DropdownMenu>
+                  <ContextMenuTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button 
+                        className="flex items-center gap-2 text-2xl font-semibold tracking-tight transition-colors hover:opacity-80 outline-none" 
+                        style={{ color: "var(--ink)" }}
+                        onDoubleClick={handleEditBoard}
+                      >
+                        {activeGroup ? activeGroup.name : "Main Board"}
+                        <ChevronDown size={18} style={{ color: "var(--mute)" }} />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </ContextMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuLabel>Kanban Boards</DropdownMenuLabel>
+                    <DropdownMenuItem onSelect={() => setActiveGroupId(null)}>
+                      Main Board
+                    </DropdownMenuItem>
+                    {groups?.map(g => (
+                      <DropdownMenuItem key={g._id} onSelect={() => setActiveGroupId(g._id)}>
+                        {g.name}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={handleCreateBoard}>
+                      <Plus size={14} className="mr-2" /> Create new board
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {activeGroupId && (
+                  <ContextMenuContent>
+                    <ContextMenuItem onSelect={handleEditBoard}>
+                      <Edit size={14} className="mr-2" /> Edit name
+                    </ContextMenuItem>
+                    <ContextMenuItem onSelect={() => setSettingsModalOpen(true)}>
+                      <Settings size={14} className="mr-2" /> Settings
+                    </ContextMenuItem>
+                    <ContextMenuItem className="text-red-500" onSelect={handleDeleteBoard}>
+                      <Trash2 size={14} className="mr-2" /> Delete board
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                )}
+              </ContextMenu>
+              {activeGroupId && (
+                <button 
+                  className="p-1.5 ml-2 rounded-md hover:bg-[var(--surface-elevated)] transition-colors text-[var(--mute)] hover:text-[var(--ink)]"
+                  onClick={() => setSettingsModalOpen(true)}
+                  title="Board Settings"
+                >
+                  <Settings size={18} />
+                </button>
+              )}
+            </div>
           </div>
-          <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: "var(--mute)" }} />
+              <Input 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search kanban..."
+                className="pl-8 w-64 bg-[var(--surface-card)]"
+              />
+            </div>
+            <div className="inline-flex rounded-lg border p-1" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-deep)" }}>
             <button onClick={() => setViewMode("board")} className={`rounded-md px-3 py-1.5 text-sm transition-colors ${viewMode === "board" ? "" : "hover:bg-[var(--surface-elevated)]"}`} style={viewMode === "board" ? { backgroundColor: "var(--surface-card)", color: "var(--ink)" } : { color: "var(--mute)" }}>
               Kanban View
             </button>
@@ -208,6 +345,7 @@ export default function TodosPage() {
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       {viewMode === "table" ? (
@@ -272,6 +410,7 @@ export default function TodosPage() {
                 deleteTodo={deleteTodo}
                 handleUpdateStatus={handleUpdateStatus}
                 handleUpdateTodo={handleUpdateTodo}
+                members={members}
               />
             ))}
           </div>
@@ -281,7 +420,7 @@ export default function TodosPage() {
                 <DragOverlay zIndex={9999} dropAnimation={null}>
                   {activeTask ? (
                     <div className="pointer-events-none w-[320px]">
-                      <TodoCard task={activeTask} statuses={STATUSES} currentScope="workspace" isOverlay />
+                      <TodoCard task={activeTask} statuses={STATUSES} currentScope="workspace" members={members as any} isOverlay />
                     </div>
                   ) : null}
                 </DragOverlay>,
@@ -289,6 +428,16 @@ export default function TodosPage() {
               )
             : null}
         </DndContext>
+      )}
+
+      {activeGroupId && activeGroup && (
+        <BoardSettingsModal 
+          boardId={activeGroupId as any}
+          boardType="todoGroups"
+          isOpen={settingsModalOpen}
+          onClose={() => setSettingsModalOpen(false)}
+          isPublished={activeGroup.isPublished}
+        />
       )}
     </div>
   );
@@ -298,7 +447,7 @@ export default function TodosPage() {
 // Sub-components
 // -------------------------------------------------------------
 
-function KanbanColumn({ status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo }: any) {
+function KanbanColumn({ status, tasks, creatingInStatus, setCreatingInStatus, newTitle, setNewTitle, handleCreate, creatingAiInStatus, setCreatingAiInStatus, aiPrompt, setAiPrompt, handleCreateWithAi, isAiCreating, deleteTodo, handleUpdateTodo, members }: any) {
   const { setNodeRef, isOver } = useDroppable({
     id: status.id,
   });
@@ -399,6 +548,7 @@ function KanbanColumn({ status, tasks, creatingInStatus, setCreatingInStatus, ne
             task={task} 
             deleteTodo={deleteTodo} 
             handleUpdateTodo={handleUpdateTodo}
+            members={members}
           />
         ))}
 
@@ -407,7 +557,7 @@ function KanbanColumn({ status, tasks, creatingInStatus, setCreatingInStatus, ne
   );
 }
 
-function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo }: any) {
+function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo, members }: any) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task._id,
     data: task,
@@ -429,6 +579,7 @@ function DraggableTaskCard({ task, deleteTodo, handleUpdateTodo }: any) {
         task={task}
         statuses={STATUSES}
         currentScope="workspace"
+        members={members}
         dragHandleProps={{ attributes, listeners }}
         onDelete={(id) => deleteTodo({ id })}
         onUpdateTodo={(id, updates) => handleUpdateTodo(id, updates)}

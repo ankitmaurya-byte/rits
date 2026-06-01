@@ -29,6 +29,9 @@ import {
 } from "lucide-react";
 import { WorkspaceSwitcher } from "@/components/layout/workspace-switcher";
 import { ProfileMenu } from "@/components/profile/profile-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 const privateLinks = [
   { href: "/roadmap", label: "Roadmap", icon: Route },
@@ -202,7 +205,7 @@ function CollapsibleNavSection({
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}
-        className="sticky top-0 bottom-0 z-10 flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition-all duration-150 hover:bg-[var(--surface-elevated)]"
+        className="sticky top-0 bottom-0 z-10 flex w-full cursor-pointer items-center justify-between rounded-xl border px-3 py-2 text-left transition-all duration-150 hover:bg-[var(--surface-elevated)]"
         style={{
           borderColor: hasActiveLink || hasActiveChild ? "var(--hairline-strong)" : "transparent",
           backgroundColor: hasActiveLink || hasActiveChild ? "var(--surface-elevated)" : "var(--canvas)",
@@ -236,6 +239,7 @@ export function Sidebar() {
   const [searchValue, setSearchValue] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const currentUser = useQuery(api.users.getCurrentUser, {});
 
   const matches = useMemo(() => {
     const query = searchValue.trim().toLowerCase();
@@ -369,6 +373,7 @@ export function Sidebar() {
             </div>
           )}
         </div>
+        {currentUser && <NotificationBell userId={currentUser._id} />}
       </div>
 
       {/* Scrollable nav area */}

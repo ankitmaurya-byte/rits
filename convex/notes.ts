@@ -41,9 +41,10 @@ export const createNote = mutation({
     title: v.string(),
     content: v.string(),
     kind: v.optional(v.union(v.literal("folder"), v.literal("file"))),
-    fileType: v.optional(v.union(v.literal("text"), v.literal("database"))),
+    fileType: v.optional(v.union(v.literal("text"), v.literal("database"), v.literal("hierarchy"))),
     parentId: v.optional(v.id("notes")),
     sortOrder: v.optional(v.number()),
+    isPinned: v.optional(v.boolean()),
     createdBy: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
@@ -61,9 +62,10 @@ export const updateNote = mutation({
     title: v.optional(v.string()),
     content: v.optional(v.string()),
     kind: v.optional(v.union(v.literal("folder"), v.literal("file"))),
-    fileType: v.optional(v.union(v.literal("text"), v.literal("database"))),
+    fileType: v.optional(v.union(v.literal("text"), v.literal("database"), v.literal("hierarchy"))),
     parentId: v.optional(v.union(v.id("notes"), v.null())),
     sortOrder: v.optional(v.number()),
+    isPinned: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { id, parentId, ...fields } = args;
@@ -71,8 +73,9 @@ export const updateNote = mutation({
       title?: string;
       content?: string;
       kind?: "folder" | "file";
-      fileType?: "text" | "database";
+      fileType?: "text" | "database" | "hierarchy";
       sortOrder?: number;
+      isPinned?: boolean;
       parentId?: Id<"notes"> | undefined;
       updatedAt: number;
     } = {

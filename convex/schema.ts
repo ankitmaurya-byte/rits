@@ -17,7 +17,8 @@ export default defineSchema({
     currentCompany: v.optional(v.string()),
   })
     .index("by_clerk_id", ["clerkId"])
-    .index("by_token_identifier", ["tokenIdentifier"]),
+    .index("by_token_identifier", ["tokenIdentifier"])
+    .index("by_email", ["email"]),
 
   adminUsers: defineTable({
     email: v.string(),
@@ -304,6 +305,7 @@ export default defineSchema({
     scope: v.optional(v.union(v.literal("private"), v.literal("workspace"))),
     workspaceId: v.optional(v.id("workspaces")),
     groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
+    boardId: v.optional(v.id("kanbanBoards")),
     title: v.string(),
     description: v.optional(v.string()),
     customFields: v.optional(
@@ -333,9 +335,10 @@ export default defineSchema({
     title: v.string(),
     content: v.string(),
     kind: v.optional(v.union(v.literal("folder"), v.literal("file"))),
-    fileType: v.optional(v.union(v.literal("text"), v.literal("database"))),
+    fileType: v.optional(v.union(v.literal("text"), v.literal("database"), v.literal("hierarchy"))),
     parentId: v.optional(v.id("notes")),
     sortOrder: v.optional(v.number()),
+    isPinned: v.optional(v.boolean()),
     createdBy: v.optional(v.id("users")),
     updatedAt: v.number(),
   })
@@ -345,8 +348,10 @@ export default defineSchema({
 
   todoGroups: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
+    boardId: v.optional(v.id("kanbanBoards")),
     createdBy: v.optional(v.id("users")),
     name: v.string(),
+    isPublished: v.optional(v.boolean()),
     statusLabels: v.optional(v.record(v.string(), v.string())),
     columns: v.optional(v.array(v.object({
       id: v.string(),
@@ -357,7 +362,29 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"])
-    .index("by_user", ["createdBy"]),
+    .index("by_user", ["createdBy"])
+    .index("by_board", ["boardId"]),
+
+  kanbanBoards: defineTable({
+    workspaceId: v.optional(v.id("workspaces")),
+    scope: v.union(v.literal("private"), v.literal("workspace")),
+    createdBy: v.optional(v.id("users")),
+    name: v.string(),
+    isPublished: v.optional(v.boolean()),
+    createdAt: v.number(),
+  })
+    .index("by_workspace", ["workspaceId"])
+    .index("by_user_private", ["createdBy", "scope"]),
+
+  kanbanMembers: defineTable({
+    boardId: v.union(v.id("kanbanBoards"), v.id("todoGroups")),
+    userId: v.id("users"),
+    role: v.union(v.literal("owner"), v.literal("member")),
+    joinedAt: v.number(),
+  })
+    .index("by_board", ["boardId"])
+    .index("by_user", ["userId"])
+    .index("by_board_user", ["boardId", "userId"]),
 
   todoExcelSheets: defineTable({
     scope: v.union(v.literal("private"), v.literal("workspace")),
@@ -761,4 +788,15 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  notifications: defineTable({
+    userId: v.id("users"),
+    title: v.string(),
+    message: v.string(),
+    type: v.string(),
+    isRead: v.boolean(),
+    link: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_user_and_created_at", ["userId", "createdAt"])
+    .index("by_user_and_is_read", ["userId", "isRead"]),
 });

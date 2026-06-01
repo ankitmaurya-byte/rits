@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { 
   Copy, FileText, Trash2, Clock, Menu, ChevronRight,
-  ChevronDown, Folder, FolderPlus, FilePlus, Share2, FolderOpen, Database
+  ChevronDown, Folder, FolderPlus, FilePlus, Share2, FolderOpen, Database, Pin, ListTree
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { NoteEditor } from "@/components/notes/editor";
 import { DatabaseFileEditor, createDefaultDatabaseContent, getDatabasePreviewText, isDatabaseFileContent } from "@/components/notes/database-file-editor";
+import { HierarchyFileEditor, createDefaultHierarchyContent, isHierarchyFileContent } from "@/components/notes/hierarchy-file-editor";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,8 +18,8 @@ import { toast } from "sonner";
 type NoteDoc = Doc<"notes">;
 type Scope = "private" | "workspace";
 type NoteKind = "folder" | "file";
-type NoteFileType = "text" | "database";
-type CreateMode = "folder" | "file" | "database";
+type NoteFileType = "text" | "database" | "hierarchy";
+type CreateMode = "folder" | "file" | "database" | "hierarchy";
 type RoomOption = { id: string; label: string; meta: string };
 type DropIntent = "before" | "after" | "inside";
 type ConfirmOptions = {
@@ -48,6 +49,7 @@ type UpdateNoteArgs = {
   fileType?: NoteFileType;
   parentId?: Id<"notes"> | null;
   sortOrder?: number;
+  isPinned?: boolean;
 };
 type DeleteNoteArgs = {
   id: Id<"notes">;
@@ -110,19 +112,29 @@ function sortNotes(items: NoteDoc[]) {
 
 function getNoteFileType(note: NoteDoc | null): NoteFileType {
   if (!note || note.kind === "folder") return "text";
+  if (note.fileType === "hierarchy") return "hierarchy";
   if (note.fileType === "database") return "database";
-  return isDatabaseFileContent(note.content) ? "database" : "text";
+  
+  if (isHierarchyFileContent(note.content)) return "hierarchy";
+  if (isDatabaseFileContent(note.content)) return "database";
+  return "text";
 }
 
 function getCreateLabel(mode: CreateMode) {
   if (mode === "folder") return "Folder";
   if (mode === "database") return "Database";
+  if (mode === "hierarchy") return "Hierarchy";
   return "File";
 }
 
 function getNotePreviewText(note: NoteDoc) {
   if (getNoteFileType(note) === "database") return getDatabasePreviewText(note.content);
+  if (getNoteFileType(note) === "hierarchy") return "Hierarchy Tree";
   return note.content ? note.content.replace(/<[^>]+>/g, "") : "Empty file";
+}
+
+function getIsPinned(note: NoteDoc) {
+  return Boolean((note as NoteDoc & { isPinned?: boolean }).isPinned);
 }
 
 function getInsertSortOrder(orderedSiblings: NoteDoc[], insertIndex: number) {
@@ -271,6 +283,8 @@ function NoteTreeItem({
               isExpanded ? <FolderOpen size={14} className="shrink-0 text-blue-400" /> : <Folder size={14} className="shrink-0 text-blue-400" />
             ) : isDatabaseFile ? (
               <Database size={14} className="shrink-0 text-[var(--accent-green)]" />
+            ) : getNoteFileType(item) === "hierarchy" ? (
+              <ListTree size={14} className="shrink-0 text-purple-400" />
             ) : (
               <FileText size={14} className="shrink-0 text-[var(--stone)]" />
             )}
@@ -337,6 +351,82 @@ function NoteTreeItem({
   );
 }
 
+function HierarchyViewItem({
+  item,
+  allNotes,
+  activeNoteId,
+  expandedFolders,
+  toggleFolder,
+  handleSelect,
+  depth = 0
+}: Omit<NoteTreeItemProps, "draggedNoteId" | "dropTarget" | "handleDragStart" | "handleDragOverItem" | "handleDropOnItem" | "resetDragState" | "deleteNote" | "confirm">) {
+  const children = sortNotes(allNotes.filter((n) => n.parentId === item._id));
+  const isFolder = item.kind === "folder";
+  const isDatabaseFile = !isFolder && getNoteFileType(item) === "database";
+  const isExpanded = expandedFolders.has(item._id);
+  const isSelected = activeNoteId === item._id;
+  const hasChildren = children.length > 0;
+
+  return (
+    <div className="flex flex-col w-full">
+      <div 
+        className={`flex items-center w-full border border-[var(--hairline)] -mt-[1px] transition-colors ${hasChildren ? "cursor-pointer hover:bg-[var(--surface-elevated)]" : "cursor-default"}`}
+        style={{ 
+          paddingLeft: `${(depth * 16) + 12}px`, 
+          backgroundColor: isSelected ? "var(--surface-elevated)" : "transparent"
+        }}
+        onClick={() => {
+          if (hasChildren) {
+            toggleFolder(item._id);
+          } else {
+            handleSelect(item._id, item.content);
+          }
+        }}
+      >
+        <div className="flex items-center gap-2 py-2 pr-4 flex-1 overflow-hidden min-w-0">
+          <div className="w-[14px] shrink-0 flex items-center justify-center">
+            {hasChildren ? (
+              isExpanded ? <ChevronDown size={14} className="text-[var(--stone)]" /> : <ChevronRight size={14} className="text-[var(--stone)]" />
+            ) : null}
+          </div>
+          
+          {isFolder ? (
+            isExpanded ? <FolderOpen size={14} className="shrink-0 text-blue-400" /> : <Folder size={14} className="shrink-0 text-blue-400" />
+          ) : isDatabaseFile ? (
+            <Database size={14} className="shrink-0 text-[var(--accent-green)]" />
+          ) : (
+            <FileText size={14} className="shrink-0 text-[var(--stone)]" />
+          )}
+          
+          <span className="truncate text-sm font-medium text-[var(--ink)] cursor-pointer" onClick={(e) => {
+            if (!hasChildren) {
+              e.stopPropagation();
+              handleSelect(item._id, item.content);
+            }
+          }}>{item.title}</span>
+        </div>
+      </div>
+      
+      {isExpanded && hasChildren && (
+        <div className="flex flex-col w-full">
+          {children.map((child) => (
+            <HierarchyViewItem 
+              key={child._id} 
+              item={child} 
+              allNotes={allNotes} 
+              activeNoteId={activeNoteId} 
+              expandedFolders={expandedFolders} 
+              toggleFolder={toggleFolder} 
+              handleSelect={handleSelect} 
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ConfluenceLayout({
   notes,
   createNote,
@@ -347,12 +437,13 @@ export function ConfluenceLayout({
   scope,
   workspaceId
 }: ConfluenceLayoutProps) {
-  const [view, setView] = useState<"sidebar" | "gallery">("sidebar");
+  const [view, setView] = useState<"sidebar" | "gallery" | "hierarchy">("sidebar");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [resizingSidebar, setResizingSidebar] = useState(false);
   const [selectedId, setSelectedId] = useState<Id<"notes"> | null>(null);
   const [editContent, setEditContent] = useState("");
+  const [editorMode, setEditorMode] = useState<"read" | "edit">("read");
   const sidebarShellRef = useRef<HTMLDivElement | null>(null);
   
   // Folder state
@@ -436,6 +527,7 @@ export function ConfluenceLayout({
   const handleSelect = (id: Id<"notes">, content: string) => {
     setSelectedId(id);
     setEditContent(content);
+    setEditorMode("read");
   };
 
   const handleCreate = async () => {
@@ -443,7 +535,12 @@ export function ConfluenceLayout({
     try {
       const parentId = currentFolderId ?? undefined;
       const isDatabase = showCreate === "database";
-      const initialContent = isDatabase ? createDefaultDatabaseContent() : "";
+      const isHierarchy = showCreate === "hierarchy";
+      
+      let initialContent = "";
+      if (isDatabase) initialContent = createDefaultDatabaseContent();
+      else if (isHierarchy) initialContent = createDefaultHierarchyContent();
+      
       const id = await createNote({ 
         scope, 
         workspaceId: scope === "workspace" ? workspaceId : undefined, 
@@ -451,8 +548,9 @@ export function ConfluenceLayout({
         content: initialContent, 
         createdBy: convexUser?._id,
         kind: showCreate === "folder" ? "folder" : "file",
-        fileType: showCreate === "folder" ? undefined : isDatabase ? "database" : "text",
-        parentId
+        fileType: showCreate === "folder" ? undefined : showCreate === "file" ? "text" : showCreate,
+        parentId,
+        sortOrder: Date.now()
       });
       
       setNewTitle(""); 
@@ -649,6 +747,21 @@ export function ConfluenceLayout({
     }
   };
 
+  const breadcrumbs = useMemo(() => {
+    const crumbs = [];
+    let current = currentFolderId;
+    while (current) {
+      const folder = allNotes.find(n => n._id === current);
+      if (folder) {
+        crumbs.unshift(folder);
+        current = folder.parentId ?? null;
+      } else {
+        break;
+      }
+    }
+    return crumbs;
+  }, [currentFolderId, allNotes]);
+
   return (
     <div className="flex flex-col h-full overflow-hidden relative bg-[var(--canvas)]">
       <Dialog
@@ -672,7 +785,7 @@ export function ConfluenceLayout({
               <DialogHeader>
                 <div className="flex items-center gap-3 pr-11">
                   <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--charcoal)" }}>
-                    {activePreviewFileType === "database" ? <Database size={13} /> : <FileText size={13} />} {activePreviewFileType === "database" ? "Database" : "File"}
+                    {activePreviewFileType === "database" ? <Database size={13} /> : activePreviewFileType === "hierarchy" ? <ListTree size={13} /> : <FileText size={13} />} {activePreviewFileType === "database" ? "Database" : activePreviewFileType === "hierarchy" ? "Hierarchy" : "File"}
                   </span>
                   {typeof activePreviewNote._creationTime === "number" ? (
                     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>
@@ -704,6 +817,14 @@ export function ConfluenceLayout({
                     setPreviewNote({ ...activePreviewNote, content: value });
                   }}
                 />
+              ) : activePreviewFileType === "hierarchy" ? (
+                <HierarchyFileEditor
+                  content={activePreviewNote.content}
+                  onChange={(value) => {
+                    updateNote({ id: activePreviewNote._id, content: value, title: activePreviewNote.title, fileType: "hierarchy" });
+                    setPreviewNote({ ...activePreviewNote, content: value });
+                  }}
+                />
               ) : (
                 <NoteEditor
                   className="h-full w-full !rounded-none !border-0 shadow-none"
@@ -722,155 +843,262 @@ export function ConfluenceLayout({
 
       <ShareNoteDialog note={shareNote} rooms={rooms} onClose={() => setShareNote(null)} onShare={handleShare} onCopyLink={(note) => void handleCopyNoteUrl(note)} />
       
-      <div className="flex items-center justify-center py-3 border-b shrink-0 z-20" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
-        <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] rounded-lg shrink-0">
-          <button onClick={() => setView("sidebar")} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${view === "sidebar" ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}>
-            Sidebar View
-          </button>
-          <button onClick={() => setView("gallery")} className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${view === "gallery" ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}>
-            Gallery View
-          </button>
-        </div>
-      </div>
-      
-      <div className="flex-1 min-h-0 relative">
-        {view === "sidebar" ? (
-          <div ref={sidebarShellRef} className="flex h-full w-full overflow-hidden bg-[var(--canvas)]">
-            <div
-              className={`relative flex shrink-0 flex-col overflow-hidden border-r ${resizingSidebar ? "" : "transition-all duration-300 ease-in-out"}`}
-              style={{ borderColor: resizingSidebar ? "var(--accent-blue)" : "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", width: sidebarOpen ? `${sidebarWidth}px` : "0px", opacity: sidebarOpen ? 1 : 0, borderRightWidth: sidebarOpen ? "1px" : "0px" }}
-            >
-              <div className="flex items-center justify-between px-4 py-4 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
-                <span className="text-sm font-medium" style={{ color: "var(--ink)" }}>Explorer</span>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => { setCurrentFolderId(null); setShowCreate("file"); }} className="p-1 rounded hover:bg-[var(--surface-elevated)] text-[var(--body)]" title="New Note">
-                    <FilePlus size={16} />
-                  </button>
-                  <button onClick={() => { setCurrentFolderId(null); setShowCreate("database"); }} className="p-1 rounded hover:bg-[var(--surface-elevated)] text-[var(--body)]" title="New Database">
-                    <Database size={16} />
-                  </button>
-                  <button onClick={() => { setCurrentFolderId(null); setShowCreate("folder"); }} className="p-1 rounded hover:bg-[var(--surface-elevated)] text-[var(--body)]" title="New Folder">
-                    <FolderPlus size={16} />
-                  </button>
-                </div>
-              </div>
-
-              {showCreate && (
-                <div className="p-3 border-b z-10 relative bg-[var(--surface-card)]" style={{ borderColor: "var(--hairline-strong)" }}>
-                  <input autoFocus placeholder={`New ${getCreateLabel(showCreate).toLowerCase()}...`} value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(null); }}
-                    className="w-full bg-[var(--surface-elevated)] border border-[var(--hairline)] rounded-md px-3 py-1.5 text-sm text-[var(--ink)] mb-2 outline-none" />
-                  <div className="flex gap-2">
-                    <button onClick={handleCreate} className="flex-1 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium">Create</button>
-                    <button onClick={() => setShowCreate(null)} className="flex-1 py-1 rounded border border-[var(--hairline-strong)] text-[var(--charcoal)] text-xs font-medium">Cancel</button>
-                  </div>
-                </div>
-              )}
-
-              <div
-                className="flex-1 overflow-y-auto py-2"
-                onDragOver={(event) => {
-                  if (!draggedNoteId) return;
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                  setDropTarget(null);
-                }}
-                onDrop={(event) => void handleDropOnRoot(event)}
-              >
-                {rootItems.map((item) => (
-                  <NoteTreeItem 
-                    key={item._id} 
-                    item={item} 
-                    allNotes={allNotes} 
-                    activeNoteId={selectedId} 
-                    expandedFolders={expandedFolders} 
-                    draggedNoteId={draggedNoteId}
-                    dropTarget={dropTarget}
-                    toggleFolder={toggleFolder} 
-                    handleSelect={handleSelect} 
-                    handleDragStart={handleDragStart}
-                    handleDragOverItem={handleDragOverItem}
-                    handleDropOnItem={handleDropOnItem}
-                    resetDragState={resetDragState}
-                    deleteNote={deleteNote} 
-                    confirm={confirm} 
-                  />
-                ))}
-              </div>
-              {sidebarOpen ? (
-                <button
-                  type="button"
-                  aria-label="Resize explorer sidebar"
-                  title="Resize sidebar"
-                  className="group absolute -right-1 top-0 z-40 h-full w-2 cursor-col-resize"
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setResizingSidebar(true);
-                  }}
-                  onDoubleClick={(event) => {
-                    event.preventDefault();
-                    setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
-                  }}
-                >
-                  <span
-                    className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 transition-colors group-hover:bg-[var(--accent-blue)]"
-                    style={{ backgroundColor: resizingSidebar ? "var(--accent-blue)" : "transparent" }}
-                  />
-                </button>
-              ) : null}
-            </div>
-
-            <div className="flex flex-col flex-1 overflow-hidden relative bg-[var(--canvas)]">
-              {sidebarOpen ? null : (
-                <button onClick={() => setSidebarOpen(true)} className="absolute top-4 left-4 z-50 p-2 rounded-md transition-colors bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] text-[var(--body)] hover:text-[var(--ink)] shadow-sm">
-                  <Menu size={18} />
-                </button>
-              )}
-              {activeNote ? (
-                <div className="flex-1 overflow-hidden relative z-10 bg-[var(--surface-card)]">
-                  {activeNoteFileType === "database" ? (
-                    <DatabaseFileEditor
-                      content={editContent}
-                      onChange={(value) => {
-                        setEditContent(value);
-                        updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "database" });
-                      }}
-                    />
-                  ) : (
-                    <NoteEditor 
-                      className="w-full h-full !border-0 !rounded-none shadow-none" 
-                      content={editContent} 
-                      minHeight="100%" 
-                      onChange={(value) => {
-                        setEditContent(value);
-                        updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "text" });
-                      }} 
-                    />
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center relative z-10">
-                  <FileText size={48} className="mb-8 text-[var(--stone)]" />
-                  <h3 className="text-xl font-medium mb-3 text-[var(--ink)]">Select a file</h3>
-                </div>
-              )}
+      <div className="flex-1 min-h-0 relative flex h-full w-full overflow-hidden bg-[var(--canvas)]">
+        <div
+          ref={sidebarShellRef}
+          className={`relative flex shrink-0 flex-col overflow-hidden border-r ${resizingSidebar ? "" : "transition-all duration-300 ease-in-out"}`}
+          style={{ borderColor: resizingSidebar ? "var(--accent-blue)" : "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", width: sidebarOpen ? `${sidebarWidth}px` : "0px", opacity: sidebarOpen ? 1 : 0, borderRightWidth: sidebarOpen ? "1px" : "0px" }}
+        >
+          <div className="p-3 border-b shrink-0" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
+            <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] rounded-lg shrink-0">
+              <button onClick={() => setView("sidebar")} className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${view === "sidebar" ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}>
+                Sidebar View
+              </button>
+              <button onClick={() => setView("gallery")} className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${view === "gallery" ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}>
+                Gallery View
+              </button>
             </div>
           </div>
+          <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--mute)" }}>Explorer</span>
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => setShowCreate("folder")} className="p-1 rounded hover:bg-[var(--surface-deep)] transition-colors text-[var(--charcoal)] hover:text-[var(--ink)]" title="New Folder"><FolderPlus size={14} /></button>
+              <button onClick={() => setShowCreate("file")} className="p-1 rounded hover:bg-[var(--surface-deep)] transition-colors text-[var(--charcoal)] hover:text-[var(--ink)]" title="New Document"><FilePlus size={14} /></button>
+              <button onClick={() => setShowCreate("database")} className="p-1 rounded hover:bg-[var(--surface-deep)] transition-colors text-[var(--charcoal)] hover:text-[var(--ink)]" title="New Database"><Database size={14} /></button>
+              <button onClick={() => setShowCreate("hierarchy")} className="p-1 rounded hover:bg-[var(--surface-deep)] transition-colors text-[var(--charcoal)] hover:text-[var(--ink)]" title="New Hierarchy"><ListTree size={14} /></button>
+            </div>
+          </div>
+
+          {showCreate && (
+            <div className="p-3 border-b z-10 relative bg-[var(--surface-card)]" style={{ borderColor: "var(--hairline-strong)" }}>
+              <input autoFocus placeholder={`New ${getCreateLabel(showCreate).toLowerCase()}...`} value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); if (e.key === "Escape") setShowCreate(null); }}
+                className="w-full bg-[var(--surface-elevated)] border border-[var(--hairline)] rounded-md px-3 py-1.5 text-sm text-[var(--ink)] mb-2 outline-none" />
+              <div className="flex gap-2">
+                <button onClick={handleCreate} className="flex-1 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium">Create</button>
+                <button onClick={() => setShowCreate(null)} className="flex-1 py-1 rounded border border-[var(--hairline-strong)] text-[var(--charcoal)] text-xs font-medium">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div
+            className="flex-1 overflow-y-auto py-2"
+            onDragOver={(event) => {
+              if (!draggedNoteId) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setDropTarget(null);
+            }}
+            onDrop={(event) => void handleDropOnRoot(event)}
+          >
+            {view === "sidebar" ? (
+              rootItems.map((item) => (
+                <NoteTreeItem 
+                  key={item._id} 
+                  item={item} 
+                  allNotes={allNotes} 
+                  activeNoteId={selectedId} 
+                  expandedFolders={expandedFolders} 
+                  draggedNoteId={draggedNoteId}
+                  dropTarget={dropTarget}
+                  toggleFolder={toggleFolder} 
+                  handleSelect={handleSelect} 
+                  handleDragStart={handleDragStart}
+                  handleDragOverItem={handleDragOverItem}
+                  handleDropOnItem={handleDropOnItem}
+                  resetDragState={resetDragState}
+                  deleteNote={deleteNote} 
+                  confirm={confirm} 
+                />
+              ))
+            ) : (
+              <div className="flex flex-col gap-4 px-2 py-2">
+                <div className="flex flex-col gap-1">
+                  <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--mute)] mb-2">Navigation</p>
+                  <button 
+                    onClick={() => setCurrentFolderId(null)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentFolderId === null ? "bg-[var(--surface-elevated)] text-[var(--ink)] shadow-sm" : "text-[var(--charcoal)] hover:bg-[var(--surface-elevated)] hover:text-[var(--ink)]"}`}
+                  >
+                    <Database size={16} className={currentFolderId === null ? "text-blue-400" : ""} /> 
+                    Root Folder
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-1 mt-2">
+                  <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--mute)] mb-2">Pinned Folders</p>
+                  {allNotes.filter(n => n.kind === "folder" && getIsPinned(n)).map(folder => (
+                    <button 
+                      key={`pinned-${folder._id}`}
+                      onClick={() => setCurrentFolderId(folder._id)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentFolderId === folder._id ? "bg-[var(--surface-elevated)] text-[var(--ink)] shadow-sm" : "text-[var(--charcoal)] hover:bg-[var(--surface-elevated)] hover:text-[var(--ink)]"}`}
+                    >
+                      <Pin size={14} className="text-[var(--accent-blue)] shrink-0" />
+                      <span className="truncate">{folder.title}</span>
+                    </button>
+                  ))}
+                  {allNotes.filter(n => n.kind === "folder" && getIsPinned(n)).length === 0 && (
+                    <p className="px-3 py-1 text-xs text-[var(--mute)] italic">No pinned folders</p>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-1 mt-2">
+                  <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--mute)] mb-2">Quick Access</p>
+                  {rootItems.filter(n => n.kind === "folder").map(folder => (
+                    <button 
+                      key={folder._id}
+                      onClick={() => setCurrentFolderId(folder._id)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentFolderId === folder._id ? "bg-[var(--surface-elevated)] text-[var(--ink)] shadow-sm" : "text-[var(--charcoal)] hover:bg-[var(--surface-elevated)] hover:text-[var(--ink)]"}`}
+                    >
+                      <Folder size={16} className={currentFolderId === folder._id ? "text-blue-400" : "shrink-0"} /> 
+                      <span className="truncate">{folder.title}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          {sidebarOpen ? (
+            <button
+              type="button"
+              aria-label="Resize explorer sidebar"
+              title="Resize sidebar"
+              className="group absolute -right-1 top-0 z-40 h-full w-2 cursor-col-resize"
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setResizingSidebar(true);
+              }}
+              onDoubleClick={(event) => {
+                event.preventDefault();
+                setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
+              }}
+            >
+              <span
+                className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 transition-colors group-hover:bg-[var(--accent-blue)]"
+                style={{ backgroundColor: resizingSidebar ? "var(--accent-blue)" : "transparent" }}
+              />
+            </button>
+          ) : null}
+        </div>
+
+        {view === "sidebar" ? (
+          <div className="flex flex-col flex-1 overflow-hidden relative bg-[var(--canvas)]">
+            {sidebarOpen ? null : (
+              <button onClick={() => setSidebarOpen(true)} className="absolute top-4 left-4 z-50 p-2 rounded-md transition-colors bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] text-[var(--body)] hover:text-[var(--ink)] shadow-sm">
+                <Menu size={18} />
+              </button>
+            )}
+            {activeNote ? (
+              <div className="flex-1 overflow-hidden relative z-10 bg-[var(--surface-card)] flex flex-col">
+                {/* Read / Edit mode toggle bar */}
+                <div className="flex items-center gap-2 px-4 py-2 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
+                  <span className="text-xs font-medium truncate max-w-[200px]" style={{ color: "var(--mute)" }}>{activeNote.title}</span>
+                  <div className="ml-auto flex items-center p-0.5 rounded-lg" style={{ background: "var(--surface-deep)", border: "1px solid var(--hairline-strong)" }}>
+                    <button
+                      onClick={() => setEditorMode("read")}
+                      className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                        editorMode === "read"
+                          ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm"
+                          : "text-[var(--charcoal)] hover:text-[var(--ink)]"
+                      }`}
+                    >
+                      👁 Read
+                    </button>
+                    <button
+                      onClick={() => setEditorMode("edit")}
+                      className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                        editorMode === "edit"
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "text-[var(--charcoal)] hover:text-[var(--ink)]"
+                      }`}
+                    >
+                      ✏️ Edit
+                    </button>
+                  </div>
+                </div>
+
+                {/* Editor / Read-only content */}
+                <div className="flex-1 overflow-hidden">
+                  {editorMode === "read" ? (
+                    /* Read-only view — hierarchy shows collapsible tree (if markdown), text shows HTML, database shows viewer */
+                    activeNoteFileType === "hierarchy" && isHierarchyFileContent(editContent) ? (
+                      <HierarchyFileEditor
+                        content={editContent}
+                        onChange={() => {}}
+                        readOnly
+                      />
+                    ) : activeNoteFileType === "database" ? (
+                      <DatabaseFileEditor
+                        content={editContent}
+                        onChange={() => {}}
+                      />
+                    ) : (
+                      <div
+                        className="h-full w-full overflow-y-auto px-10 py-8 prose prose-sm max-w-none"
+                        style={{ color: "var(--ink)", background: "var(--surface-card)" }}
+                        dangerouslySetInnerHTML={{ __html: editContent }}
+                      />
+                    )
+                  ) : (
+                    activeNoteFileType === "database" ? (
+                      <DatabaseFileEditor
+                        content={editContent}
+                        onChange={(value) => {
+                          setEditContent(value);
+                          updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "database" });
+                        }}
+                      />
+                    ) : activeNoteFileType === "hierarchy" ? (
+                      <HierarchyFileEditor
+                        content={editContent}
+                        onChange={(value) => {
+                          setEditContent(value);
+                          updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "hierarchy" });
+                        }}
+                      />
+                    ) : (
+                      <NoteEditor
+                        className="w-full h-full !border-0 !rounded-none shadow-none"
+                        content={editContent}
+                        minHeight="100%"
+                        onChange={(value) => {
+                          setEditContent(value);
+                          updateNote({
+                            id: activeNote._id,
+                            content: value,
+                            title: activeNote.title,
+                            fileType: "text",
+                          });
+                        }}
+                      />
+                    )
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center relative z-10">
+                <FileText size={48} className="mb-8 text-[var(--stone)]" />
+                <h3 className="text-xl font-medium mb-3 text-[var(--ink)]">Select a file</h3>
+              </div>
+            )}
+          </div>
         ) : (
-          <div className="flex flex-col w-full h-full bg-[#191919] overflow-auto relative p-8">
+          <div className="flex-1 flex flex-col overflow-auto relative p-8 bg-[#191919]">
+            {sidebarOpen ? null : (
+              <button onClick={() => setSidebarOpen(true)} className="absolute top-8 left-4 z-50 p-2 rounded-md transition-colors bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] text-[var(--body)] hover:text-[var(--ink)] shadow-sm">
+                <Menu size={18} />
+              </button>
+            )}
             <div className="max-w-7xl mx-auto w-full">
               <div className="flex items-center gap-4 mb-8">
-                {currentFolderId && (
-                  <button onClick={() => {
-                    const folder = allNotes.find((n) => n._id === currentFolderId);
-                    setCurrentFolderId(folder?.parentId || null);
-                  }} className="p-2 bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] rounded-lg text-[var(--body)] hover:text-[var(--ink)]">
-                    <ChevronRight size={18} className="rotate-180" />
-                  </button>
-                )}
                 <div className="text-2xl font-bold text-white flex items-center gap-2">
-                  {currentFolderId ? allNotes.find((n) => n._id === currentFolderId)?.title : "Confluence Root"}
+                  <button onClick={() => setCurrentFolderId(null)} className="hover:text-[var(--accent-blue)] transition-colors">Confluence Root</button>
+                  {breadcrumbs.map((crumb) => (
+                    <div key={crumb._id} className="flex items-center gap-2">
+                      <ChevronRight size={20} className="text-[var(--mute)]" />
+                      <button onClick={() => setCurrentFolderId(crumb._id)} className="hover:text-[var(--accent-blue)] transition-colors">{crumb.title}</button>
+                    </div>
+                  ))}
                 </div>
                 <div className="ml-auto flex items-center gap-2">
                   <button onClick={() => setShowCreate("folder")} className="px-3 py-1.5 rounded-md bg-[var(--surface-elevated)] text-[var(--body)] text-sm flex items-center gap-2"><FolderPlus size={16} /> New Folder</button>
@@ -918,25 +1146,43 @@ export function ConfluenceLayout({
                   const draggingClass = draggedNoteId === item._id ? "opacity-45" : "";
 
                   return item.kind === "folder" ? (
-                    <button
+                    <div
                       key={item._id}
-                      type="button"
+                      role="button"
+                      tabIndex={0}
                       draggable
                       onDragStart={(event) => handleDragStart(event, item)}
                       onDragOver={(event) => handleDragOverItem(event, item)}
                       onDragEnd={resetDragState}
                       onDrop={(event) => void handleDropOnItem(event, item)}
                       onClick={() => setCurrentFolderId(item._id)}
-                      className={`relative flex h-[160px] w-[200px] cursor-grab flex-col items-center justify-center gap-3 rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-deep)] transition-colors hover:bg-[var(--surface-elevated)] active:cursor-grabbing ${dropClass} ${draggingClass}`}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setCurrentFolderId(item._id);
+                        }
+                      }}
+                      className={`group relative flex h-[220px] w-[200px] cursor-grab flex-col items-center justify-center gap-3 rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-deep)] transition-colors hover:bg-[var(--surface-elevated)] active:cursor-grabbing ${dropClass} ${draggingClass}`}
                     >
                       {activeDrop === "inside" ? (
                         <span className="absolute left-3 top-3 rounded-full bg-blue-500 px-2 py-1 text-[10px] font-medium text-white">
                           Drop inside
                         </span>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          updateNote({ id: item._id, title: item.title, isPinned: !getIsPinned(item) });
+                        }}
+                        className={`absolute right-3 top-3 z-10 rounded-md border border-[var(--hairline-strong)] bg-[var(--surface-card)] p-1.5 shadow-sm transition-all hover:bg-[var(--surface-elevated)] hover:text-blue-400 focus-visible:opacity-100 ${getIsPinned(item) ? "opacity-100 text-[var(--accent-blue)]" : "opacity-0 text-[var(--stone)] group-hover:opacity-100"}`}
+                        aria-label={`Pin ${item.title}`}
+                      >
+                        <Pin size={14} />
+                      </button>
                       <Folder size={40} className="text-blue-400" />
                       <span className="w-full truncate px-4 text-sm font-medium text-[var(--ink)]">{item.title}</span>
-                    </button>
+                    </div>
                   ) : (
                     <div
                       key={item._id}
@@ -945,7 +1191,7 @@ export function ConfluenceLayout({
                       onDragOver={(event) => handleDragOverItem(event, item)}
                       onDragEnd={resetDragState}
                       onDrop={(event) => void handleDropOnItem(event, item)}
-                      className={`group relative flex h-[184px] w-[236px] cursor-grab flex-col overflow-hidden rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-deep)] transition-colors hover:bg-[var(--surface-elevated)] active:cursor-grabbing ${dropClass} ${draggingClass}`}
+                      className={`group relative flex h-[280px] w-[236px] cursor-grab flex-col overflow-hidden rounded-xl border border-[var(--hairline-strong)] bg-[var(--surface-deep)] transition-colors hover:bg-[var(--surface-elevated)] active:cursor-grabbing ${dropClass} ${draggingClass}`}
                     >
                       <button
                         type="button"
@@ -963,7 +1209,7 @@ export function ConfluenceLayout({
                           {getNoteFileType(item) === "database" ? <Database size={15} className="shrink-0 text-[var(--accent-green)]" /> : <FileText size={15} className="shrink-0 text-[var(--stone)]" />}
                           <span className="truncate">{item.title}</span>
                         </h4>
-                        <p className="line-clamp-6 text-xs text-[var(--charcoal)]">{getNotePreviewText(item)}</p>
+                        <p className="text-xs text-[var(--charcoal)] mt-2" style={{ display: '-webkit-box', WebkitLineClamp: 12, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{getNotePreviewText(item)}</p>
                       </div>
                     </div>
                   );

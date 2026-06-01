@@ -51,6 +51,7 @@ type TodoUpdate = {
   status: string;
   groupId?: Id<"todoGroups"> | null;
   customFields: TodoCustomField[];
+  assignedTo?: Id<"users"> | null;
 };
 
 type TodoMoveTarget = {
@@ -61,6 +62,11 @@ type TodoMoveTarget = {
   groupId?: Id<"todoGroups"> | null;
 };
 
+type WorkspaceMember = Doc<"users"> & {
+  role?: string;
+  memberId?: Id<"workspaceMembers">;
+};
+
 interface TodoCardProps {
   task: TodoDoc;
   statuses: readonly TodoStatus[];
@@ -69,9 +75,12 @@ interface TodoCardProps {
   currentScope: "private" | "workspace";
   isOverlay?: boolean;
   dragHandleProps?: DragHandleProps;
+  members?: WorkspaceMember[];
   onDelete?: (id: Id<"todos">) => Promise<void>;
   onUpdateTodo?: (id: Id<"todos">, update: TodoUpdate) => Promise<void>;
   onMoveTodo?: (id: Id<"todos">, target: TodoMoveTarget) => Promise<void>;
+  isPublished?: boolean;
+  boardMembers?: any[];
 }
 
 function normalizeFields(fields: TodoDoc["customFields"]): TodoCustomField[] {
@@ -86,9 +95,12 @@ export function TodoCard({
   currentScope,
   isOverlay,
   dragHandleProps,
+  members,
   onDelete,
   onUpdateTodo,
   onMoveTodo,
+  isPublished,
+  boardMembers,
 }: TodoCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalSection, setModalSection] = useState<ModalSection>("details");
@@ -97,6 +109,7 @@ export function TodoCard({
   const [priority, setPriority] = useState(task.priority ?? "medium");
   const [status, setStatus] = useState(task.status ?? (task.completed ? "completed" : "todo"));
   const [groupId, setGroupId] = useState<string>(task.groupId ?? "");
+  const [assignedTo, setAssignedTo] = useState<string>(task.assignedTo ?? "");
   const [customFields, setCustomFields] = useState<TodoCustomField[]>(normalizeFields(task.customFields));
   const [saving, setSaving] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
@@ -117,6 +130,9 @@ export function TodoCard({
   const updatedAt = format(task.updatedAt ?? task.createdAt, "MMM d, yyyy p");
   const compactDescription = description.trim() || task.sourceDescription?.trim() || "";
 
+  const creator = boardMembers?.find((m) => m._id === task.createdBy) || members?.find((m) => m._id === task.createdBy);
+  const assignee = boardMembers?.find((m) => m._id === task.assignedTo) || members?.find((m) => m._id === task.assignedTo);
+
   useEffect(() => {
     if (!modalOpen) return;
     const focusTarget =
@@ -134,6 +150,7 @@ export function TodoCard({
     setPriority(task.priority ?? "medium");
     setStatus(task.status ?? (task.completed ? "completed" : "todo"));
     setGroupId(task.groupId ?? "");
+    setAssignedTo(task.assignedTo ?? "");
     setCustomFields(normalizeFields(task.customFields));
     setMoveScope(task.scope ?? currentScope);
     setMoveWorkspaceId(task.workspaceId ?? "");
@@ -186,6 +203,7 @@ export function TodoCard({
         priority: locationChanged ? (task.priority ?? "medium") : priority,
         status: locationChanged ? (task.status ?? (task.completed ? "completed" : "todo")) : status,
         groupId: groupOptions ? ((locationChanged ? (task.groupId ?? null) : (groupId || null)) as Id<"todoGroups"> | null) : undefined,
+        assignedTo: (assignedTo || null) as Id<"users"> | null,
         customFields: customFields
           .map((field) => ({ key: field.key.trim(), value: field.value.trim() }))
           .filter((field) => field.key || field.value),
@@ -301,6 +319,21 @@ export function TodoCard({
             {compactDescription}
           </p>
         ) : null}
+        {(creator || assignee) && (
+          <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: "var(--mute)" }}>
+            {creator && (
+              <div className="flex items-center gap-1" title={`Created by ${creator.name}`}>
+                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[8px] text-[var(--ink)] border border-[var(--hairline)]">{creator.name?.[0]?.toUpperCase()}</div>
+              </div>
+            )}
+            {assignee && (
+              <div className="flex items-center gap-1" title={`Assigned to ${assignee.name}`}>
+                <span className="text-[10px]">Assignee:</span>
+                <div className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[8px] text-[var(--ink)] border border-[var(--hairline)]">{assignee.name?.[0]?.toUpperCase()}</div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -367,6 +400,21 @@ export function TodoCard({
                 {priority}
               </span>
               <span>{format(task.createdAt, "MMM d, yyyy")}</span>
+              
+              {(creator || assignee) && (
+                <div className="flex items-center gap-1.5 ml-auto">
+                  {creator && (
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[10px] text-[var(--ink)] border border-[var(--hairline)]" title={`Created by ${creator.name}`}>
+                      {creator.name?.[0]?.toUpperCase()}
+                    </div>
+                  )}
+                  {assignee && (
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--surface-elevated)] text-[10px] text-[var(--ink)] border border-[var(--hairline)] ring-1 ring-[var(--accent-blue)]" title={`Assigned to ${assignee.name}`}>
+                      {assignee.name?.[0]?.toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -558,7 +606,37 @@ export function TodoCard({
                 />
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              {isPublished && (
+                <div className="grid gap-4 md:grid-cols-2 mb-4">
+                  <div>
+                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                      Assigned To
+                    </label>
+                    <select
+                      value={assignedTo}
+                      onChange={(event) => setAssignedTo(event.target.value)}
+                      className="input-field"
+                    >
+                      <option value="">Unassigned</option>
+                      {(boardMembers ?? []).map((m: any) => (
+                        <option key={m._id} value={m._id}>
+                          {m.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                      Created By
+                    </label>
+                    <div className="input-field flex items-center bg-[var(--surface-elevated)] cursor-not-allowed opacity-70">
+                      {creator ? creator.name : "System"}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className={`grid gap-4 ${groupOptions ? "md:grid-cols-4" : "md:grid-cols-2"}`}>
                 <div>
                   <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
                     Status
@@ -590,47 +668,44 @@ export function TodoCard({
                     <option value="low">Low</option>
                   </select>
                 </div>
+
+                {groupOptions ? (
+                  <>
+                    <div>
+                      <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                        Group
+                      </label>
+                      <select
+                        value={groupId}
+                        onChange={(event) => setGroupId(event.target.value)}
+                        disabled={locationValue !== (task.scope === "private" ? "private" : (task.workspaceId ?? ""))}
+                        className="input-field"
+                      >
+                        <option value="">No group</option>
+                        {groupOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
+                        Workspace
+                      </label>
+                      <select value={locationValue} onChange={(event) => setLocationValue(event.target.value)} className="input-field">
+                        <option value="private">Private</option>
+                        {(workspaceOptions ?? []).map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : null}
               </div>
-
-              {groupOptions ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
-                      Group
-                    </label>
-                    <select
-                      value={groupId}
-                      onChange={(event) => setGroupId(event.target.value)}
-                      disabled={locationValue !== (task.scope === "private" ? "private" : (task.workspaceId ?? ""))}
-                      className="input-field"
-                    >
-                      <option value="">No group</option>
-                      {groupOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    {locationValue !== (task.scope === "private" ? "private" : (task.workspaceId ?? "")) ? (
-                      <p className="mt-2 text-xs" style={{ color: "var(--mute)" }}>Group resets when moving to a new workspace or private.</p>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-xs font-medium" style={{ color: "var(--body)" }}>
-                      Workspace
-                    </label>
-                    <select value={locationValue} onChange={(event) => setLocationValue(event.target.value)} className="input-field">
-                      <option value="private">Private</option>
-                      {(workspaceOptions ?? []).map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              ) : null}
 
               <div>
                 <div className="mb-2 flex items-center justify-between">

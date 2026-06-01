@@ -15,6 +15,22 @@ export default defineSchema({
     bio: v.optional(v.string()),
     description: v.optional(v.string()),
     currentCompany: v.optional(v.string()),
+    hierarchyEditorSettings: v.optional(v.object({
+      themeName: v.union(
+        v.literal("Solarized Dark"),
+        v.literal("Solarized Light"),
+        v.literal("Nord"),
+        v.literal("Dracula"),
+        v.literal("Monokai"),
+        v.literal("Clean Light")
+      ),
+      textSize: v.union(v.literal(11), v.literal(12), v.literal(13), v.literal(15)),
+      fontFamily: v.union(
+        v.literal("monospace"),
+        v.literal("sans-serif"),
+        v.literal("Georgia, serif")
+      ),
+    })),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_token_identifier", ["tokenIdentifier"])

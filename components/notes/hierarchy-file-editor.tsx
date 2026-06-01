@@ -1,7 +1,14 @@
 "use client";
 
 import { useState, useCallback, useEffect, createContext, useContext, useRef, type DragEvent } from "react";
-import { FileText, GitBranch, Tag, Calendar, ChevronDown, ChevronRight, Settings2, X, PlusCircle, Trash2, Bold, Italic, Code, List, ListOrdered, Quote, Code2, GripVertical, ArrowUp, ArrowDown } from "lucide-react";
+import { FileText, GitBranch, Tag, Calendar, ChevronDown, ChevronRight, Settings2, X, PlusCircle, Trash2, Bold, Italic, Code, List, ListOrdered, Quote, Code2, GripVertical, ArrowUp, ArrowDown, Pencil, Sparkles, MessageSquare, Check } from "lucide-react";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 
 // ─── Settings & Themes ───────────────────────────────────────────────────────
 
@@ -102,8 +109,30 @@ const THEMES: ThemeConfig[] = [
 ];
 
 interface HierarchySettings { theme: ThemeConfig; textSize: number; fontFamily: string; }
+export type HierarchyThemeName = "Solarized Dark" | "Solarized Light" | "Nord" | "Dracula" | "Monokai" | "Clean Light";
+export type HierarchyTextSize = 11 | 12 | 13 | 15;
+export type HierarchyFontFamily = "monospace" | "sans-serif" | "Georgia, serif";
+export type HierarchyEditorSettingsValue = { themeName: HierarchyThemeName; textSize: HierarchyTextSize; fontFamily: HierarchyFontFamily };
 const defaultSettings: HierarchySettings = { theme: THEMES[0], textSize: 12, fontFamily: "monospace" };
 const SettingsCtx = createContext<HierarchySettings>(defaultSettings);
+const HISTORY_LIMIT = 100;
+const VALID_TEXT_SIZES = new Set<HierarchyTextSize>([11, 12, 13, 15]);
+const VALID_FONT_FAMILIES = new Set<HierarchyFontFamily>(["monospace", "sans-serif", "Georgia, serif"]);
+
+function settingsFromValue(value?: HierarchyEditorSettingsValue | null): HierarchySettings {
+  const theme = THEMES.find((item) => item.name === value?.themeName) ?? defaultSettings.theme;
+  const textSize = value && VALID_TEXT_SIZES.has(value.textSize) ? value.textSize : defaultSettings.textSize;
+  const fontFamily = value && VALID_FONT_FAMILIES.has(value.fontFamily) ? value.fontFamily : defaultSettings.fontFamily;
+  return { theme, textSize, fontFamily };
+}
+
+function settingsToValue(settings: HierarchySettings): HierarchyEditorSettingsValue {
+  return {
+    themeName: settings.theme.name as HierarchyThemeName,
+    textSize: settings.textSize as HierarchyTextSize,
+    fontFamily: settings.fontFamily as HierarchyFontFamily,
+  };
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -439,6 +468,14 @@ function getSectionDropIntent(event: DragEvent<HTMLElement>, section: Section): 
   return section.level < 6 ? "inside" : "after";
 }
 
+function getSectionMarkdown(section: Section) {
+  return treeToMarkdown([section], null).trim();
+}
+
+function openRitsAi(prompt: string) {
+  window.dispatchEvent(new CustomEvent("rits-ai:open", { detail: { prompt } }));
+}
+
 function treeToMarkdown(sections: Section[], fm: Record<string, unknown> | null): string {
   let md = "";
   if (fm) {
@@ -650,23 +687,56 @@ function EditableSectionBox({ section, depth, onUpdate, onAddChild, onDelete, on
 
 // ─── Section box (recursive) ──────────────────────────────────────────────────
 
-function SectionBox({ section, depth, onAddChild, readOnly }: { section: Section; depth: number; onAddChild?: (parentId: string) => void; readOnly?: boolean }) {
+function SectionBox({
+  section,
+  depth,
+  onAddChild,
+  readOnly,
+  editingSectionId,
+  onEditSection,
+  onFinishEditing,
+  onUpdate,
+  onDelete,
+  onExplain,
+  onOpenChat,
+}: {
+  section: Section;
+  depth: number;
+  onAddChild?: (parentId: string) => void;
+  readOnly?: boolean;
+  editingSectionId?: string | null;
+  onEditSection?: (id: string) => void;
+  onFinishEditing?: () => void;
+  onUpdate?: (id: string, changes: Partial<Pick<Section, "title" | "content">>) => void;
+  onDelete?: (id: string) => void;
+  onExplain?: (section: Section) => void;
+  onOpenChat?: (section: Section) => void;
+}) {
   const [collapsed, setCollapsed] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
   const { theme, textSize, fontFamily } = useContext(SettingsCtx);
   const levels = theme.levels;
   const style = levels[Math.min(section.level - 1, levels.length - 1)];
   const hasChildren = section.children.length > 0;
   const hasContent = section.content.some((l) => l.trim());
   const headingSize = textSize + (section.level === 1 ? 3 : section.level === 2 ? 1 : 0);
+  const isEditing = editingSectionId === section.id;
+  const contentValue = section.content.join("\n");
 
-  return (
+  useEffect(() => {
+    if (!isEditing || !taRef.current) return;
+    taRef.current.style.height = "auto";
+    taRef.current.style.height = `${taRef.current.scrollHeight}px`;
+  }, [contentValue, isEditing]);
+
+  const box = (
     <div
       className="flex flex-col w-full border"
       style={{ borderColor: style.accent + "88", background: style.bg }}
     >
       {/* Header */}
       <div
-        className="flex items-center gap-2 px-3 cursor-pointer select-none sticky group"
+        className={`flex items-center gap-2 px-3 select-none sticky group ${isEditing ? "" : "cursor-pointer"}`}
         style={{
           top: depth * 36,
           zIndex: 50 - depth,
@@ -674,7 +744,9 @@ function SectionBox({ section, depth, onAddChild, readOnly }: { section: Section
           background: style.headerBg,
           borderBottom: (hasContent || hasChildren) && !collapsed ? "1px solid " + style.accent + "66" : "none",
         }}
-        onClick={() => setCollapsed((c) => !c)}
+        onClick={() => {
+          if (!isEditing) setCollapsed((c) => !c);
+        }}
       >
         <span
           className="shrink-0 text-[9px] font-bold px-1.5 py-0.5"
@@ -682,12 +754,37 @@ function SectionBox({ section, depth, onAddChild, readOnly }: { section: Section
         >
           {style.label}
         </span>
-        <span
-          className="flex-1 font-semibold leading-snug truncate"
-          style={{ color: style.textColor, fontSize: `${headingSize}px`, fontFamily }}
-        >
-          {section.title}
-        </span>
+        {isEditing ? (
+          <input
+            value={section.title}
+            onChange={(event) => onUpdate?.(section.id, { title: event.target.value })}
+            onClick={(event) => event.stopPropagation()}
+            autoFocus
+            className="flex-1 bg-transparent outline-none border-none font-semibold leading-snug"
+            style={{ color: style.textColor, fontSize: `${headingSize}px`, fontFamily }}
+          />
+        ) : (
+          <span
+            className="flex-1 font-semibold leading-snug truncate"
+            style={{ color: style.textColor, fontSize: `${headingSize}px`, fontFamily }}
+          >
+            {section.title}
+          </span>
+        )}
+        {isEditing && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onFinishEditing?.();
+            }}
+            className="shrink-0 p-0.5 rounded transition-opacity hover:opacity-80"
+            style={{ color: style.accent }}
+            title="Done editing"
+          >
+            <Check size={13} />
+          </button>
+        )}
         {!readOnly && onAddChild && section.level < 6 && (
           <button
             onClick={(e) => { e.stopPropagation(); onAddChild(section.id); }}
@@ -706,23 +803,73 @@ function SectionBox({ section, depth, onAddChild, readOnly }: { section: Section
       </div>
 
       {/* Body */}
-      {!collapsed && (hasContent || hasChildren) && (
+      {!collapsed && (hasContent || hasChildren || isEditing) && (
         <div className="flex flex-col gap-0" style={{ background: style.bg }}>
-          {hasContent && (
+          {isEditing ? (
+            <div className="px-3 py-2">
+              <textarea
+                ref={taRef}
+                value={contentValue}
+                onChange={(event) => onUpdate?.(section.id, { content: event.target.value.split("\n") })}
+                rows={1}
+                className="w-full resize-none outline-none bg-transparent leading-relaxed"
+                style={{ color: theme.bodyText, fontSize: `${textSize}px`, fontFamily, minHeight: 28, overflow: "hidden" }}
+              />
+            </div>
+          ) : hasContent ? (
             <div className="px-3 py-2">
               <ContentBlocks lines={section.content} />
             </div>
-          )}
+          ) : null}
           {hasChildren && (
             <div className="flex flex-col gap-1" style={{ padding: "4px 8px 6px 16px" }}>
               {section.children.map((child) => (
-                <SectionBox key={child.id} section={child} depth={depth + 1} onAddChild={onAddChild} readOnly={readOnly} />
+                <SectionBox
+                  key={child.id}
+                  section={child}
+                  depth={depth + 1}
+                  onAddChild={onAddChild}
+                  readOnly={readOnly}
+                  editingSectionId={editingSectionId}
+                  onEditSection={onEditSection}
+                  onFinishEditing={onFinishEditing}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  onExplain={onExplain}
+                  onOpenChat={onOpenChat}
+                />
               ))}
             </div>
           )}
         </div>
       )}
     </div>
+  );
+
+  if (!readOnly) return box;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{box}</ContextMenuTrigger>
+      <ContextMenuContent
+        className="z-[120] min-w-48 border p-1 shadow-xl"
+        style={{ borderColor: theme.faintBorder, backgroundColor: theme.tabBg, color: theme.bodyText }}
+      >
+        <ContextMenuItem onSelect={() => onEditSection?.(section.id)}>
+          <Pencil size={14} /> Edit block
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onExplain?.(section)}>
+          <Sparkles size={14} /> AI explain
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => onOpenChat?.(section)}>
+          <MessageSquare size={14} /> Open chat with AI
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onSelect={() => onDelete?.(section.id)}>
+          <Trash2 size={14} /> Remove block
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -921,45 +1068,101 @@ function HighlightedSourceEditor({ value, onChange, onKeyDown, theme, textSize, 
 
 // ─── Main component ─────────────────────────────────────────────────────
 
-interface HierarchyFileEditorProps { content: string; onChange: (value: string) => void; readOnly?: boolean; }
+interface HierarchyFileEditorProps {
+  content: string;
+  onChange: (value: string) => void;
+  readOnly?: boolean;
+  viewMode?: "read" | "edit";
+  onViewModeChange?: (mode: "read" | "edit") => void;
+  settingsValue?: HierarchyEditorSettingsValue | null;
+  onSettingsValueChange?: (settings: HierarchyEditorSettingsValue) => void;
+}
 
-export function HierarchyFileEditor({ content, onChange, readOnly = false }: HierarchyFileEditorProps) {
+export function HierarchyFileEditor({ content, onChange, readOnly = false, viewMode, onViewModeChange, settingsValue, onSettingsValueChange }: HierarchyFileEditorProps) {
   const [mode, setMode] = useState<"source" | "hierarchy">("hierarchy");
-  const [settings, setSettings] = useState<HierarchySettings>(defaultSettings);
+  const [fallbackSettings, setFallbackSettings] = useState<HierarchySettings>(() => settingsFromValue(settingsValue));
   const [showSettings, setShowSettings] = useState(false);
   const [text, setText] = useState(() => migrateIfJson(content || createDefaultHierarchyContent()));
+  const editorRootRef = useRef<HTMLDivElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
 
   // ── Edit-mode tree state ──────────────────────────────────────────────
   const [editTree, setEditTree] = useState<Section[]>(() => parseMarkdownTree(parseFrontmatter(migrateIfJson(content || createDefaultHierarchyContent())).body));
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; intent: SectionDropIntent } | null>(null);
+  const [readEditingSectionId, setReadEditingSectionId] = useState<string | null>(null);
+  const latestTextRef = useRef(text);
+  const undoStackRef = useRef<string[]>([]);
+  const redoStackRef = useRef<string[]>([]);
   const isInternalRef = useRef(false);
 
-  const applyTree = useCallback((next: Section[]) => {
-    setEditTree(next);
-    const { fm: curFm } = parseFrontmatter(text);
-    const newMd = treeToMarkdown(next, curFm);
+  const restoreSnapshot = useCallback((nextText: string) => {
+    latestTextRef.current = nextText;
     isInternalRef.current = true;
-    setText(newMd);
-    onChange(newMd);
+    setText(nextText);
+    setEditTree(parseMarkdownTree(parseFrontmatter(nextText).body));
+    setReadEditingSectionId(null);
+    onChange(nextText);
     requestAnimationFrame(() => { isInternalRef.current = false; });
-  }, [onChange, text]);
+  }, [onChange]);
+
+  const recordUndoSnapshot = useCallback((snapshot: string) => {
+    const undoStack = undoStackRef.current;
+    if (undoStack[undoStack.length - 1] === snapshot) return;
+    undoStackRef.current = [...undoStack, snapshot].slice(-HISTORY_LIMIT);
+  }, []);
+
+  const commitText = useCallback((nextText: string, nextTree?: Section[]) => {
+    const currentText = latestTextRef.current;
+    if (nextText === currentText) {
+      if (nextTree) setEditTree(nextTree);
+      return;
+    }
+
+    recordUndoSnapshot(currentText);
+    redoStackRef.current = [];
+    latestTextRef.current = nextText;
+    isInternalRef.current = true;
+    setText(nextText);
+    setEditTree(nextTree ?? parseMarkdownTree(parseFrontmatter(nextText).body));
+    onChange(nextText);
+    requestAnimationFrame(() => { isInternalRef.current = false; });
+  }, [onChange, recordUndoSnapshot]);
+
+  const undo = useCallback(() => {
+    const previous = undoStackRef.current.at(-1);
+    if (!previous) return false;
+
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    redoStackRef.current = [...redoStackRef.current, latestTextRef.current].slice(-HISTORY_LIMIT);
+    restoreSnapshot(previous);
+    return true;
+  }, [restoreSnapshot]);
+
+  const redo = useCallback(() => {
+    const next = redoStackRef.current.at(-1);
+    if (!next) return false;
+
+    redoStackRef.current = redoStackRef.current.slice(0, -1);
+    undoStackRef.current = [...undoStackRef.current, latestTextRef.current].slice(-HISTORY_LIMIT);
+    restoreSnapshot(next);
+    return true;
+  }, [restoreSnapshot]);
+
+  const applyTree = useCallback((next: Section[]) => {
+    const { fm: curFm } = parseFrontmatter(latestTextRef.current);
+    const newMd = treeToMarkdown(next, curFm);
+    commitText(newMd, next);
+  }, [commitText]);
 
   const handleUpdateSection = useCallback((id: string, changes: Partial<Pick<Section, "title" | "content">>) => {
-    setEditTree((prev) => {
-      const next = updateSectionInTree(prev, id, changes);
-      const { fm: curFm } = parseFrontmatter(text);
-      const newMd = treeToMarkdown(next, curFm);
-      isInternalRef.current = true;
-      setText(newMd);
-      onChange(newMd);
-      requestAnimationFrame(() => { isInternalRef.current = false; });
-      return next;
-    });
-  }, [onChange, text]);
+    const next = updateSectionInTree(editTree, id, changes);
+    const { fm: curFm } = parseFrontmatter(latestTextRef.current);
+    commitText(treeToMarkdown(next, curFm), next);
+  }, [commitText, editTree]);
 
   const handleDeleteSection = useCallback((id: string) => {
+    setReadEditingSectionId(null);
     applyTree(deleteSectionFromTree(editTree, id));
   }, [applyTree, editTree]);
 
@@ -1010,13 +1213,39 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false }: Hie
     resetSectionDrag();
   }, [applyTree, draggedSectionId, dropTarget, editTree, resetSectionDrag]);
 
+  const handleExplainSection = useCallback((section: Section) => {
+    openRitsAi(`Explain this hierarchy block clearly and call out the main idea, important details, and any implied next steps.\n\n${getSectionMarkdown(section)}`);
+  }, []);
+
+  const handleOpenSectionChat = useCallback((section: Section) => {
+    openRitsAi(`Use this hierarchy block as context for our chat. I may ask follow-up questions about it.\n\n${getSectionMarkdown(section)}`);
+  }, []);
+
+  const handleHistoryKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((!event.ctrlKey && !event.metaKey) || event.altKey) return;
+
+    const key = event.key.toLowerCase();
+    const isUndo = key === "z" && !event.shiftKey;
+    const isRedo = (key === "z" && event.shiftKey) || key === "y";
+    if (!isUndo && !isRedo) return;
+
+    const handled = isUndo ? undo() : redo();
+    if (!handled) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, [redo, undo]);
+
   useEffect(() => {
     if (isInternalRef.current) return;
     const migrated = migrateIfJson(content || createDefaultHierarchyContent());
     setText((prev) => {
       if (migrated !== prev) {
         const { body } = parseFrontmatter(migrated);
+        latestTextRef.current = migrated;
+        undoStackRef.current = [];
+        redoStackRef.current = [];
         setEditTree(parseMarkdownTree(body));
+        setReadEditingSectionId(null);
         return migrated;
       }
       return prev;
@@ -1035,34 +1264,41 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false }: Hie
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const next = e.target.value;
-    setText(next);
-    setEditTree(parseMarkdownTree(parseFrontmatter(next).body));
-    onChange(next);
-  }, [onChange]);
+    commitText(next);
+  }, [commitText]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.defaultPrevented) return;
     if (e.key === "Tab") {
       e.preventDefault();
       const ta = e.currentTarget, s = ta.selectionStart;
       const val = ta.value.slice(0, s) + "  " + ta.value.slice(ta.selectionEnd);
       ta.value = val; ta.selectionStart = ta.selectionEnd = s + 2;
-      setText(val);
-      setEditTree(parseMarkdownTree(parseFrontmatter(val).body));
-      onChange(val);
+      commitText(val);
     }
-  }, [onChange]);
+  }, [commitText]);
 
-  const { fm, body } = parseFrontmatter(text);
-  const tree = parseMarkdownTree(body);
-  const visibleTree = readOnly ? tree : editTree;
+  const { fm } = parseFrontmatter(text);
+  const visibleTree = editTree;
+  const settings = settingsValue ? settingsFromValue(settingsValue) : fallbackSettings;
   const t = settings.theme;
+  const handleSettingsChange = useCallback((next: HierarchySettings) => {
+    if (!settingsValue) setFallbackSettings(next);
+    onSettingsValueChange?.(settingsToValue(next));
+  }, [onSettingsValueChange, settingsValue]);
 
   // In readOnly mode, force hierarchy view
   const effectiveMode = readOnly ? "hierarchy" : mode;
 
   return (
     <SettingsCtx.Provider value={settings}>
-      <div className="h-full w-full flex flex-col overflow-hidden" style={{ background: t.rootBg }}>
+      <div
+        ref={editorRootRef}
+        className="h-full w-full flex flex-col overflow-hidden"
+        style={{ background: t.rootBg }}
+        tabIndex={-1}
+        onKeyDownCapture={handleHistoryKeyDown}
+      >
         {/* Tab bar */}
         <div className="flex items-center gap-1 px-3 py-1.5 shrink-0 relative z-[60]" ref={settingsPanelRef} style={{ background: t.tabBg, borderBottom: "1px solid " + t.tabBorder }}>
           {!readOnly && (["source", "hierarchy"] as const).map((m) => (
@@ -1072,9 +1308,39 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false }: Hie
               {m === "source" ? <FileText size={12} /> : <GitBranch size={12} />} {m}
             </button>
           ))}
-          {readOnly && (
+          {onViewModeChange ? (
+            <div className="flex items-center p-0.5" style={{ background: t.rootBg, border: "1px solid " + t.faintBorder }}>
+              <button
+                type="button"
+                onClick={() => onViewModeChange("read")}
+                className="px-2.5 py-1 text-xs font-medium transition-colors"
+                style={{
+                  background: viewMode === "read" ? t.levels[0].accent + "28" : "transparent",
+                  color: viewMode === "read" ? t.levels[0].accent : t.mutedText,
+                }}
+              >
+                Read
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewModeChange("edit")}
+                className="px-2.5 py-1 text-xs font-medium transition-colors"
+                style={{
+                  background: viewMode === "edit" ? t.levels[0].accent + "28" : "transparent",
+                  color: viewMode === "edit" ? t.levels[0].accent : t.mutedText,
+                }}
+              >
+                Edit
+              </button>
+            </div>
+          ) : readOnly ? (
             <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium" style={{ color: t.levels[0].accent }}>
-              <GitBranch size={12} /> Read Only
+              <GitBranch size={12} /> Read
+            </span>
+          ) : null}
+          {readOnly && (
+            <span className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium" style={{ color: t.mutedText }}>
+              <GitBranch size={12} /> Hierarchy
             </span>
           )}
           {!readOnly && mode === "hierarchy" && (
@@ -1089,13 +1355,11 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false }: Hie
               <PlusCircle size={12} /> Root
             </button>
           )}
-          {!readOnly && (
-            <button onClick={() => setShowSettings((v) => !v)} className="ml-auto p-1.5 cursor-pointer transition-colors"
-              style={{ color: showSettings ? t.levels[0].accent : t.mutedText }}>
-              <Settings2 size={14} />
-            </button>
-          )}
-          {!readOnly && showSettings && <SettingsPanel settings={settings} onChange={setSettings} onClose={() => setShowSettings(false)} />}
+          <button onClick={() => setShowSettings((v) => !v)} className="ml-auto p-1.5 cursor-pointer transition-colors"
+            style={{ color: showSettings ? t.levels[0].accent : t.mutedText }}>
+            <Settings2 size={14} />
+          </button>
+          {showSettings && <SettingsPanel settings={settings} onChange={handleSettingsChange} onClose={() => setShowSettings(false)} />}
         </div>
 
         {/* Content */}
@@ -1113,7 +1377,21 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false }: Hie
                   <p className="text-xs opacity-60 mt-1">Switch to Source and add # headings</p>
                 </div>
               ) : readOnly
-                ? tree.map((s) => <SectionBox key={s.id} section={s} depth={0} readOnly />) 
+                ? visibleTree.map((s) => (
+                  <SectionBox
+                    key={s.id}
+                    section={s}
+                    depth={0}
+                    readOnly
+                    editingSectionId={readEditingSectionId}
+                    onEditSection={setReadEditingSectionId}
+                    onFinishEditing={() => setReadEditingSectionId(null)}
+                    onUpdate={handleUpdateSection}
+                    onDelete={handleDeleteSection}
+                    onExplain={handleExplainSection}
+                    onOpenChat={handleOpenSectionChat}
+                  />
+                ))
                 : editTree.map((s) => (
                   <EditableSectionBox
                     key={s.id}

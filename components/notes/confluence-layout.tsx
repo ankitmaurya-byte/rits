@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { 
   Copy, FileText, Trash2, Clock, Menu, ChevronRight,
@@ -9,7 +9,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { NoteEditor } from "@/components/notes/editor";
 import { DatabaseFileEditor, createDefaultDatabaseContent, getDatabasePreviewText, isDatabaseFileContent } from "@/components/notes/database-file-editor";
-import { HierarchyFileEditor, createDefaultHierarchyContent, isHierarchyFileContent } from "@/components/notes/hierarchy-file-editor";
+import { HierarchyFileEditor, createDefaultHierarchyContent, isHierarchyFileContent, type HierarchyEditorSettingsValue } from "@/components/notes/hierarchy-file-editor";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -87,6 +87,11 @@ const EMPTY_NOTES: NoteDoc[] = [];
 const SIDEBAR_DEFAULT_WIDTH = 240;
 const SIDEBAR_MIN_WIDTH = 200;
 const SIDEBAR_MAX_WIDTH = 520;
+const DEFAULT_HIERARCHY_SETTINGS_VALUE: HierarchyEditorSettingsValue = {
+  themeName: "Solarized Dark",
+  textSize: 12,
+  fontFamily: "monospace",
+};
 
 function clampSidebarWidth(width: number) {
   return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width));
@@ -456,6 +461,7 @@ export function ConfluenceLayout({
   const [draggedNoteId, setDraggedNoteId] = useState<Id<"notes"> | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: Id<"notes">; intent: DropIntent } | null>(null);
   const [galleryDropActive, setGalleryDropActive] = useState(false);
+  const [pendingHierarchySettings, setPendingHierarchySettings] = useState<HierarchyEditorSettingsValue | null>(null);
   const [initialUrlNoteId] = useState(() => (
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("noteId")
   ));
@@ -471,6 +477,17 @@ export function ConfluenceLayout({
   }, [allNotes, dismissedUrlNoteId, initialUrlNoteId]);
   const activePreviewNote = previewNote ?? urlPreviewNote;
   const activePreviewFileType = getNoteFileType(activePreviewNote);
+  const savedHierarchySettings = convexUser?.hierarchyEditorSettings ?? null;
+  const activeHierarchySettings = pendingHierarchySettings ?? savedHierarchySettings ?? DEFAULT_HIERARCHY_SETTINGS_VALUE;
+  const updateHierarchyEditorSettings = useMutation(api.users.updateHierarchyEditorSettings);
+  const handleHierarchySettingsChange = useCallback((settings: HierarchyEditorSettingsValue) => {
+    setPendingHierarchySettings(settings);
+    void updateHierarchyEditorSettings(settings).catch((error) => {
+      console.error(error);
+      setPendingHierarchySettings(null);
+      toast.error("Failed to save hierarchy appearance.");
+    });
+  }, [updateHierarchyEditorSettings]);
 
   useEffect(() => {
     if (view !== "gallery" || !currentFolderId) return;
@@ -820,6 +837,8 @@ export function ConfluenceLayout({
               ) : activePreviewFileType === "hierarchy" ? (
                 <HierarchyFileEditor
                   content={activePreviewNote.content}
+                  settingsValue={activeHierarchySettings}
+                  onSettingsValueChange={handleHierarchySettingsChange}
                   onChange={(value) => {
                     updateNote({ id: activePreviewNote._id, content: value, title: activePreviewNote.title, fileType: "hierarchy" });
                     setPreviewNote({ ...activePreviewNote, content: value });
@@ -990,32 +1009,33 @@ export function ConfluenceLayout({
             )}
             {activeNote ? (
               <div className="flex-1 overflow-hidden relative z-10 bg-[var(--surface-card)] flex flex-col">
-                {/* Read / Edit mode toggle bar */}
-                <div className="flex items-center gap-2 px-4 py-2 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
-                  <span className="text-xs font-medium truncate max-w-[200px]" style={{ color: "var(--mute)" }}>{activeNote.title}</span>
-                  <div className="ml-auto flex items-center p-0.5 rounded-lg" style={{ background: "var(--surface-deep)", border: "1px solid var(--hairline-strong)" }}>
-                    <button
-                      onClick={() => setEditorMode("read")}
-                      className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                        editorMode === "read"
-                          ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm"
-                          : "text-[var(--charcoal)] hover:text-[var(--ink)]"
-                      }`}
-                    >
-                      👁 Read
-                    </button>
-                    <button
-                      onClick={() => setEditorMode("edit")}
-                      className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
-                        editorMode === "edit"
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-[var(--charcoal)] hover:text-[var(--ink)]"
-                      }`}
-                    >
-                      ✏️ Edit
-                    </button>
+                {activeNoteFileType !== "hierarchy" && (
+                  <div className="flex items-center gap-2 px-4 py-2 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
+                    <span className="text-xs font-medium truncate max-w-[200px]" style={{ color: "var(--mute)" }}>{activeNote.title}</span>
+                    <div className="ml-auto flex items-center p-0.5 rounded-lg" style={{ background: "var(--surface-deep)", border: "1px solid var(--hairline-strong)" }}>
+                      <button
+                        onClick={() => setEditorMode("read")}
+                        className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                          editorMode === "read"
+                            ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm"
+                            : "text-[var(--charcoal)] hover:text-[var(--ink)]"
+                        }`}
+                      >
+                        Read
+                      </button>
+                      <button
+                        onClick={() => setEditorMode("edit")}
+                        className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                          editorMode === "edit"
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-[var(--charcoal)] hover:text-[var(--ink)]"
+                        }`}
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Editor / Read-only content */}
                 <div className="flex-1 overflow-hidden">
@@ -1024,7 +1044,14 @@ export function ConfluenceLayout({
                     activeNoteFileType === "hierarchy" && isHierarchyFileContent(editContent) ? (
                       <HierarchyFileEditor
                         content={editContent}
-                        onChange={() => {}}
+                        settingsValue={activeHierarchySettings}
+                        onSettingsValueChange={handleHierarchySettingsChange}
+                        viewMode={editorMode}
+                        onViewModeChange={setEditorMode}
+                        onChange={(value) => {
+                          setEditContent(value);
+                          updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "hierarchy" });
+                        }}
                         readOnly
                       />
                     ) : activeNoteFileType === "database" ? (
@@ -1051,6 +1078,10 @@ export function ConfluenceLayout({
                     ) : activeNoteFileType === "hierarchy" ? (
                       <HierarchyFileEditor
                         content={editContent}
+                        settingsValue={activeHierarchySettings}
+                        onSettingsValueChange={handleHierarchySettingsChange}
+                        viewMode={editorMode}
+                        onViewModeChange={setEditorMode}
                         onChange={(value) => {
                           setEditContent(value);
                           updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "hierarchy" });

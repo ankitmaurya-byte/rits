@@ -40,6 +40,7 @@ import { useWorkspaceStore } from "@/store/workspace-store";
 type ChatSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialPrompt?: string;
 };
 
 type AgentKey = "workspace-strategist" | "researcher" | "planner" | "writer";
@@ -410,7 +411,7 @@ function MinimalSelect<T extends string>({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
+export function ChatSheet({ open, onOpenChange, initialPrompt }: ChatSheetProps) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const selectedWorkspaceId = useWorkspaceStore(
@@ -424,15 +425,16 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
       api.workspaces.getMyWorkspaces,
       user ? { clerkId: user.id } : "skip",
     ) ?? [];
+  const initialPromptText = initialPrompt?.trim() ?? "";
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selectedConversationId, setSelectedConversationId] =
     useState<Id<"chatConversations"> | null>(null);
-  const [isStartingNew, setIsStartingNew] = useState(false);
+  const [isStartingNew, setIsStartingNew] = useState(Boolean(initialPromptText));
   const [agentKey, setAgentKey] = useState<AgentKey>("workspace-strategist");
-  const [scopeMode, setScopeMode] = useState<ScopeMode>("all");
-  const [draft, setDraft] = useState("");
+  const [scopeMode, setScopeMode] = useState<ScopeMode>(initialPromptText && selectedWorkspaceId ? "current" : "all");
+  const [draft, setDraft] = useState(initialPromptText);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [, setIsLoadingChat] = useState(false);
@@ -501,12 +503,12 @@ export function ChatSheet({ open, onOpenChange }: ChatSheetProps) {
   }, [messages, open, pendingMessage, isSending]);
 
   useEffect(() => {
-    if (!open || !isLoaded || !user || isStartingNew) return;
+    if (!open || !isLoaded || !user || isStartingNew || initialPrompt?.trim()) return;
     const timeoutId = window.setTimeout(() => {
       void loadChat(selectedConversationId);
     }, 0);
     return () => window.clearTimeout(timeoutId);
-  }, [isLoaded, isStartingNew, loadChat, open, selectedConversationId, user]);
+  }, [initialPrompt, isLoaded, isStartingNew, loadChat, open, selectedConversationId, user]);
 
   const handleSend = async () => {
     const message = draft.trim();

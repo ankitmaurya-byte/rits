@@ -20,6 +20,7 @@ export default function MainLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiOpenRequest, setAiOpenRequest] = useState({ id: 0, prompt: "" });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const mobileNavItems = [
@@ -33,6 +34,22 @@ export default function MainLayout({
   useEffect(() => {
     if (isLoaded && !isSignedIn) router.push("/");
   }, [isLoaded, isSignedIn, router]);
+
+  useEffect(() => {
+    const handleOpenAi = (event: Event) => {
+      const prompt = event instanceof CustomEvent && typeof event.detail?.prompt === "string" ? event.detail.prompt : "";
+      setAiOpenRequest((current) => ({ id: current.id + 1, prompt }));
+      setIsAiOpen(true);
+    };
+
+    window.addEventListener("rits-ai:open", handleOpenAi);
+    return () => window.removeEventListener("rits-ai:open", handleOpenAi);
+  }, []);
+
+  const openAi = () => {
+    setAiOpenRequest((current) => ({ id: current.id + 1, prompt: "" }));
+    setIsAiOpen(true);
+  };
 
   if (!isLoaded || !isSignedIn) {
     return (
@@ -121,7 +138,7 @@ export default function MainLayout({
   {/* Button */}
   <button
     type="button"
-    onClick={() => setIsAiOpen(true)}
+    onClick={openAi}
     aria-label="Chat with Rits AI"
     className="relative z-10 w-[60px] h-[60px] rounded-full flex items-center justify-center transition-transform duration-200 hover:scale-110 active:scale-95"
     style={{
@@ -146,7 +163,7 @@ export default function MainLayout({
     Chat with Rits AI
   </div>
  </div> : null}
-      <ChatSheet open={isAiOpen} onOpenChange={setIsAiOpen} />
+      <ChatSheet key={aiOpenRequest.id} open={isAiOpen} onOpenChange={setIsAiOpen} initialPrompt={aiOpenRequest.prompt} />
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t md:hidden" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "rgba(0,0,0,0.92)", backdropFilter: "blur(14px)" }}>
         <div className="grid grid-cols-5 gap-1 px-2 py-2">
@@ -154,7 +171,7 @@ export default function MainLayout({
             const isAi = href === "__ai__";
             const isActive = !isAi && (pathname === href || pathname.startsWith(href + "/"));
             return (
-              <button key={href} type="button" onClick={() => { if (isAi) setIsAiOpen(true); else router.push(href); }} className="flex flex-col items-center justify-center rounded-xl px-2 py-2 text-[11px] font-medium" style={{ color: isAi ? "var(--ink)" : isActive ? "var(--ink)" : "var(--mute)", backgroundColor: isAi ? "var(--surface-elevated)" : isActive ? "var(--surface-elevated)" : "transparent" }}>
+              <button key={href} type="button" onClick={() => { if (isAi) openAi(); else router.push(href); }} className="flex flex-col items-center justify-center rounded-xl px-2 py-2 text-[11px] font-medium" style={{ color: isAi ? "var(--ink)" : isActive ? "var(--ink)" : "var(--mute)", backgroundColor: isAi ? "var(--surface-elevated)" : isActive ? "var(--surface-elevated)" : "transparent" }}>
                 {isAi ? <RitsAiLogo size={16} /> : Icon ? <Icon size={16} /> : null}
                 <span className="mt-1">{label}</span>
               </button>

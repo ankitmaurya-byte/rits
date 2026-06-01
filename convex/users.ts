@@ -91,6 +91,34 @@ export const updateCurrentUserProfile = mutation({
   },
 });
 
+export const updateHierarchyEditorSettings = mutation({
+  args: {
+    themeName: v.union(
+      v.literal("Solarized Dark"),
+      v.literal("Solarized Light"),
+      v.literal("Nord"),
+      v.literal("Dracula"),
+      v.literal("Monokai"),
+      v.literal("Clean Light")
+    ),
+    textSize: v.union(v.literal(11), v.literal(12), v.literal(13), v.literal(15)),
+    fontFamily: v.union(
+      v.literal("monospace"),
+      v.literal("sans-serif"),
+      v.literal("Georgia, serif")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const { user } = await requireCurrentUser(ctx);
+
+    await ctx.db.patch(user._id, {
+      hierarchyEditorSettings: args,
+    });
+
+    return args;
+  },
+});
+
 export const ensureCurrentUserFromIdentity = internalMutation({
   args: {},
   handler: async (ctx) => {

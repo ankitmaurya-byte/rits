@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } fro
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { 
   Copy, FileText, Trash2, Clock, Menu, ChevronRight,
-  ChevronDown, Folder, FolderPlus, FilePlus, Share2, FolderOpen, Database, Pin, ListTree
+  ChevronDown, Folder, FolderPlus, FilePlus, Share2, FolderOpen, Database, Pin, ListTree, Globe2, Lock, UserPlus, X
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { NoteEditor } from "@/components/notes/editor";
@@ -20,7 +20,25 @@ type Scope = "private" | "workspace";
 type NoteKind = "folder" | "file";
 type NoteFileType = "text" | "database" | "hierarchy";
 type CreateMode = "folder" | "file" | "database" | "hierarchy";
+type NotePermission = "read" | "comment" | "edit";
 type RoomOption = { id: string; label: string; meta: string };
+type NoteShareSettings = {
+  noteId: Id<"notes">;
+  publicShare: {
+    _id: Id<"noteShares">;
+    shareToken: string;
+    linkAccess: "restricted" | "public";
+    permission: NotePermission;
+  } | null;
+  invited: Array<{
+    _id: Id<"noteShares">;
+    shareToken: string;
+    email: string;
+    name: string;
+    image: string | null;
+    permission: NotePermission;
+  }>;
+};
 type DropIntent = "before" | "after" | "inside";
 type ConfirmOptions = {
   title: string;
@@ -168,16 +186,75 @@ function getDropIntent(event: DragEvent<HTMLElement>, target: NoteDoc): DropInte
 function ShareNoteDialog({
   note,
   rooms,
+  shareSettings,
+  isLoadingShareSettings,
   onClose,
   onShare,
-  onCopyLink,
+  onCopyAppUrl,
+  onSetPublicShare,
+  onInviteUser,
+  onRemoveInvite,
+  onCopyShareLink,
 }: {
   note: NoteDoc | null;
   rooms: RoomOption[];
+  shareSettings?: NoteShareSettings | null;
+  isLoadingShareSettings: boolean;
   onClose: () => void;
   onShare: (roomId: string) => void;
-  onCopyLink: (note: NoteDoc) => void;
+  onCopyAppUrl: (note: NoteDoc) => void;
+  onSetPublicShare: (linkAccess: "restricted" | "public", permission: NotePermission) => Promise<void>;
+  onInviteUser: (email: string, permission: NotePermission) => Promise<void>;
+  onRemoveInvite: (shareId: Id<"noteShares">) => Promise<void>;
+  onCopyShareLink: (shareToken?: string | null) => Promise<void>;
 }) {
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePermission, setInvitePermission] = useState<NotePermission>("read");
+  const [generalOverride, setGeneralOverride] = useState<{ noteId: string; linkAccess: "restricted" | "public"; permission: NotePermission } | null>(null);
+  const [isSavingAccess, setIsSavingAccess] = useState(false);
+  const [isInviting, setIsInviting] = useState(false);
+  const activeGeneralOverride = generalOverride && generalOverride.noteId === note?._id ? generalOverride : null;
+  const generalAccess = activeGeneralOverride?.linkAccess ?? shareSettings?.publicShare?.linkAccess ?? "restricted";
+  const generalPermission = activeGeneralOverride?.permission ?? shareSettings?.publicShare?.permission ?? "read";
+
+  const permissionOptions: Array<{ value: NotePermission; label: string }> = [
+    { value: "read", label: "Viewer" },
+    { value: "comment", label: "Commenter" },
+    { value: "edit", label: "Editor" },
+  ];
+
+  const handleAccessChange = async (nextAccess: "restricted" | "public", nextPermission = generalPermission) => {
+    if (note) setGeneralOverride({ noteId: note._id, linkAccess: nextAccess, permission: nextPermission });
+    setIsSavingAccess(true);
+    try {
+      await onSetPublicShare(nextAccess, nextPermission);
+    } finally {
+      setIsSavingAccess(false);
+    }
+  };
+
+  const handlePermissionChange = async (nextPermission: NotePermission) => {
+    if (note) setGeneralOverride({ noteId: note._id, linkAccess: generalAccess, permission: nextPermission });
+    setIsSavingAccess(true);
+    try {
+      await onSetPublicShare(generalAccess, nextPermission);
+    } finally {
+      setIsSavingAccess(false);
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setIsInviting(true);
+    try {
+      await onInviteUser(inviteEmail, invitePermission);
+      setInviteEmail("");
+      setInvitePermission("read");
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
   return (
     <Dialog open={Boolean(note)} onOpenChange={(value) => { if (!value) onClose(); }}>
       <DialogContent className="max-w-2xl gap-0 overflow-hidden p-0 sm:max-w-2xl" overlayClassName="bg-black/35 supports-backdrop-filter:backdrop-blur-[2px]">
@@ -188,15 +265,104 @@ function ShareNoteDialog({
         </div>
         <div className="space-y-5 p-5">
           <div className="rounded-lg border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
-            <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{note?.title}</p>
-            <button
-              type="button"
-              onClick={() => note && onCopyLink(note)}
-              className="btn-outline mt-3 h-9 px-3 text-xs"
-              disabled={!note}
-            >
-              <Copy size={14} /> Copy URL
-            </button>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium" style={{ color: "var(--ink)" }}>{note?.title}</p>
+                <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>Invite people or use a share link with Viewer, Commenter, or Editor access.</p>
+              </div>
+              <button type="button" onClick={() => note && onCopyAppUrl(note)} className="btn-outline h-9 px-3 text-xs" disabled={!note}>
+                <Copy size={14} /> App URL
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>Invite people</p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") void handleInvite(); }}
+                placeholder="name@example.com"
+                className="input-field min-w-0 flex-1"
+              />
+              <select
+                value={invitePermission}
+                onChange={(event) => setInvitePermission(event.target.value as NotePermission)}
+                className="h-10 rounded-md border bg-[var(--surface-elevated)] px-3 text-xs font-medium outline-none"
+                style={{ borderColor: "var(--hairline)", color: "var(--ink)" }}
+              >
+                {permissionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <button type="button" onClick={() => void handleInvite()} disabled={isInviting || !inviteEmail.trim()} className="btn-primary h-10 px-3 text-xs disabled:opacity-50">
+                <UserPlus size={14} /> Invite
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {isLoadingShareSettings ? (
+                <div className="rounded-lg border px-3 py-3 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>Loading people...</div>
+              ) : shareSettings?.invited.length ? shareSettings.invited.map((invite) => (
+                <div key={invite._id} className="flex items-center gap-3 rounded-lg border px-3 py-2" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-elevated)" }}>
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold" style={{ backgroundColor: "var(--surface-deep)", color: "var(--ink)" }}>
+                    {invite.name.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium" style={{ color: "var(--ink)" }}>{invite.name}</p>
+                    <p className="truncate text-xs" style={{ color: "var(--mute)" }}>{invite.email}</p>
+                  </div>
+                  <span className="rounded-full border px-2 py-1 text-[11px] capitalize" style={{ borderColor: "var(--hairline)", color: "var(--charcoal)" }}>
+                    {invite.permission}
+                  </span>
+                  <button type="button" onClick={() => void onCopyShareLink(invite.shareToken)} className="p-1.5 text-[var(--mute)] transition-colors hover:text-[var(--ink)]" title="Copy invite link">
+                    <Copy size={14} />
+                  </button>
+                  <button type="button" onClick={() => void onRemoveInvite(invite._id)} className="p-1.5 text-[var(--mute)] transition-colors hover:text-[var(--accent-red)]" title="Remove access">
+                    <X size={14} />
+                  </button>
+                </div>
+              )) : (
+                <div className="rounded-lg border px-3 py-3 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--mute)" }}>No invited people yet.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-xl border p-4" style={{ borderColor: "var(--hairline)", backgroundColor: "var(--surface-card)" }}>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--mute)" }}>General access</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ backgroundColor: "var(--surface-elevated)", color: "var(--ink)" }}>
+                  {generalAccess === "public" ? <Globe2 size={16} /> : <Lock size={16} />}
+                </span>
+                <div className="min-w-0">
+                  <select
+                    value={generalAccess}
+                    disabled={isSavingAccess}
+                    onChange={(event) => void handleAccessChange(event.target.value as "restricted" | "public")}
+                    className="h-9 rounded-md border bg-[var(--surface-elevated)] px-3 text-sm font-medium outline-none"
+                    style={{ borderColor: "var(--hairline)", color: "var(--ink)" }}
+                  >
+                    <option value="restricted">Restricted</option>
+                    <option value="public">Anyone with the link</option>
+                  </select>
+                  <p className="mt-1 text-xs" style={{ color: "var(--mute)" }}>
+                    {generalAccess === "public" ? "Anyone with the link can access this note." : "Only invited people can access this link."}
+                  </p>
+                </div>
+              </div>
+              <select
+                value={generalPermission}
+                disabled={isSavingAccess}
+                onChange={(event) => void handlePermissionChange(event.target.value as NotePermission)}
+                className="h-9 rounded-md border bg-[var(--surface-elevated)] px-3 text-xs font-medium outline-none"
+                style={{ borderColor: "var(--hairline)", color: "var(--ink)" }}
+              >
+                {permissionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <button type="button" onClick={() => void onCopyShareLink(shareSettings?.publicShare?.shareToken)} className="btn-outline h-9 px-3 text-xs">
+                <Copy size={14} /> Copy link
+              </button>
+            </div>
           </div>
 
           <div>
@@ -592,7 +758,11 @@ export function ConfluenceLayout({
   const [shareNote, setShareNote] = useState<NoteDoc | null>(null);
   const privateRoomsQuery = useQuery(api.socialChats.listPrivateRooms, {});
   const workspaceRoomsQuery = useQuery(api.socialChats.listWorkspaceRooms, scope === "workspace" && workspaceId ? { workspaceId } : "skip");
+  const shareSettings = useQuery(api.notes.getNoteShareSettings, shareNote ? { noteId: shareNote._id } : "skip") as NoteShareSettings | undefined;
   const sendSharedMessage = useMutation(api.socialChats.sendSharedMessage);
+  const setNotePublicShare = useMutation(api.notes.setNotePublicShare);
+  const inviteNoteUser = useMutation(api.notes.inviteNoteUser);
+  const removeNoteInvite = useMutation(api.notes.removeNoteInvite);
 
   const rooms = useMemo(() => {
     const priv = (privateRoomsQuery || []).map((r) => ({ id: r._id, label: r.displayName || r.title, meta: "Private chat" }));
@@ -628,6 +798,63 @@ export function ConfluenceLayout({
       toast.success("Note URL copied.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to copy note URL.");
+    }
+  };
+
+  const getSharedNoteUrl = (shareToken: string) => {
+    const url = new URL(`/share/notes/${shareToken}`, window.location.origin);
+    return url.toString();
+  };
+
+  const handleSetPublicShare = async (linkAccess: "restricted" | "public", permission: NotePermission) => {
+    if (!shareNote) return;
+    try {
+      await setNotePublicShare({ noteId: shareNote._id, linkAccess, permission });
+      toast.success(linkAccess === "public" ? "Public link updated." : "Link access restricted.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update sharing.");
+      throw error;
+    }
+  };
+
+  const handleInviteUser = async (email: string, permission: NotePermission) => {
+    if (!shareNote) return;
+    try {
+      const result = await inviteNoteUser({ noteId: shareNote._id, email, permission });
+      await navigator.clipboard.writeText(getSharedNoteUrl(result.shareToken));
+      toast.success("Invite added and link copied.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to invite user.");
+      throw error;
+    }
+  };
+
+  const handleRemoveInvite = async (shareId: Id<"noteShares">) => {
+    if (!shareNote) return;
+    try {
+      await removeNoteInvite({ noteId: shareNote._id, shareId });
+      toast.success("Access removed.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to remove access.");
+    }
+  };
+
+  const handleCopyShareLink = async (shareToken?: string | null) => {
+    if (!shareNote) return;
+    try {
+      let token = shareToken;
+      if (!token) {
+        const result = await setNotePublicShare({
+          noteId: shareNote._id,
+          linkAccess: shareSettings?.publicShare?.linkAccess ?? "restricted",
+          permission: shareSettings?.publicShare?.permission ?? "read",
+        });
+        token = result.shareToken;
+      }
+      await navigator.clipboard.writeText(getSharedNoteUrl(token));
+      toast.success("Share link copied.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to copy share link.");
     }
   };
 
@@ -860,7 +1087,19 @@ export function ConfluenceLayout({
         ) : null}
       </Dialog>
 
-      <ShareNoteDialog note={shareNote} rooms={rooms} onClose={() => setShareNote(null)} onShare={handleShare} onCopyLink={(note) => void handleCopyNoteUrl(note)} />
+      <ShareNoteDialog
+        note={shareNote}
+        rooms={rooms}
+        shareSettings={shareSettings}
+        isLoadingShareSettings={Boolean(shareNote && shareSettings === undefined)}
+        onClose={() => setShareNote(null)}
+        onShare={handleShare}
+        onCopyAppUrl={(note) => void handleCopyNoteUrl(note)}
+        onSetPublicShare={handleSetPublicShare}
+        onInviteUser={handleInviteUser}
+        onRemoveInvite={handleRemoveInvite}
+        onCopyShareLink={handleCopyShareLink}
+      />
       
       <div className="flex-1 min-h-0 relative flex h-full w-full overflow-hidden bg-[var(--canvas)]">
         <div

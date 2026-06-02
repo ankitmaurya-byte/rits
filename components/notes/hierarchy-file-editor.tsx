@@ -294,6 +294,45 @@ function parseBlocks(lines: string[]): ContentBlock[] {
 
 // ─── Content renderer ─────────────────────────────────────────────────────────
 
+function renderInlineMarkdown(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const tokenPattern = /(\*\*[^*]+?\*\*|__[^_]+?__|~~[^~]+?~~|`[^`]+?`|\[[^\]]+\]\([^)]+\)|\*[^*]+?\*|_[^_]+?_)/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenPattern.exec(text)) !== null) {
+    if (match.index > cursor) nodes.push(text.slice(cursor, match.index));
+    const token = match[0];
+    const key = `${match.index}-${token}`;
+
+    if (token.startsWith("**") && token.endsWith("**")) {
+      nodes.push(<strong key={key}>{token.slice(2, -2).trim()}</strong>);
+    } else if (token.startsWith("__") && token.endsWith("__")) {
+      nodes.push(<strong key={key}>{token.slice(2, -2).trim()}</strong>);
+    } else if (token.startsWith("~~") && token.endsWith("~~")) {
+      nodes.push(<span key={key} style={{ textDecoration: "line-through" }}>{token.slice(2, -2).trim()}</span>);
+    } else if (token.startsWith("`") && token.endsWith("`")) {
+      nodes.push(<code key={key} className="px-1 py-0.5 text-[0.92em]" style={{ background: "rgba(127,127,127,0.16)" }}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("[") && token.includes("](") && token.endsWith(")")) {
+      const close = token.indexOf("](");
+      const label = token.slice(1, close);
+      const href = token.slice(close + 2, -1);
+      nodes.push(<a key={key} href={href} target="_blank" rel="noreferrer" className="underline">{label}</a>);
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      nodes.push(<em key={key}>{token.slice(1, -1).trim()}</em>);
+    } else if (token.startsWith("_") && token.endsWith("_")) {
+      nodes.push(<em key={key}>{token.slice(1, -1).trim()}</em>);
+    } else {
+      nodes.push(token);
+    }
+
+    cursor = match.index + token.length;
+  }
+
+  if (cursor < text.length) nodes.push(text.slice(cursor));
+  return nodes.length ? nodes : [text];
+}
+
 function ContentBlocks({ lines }: { lines: string[] }) {
   const { theme, textSize, fontFamily } = useContext(SettingsCtx);
   const blocks = parseBlocks(lines);
@@ -302,19 +341,19 @@ function ContentBlocks({ lines }: { lines: string[] }) {
     <div className="flex flex-col gap-1.5 leading-relaxed" style={{ color: t.bodyText, fontSize: `${textSize}px`, fontFamily }}>
       {blocks.map((b, i) => {
         if (b.type === "spacer") return <div key={i} className="h-1" />;
-        if (b.type === "paragraph") return <p key={i} style={{ color: t.bodyText }}>{b.text}</p>;
+        if (b.type === "paragraph") return <p key={i} style={{ color: t.bodyText }}>{renderInlineMarkdown(b.text)}</p>;
         if (b.type === "list") return (
           <ul key={i} className="flex flex-col gap-0.5 pl-3">
             {b.items.map((it, j) => (
               <li key={j} className="flex gap-1.5" style={{ color: t.bodyText }}>
-                <span className="shrink-0 mt-[5px] w-1 h-1 rounded-full" style={{ background: t.mutedText }} />{it}
+                <span className="shrink-0 mt-[5px] w-1 h-1 rounded-full" style={{ background: t.mutedText }} />{renderInlineMarkdown(it)}
               </li>
             ))}
           </ul>
         );
         if (b.type === "blockquote") return (
           <div key={i} className="flex gap-2 px-2 py-1.5" style={{ background: t.rootBg, borderLeft: "2px solid " + t.levels[1]?.accent }}>
-            <span className="italic flex-1" style={{ color: t.bodyText }}>{b.text}</span>
+            <span className="italic flex-1" style={{ color: t.bodyText }}>{renderInlineMarkdown(b.text)}</span>
           </div>
         );
         if (b.type === "code") return (
@@ -829,6 +868,7 @@ function EditableLineRow({
   onLineDragEnd: () => void;
 }) {
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const [focused, setFocused] = useState(false);
   const { theme, textSize, fontFamily } = useContext(SettingsCtx);
   const style = theme.levels[Math.min(section.level - 1, theme.levels.length - 1)];
   const lineKey = getLineKey(section.id, lineIndex);
@@ -841,7 +881,16 @@ function EditableLineRow({
     if (!textAreaRef.current) return;
     textAreaRef.current.style.height = "auto";
     textAreaRef.current.style.height = `${textAreaRef.current.scrollHeight}px`;
-  }, [line]);
+  }, [focused, line]);
+
+  useEffect(() => {
+    if (!focused) return;
+    requestAnimationFrame(() => {
+      textAreaRef.current?.focus();
+      const end = textAreaRef.current?.value.length ?? 0;
+      textAreaRef.current?.setSelectionRange(end, end);
+    });
+  }, [focused]);
 
   const runMenuAction = useCallback((action: () => void) => {
     action();
@@ -856,9 +905,14 @@ function EditableLineRow({
       const after = target.value.slice(target.selectionEnd);
       onSplitLine(section.id, lineIndex, before, after);
       requestAnimationFrame(() => {
-        const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${getLineKey(section.id, lineIndex + 1)}"]`);
-        nextInput?.focus();
-        nextInput?.setSelectionRange(0, 0);
+        const nextKey = getLineKey(section.id, lineIndex + 1);
+        const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${nextKey}"]`);
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.setSelectionRange(0, 0);
+          return;
+        }
+        document.querySelector<HTMLButtonElement>(`[data-line-display-key="${nextKey}"]`)?.click();
       });
     }
 
@@ -867,10 +921,15 @@ function EditableLineRow({
       onDeleteLine(section.id, lineIndex);
       requestAnimationFrame(() => {
         const nextIndex = Math.max(0, lineIndex - 1);
-        const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${getLineKey(section.id, nextIndex)}"]`);
-        nextInput?.focus();
-        const end = nextInput?.value.length ?? 0;
-        nextInput?.setSelectionRange(end, end);
+        const nextKey = getLineKey(section.id, nextIndex);
+        const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${nextKey}"]`);
+        if (nextInput) {
+          nextInput.focus();
+          const end = nextInput.value.length;
+          nextInput.setSelectionRange(end, end);
+          return;
+        }
+        document.querySelector<HTMLButtonElement>(`[data-line-display-key="${nextKey}"]`)?.click();
       });
     }
   }, [lineIndex, onDeleteLine, onSplitLine, section.content.length, section.id]);
@@ -944,17 +1003,34 @@ function EditableLineRow({
         </button>
       </div>
 
-      <textarea
-        ref={textAreaRef}
-        data-line-input-key={lineKey}
-        value={line}
-        onChange={(event) => onUpdateLine(section.id, lineIndex, event.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Write text..."
-        rows={1}
-        className="min-h-[26px] flex-1 resize-none bg-transparent py-1 leading-relaxed outline-none"
-        style={{ color: theme.bodyText, fontSize: `${textSize}px`, fontFamily, overflow: "hidden" }}
-      />
+      {focused ? (
+        <textarea
+          ref={textAreaRef}
+          data-line-input-key={lineKey}
+          value={line}
+          onChange={(event) => onUpdateLine(section.id, lineIndex, event.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="Write text..."
+          rows={1}
+          className="min-h-[26px] flex-1 resize-none bg-transparent py-1 leading-relaxed outline-none"
+          style={{ color: theme.bodyText, fontSize: `${textSize}px`, fontFamily, overflow: "hidden" }}
+        />
+      ) : (
+        <button
+          type="button"
+          data-line-display-key={lineKey}
+          className="min-h-[26px] flex-1 py-1 text-left leading-relaxed outline-none"
+          style={{ color: line ? theme.bodyText : theme.mutedText, fontSize: `${textSize}px`, fontFamily }}
+          onClick={(event) => {
+            event.stopPropagation();
+            setFocused(true);
+          }}
+        >
+          {line ? renderInlineMarkdown(line) : "Write text..."}
+        </button>
+      )}
 
       {menuOpen && (
         <div
@@ -1758,9 +1834,14 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
   const handleInsertLine = useCallback((sectionId: string, lineIndex: number) => {
     applyTree(insertSectionLineInTree(editTree, sectionId, lineIndex));
     requestAnimationFrame(() => {
-      const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${getLineKey(sectionId, lineIndex + 1)}"]`);
-      nextInput?.focus();
-      nextInput?.setSelectionRange(0, 0);
+      const nextKey = getLineKey(sectionId, lineIndex + 1);
+      const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${nextKey}"]`);
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.setSelectionRange(0, 0);
+        return;
+      }
+      document.querySelector<HTMLButtonElement>(`[data-line-display-key="${nextKey}"]`)?.click();
     });
   }, [applyTree, editTree]);
 

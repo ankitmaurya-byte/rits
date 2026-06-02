@@ -362,6 +362,32 @@ export default defineSchema({
     .index("by_user_private", ["createdBy", "scope"])
     .index("by_parent", ["parentId"]),
 
+  noteShares: defineTable({
+    noteId: v.id("notes"),
+    ownerId: v.id("users"),
+    shareToken: v.string(),
+    targetUserId: v.optional(v.id("users")),
+    targetEmail: v.optional(v.string()),
+    linkAccess: v.union(v.literal("restricted"), v.literal("public")),
+    permission: v.union(v.literal("read"), v.literal("comment"), v.literal("edit")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_note", ["noteId"])
+    .index("by_share_token", ["shareToken"])
+    .index("by_target_user", ["targetUserId"]),
+
+  noteComments: defineTable({
+    noteId: v.id("notes"),
+    shareToken: v.optional(v.string()),
+    authorUserId: v.optional(v.id("users")),
+    authorName: v.string(),
+    body: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_note", ["noteId"])
+    .index("by_share_token", ["shareToken"]),
+
   todoGroups: defineTable({
     workspaceId: v.optional(v.id("workspaces")),
     boardId: v.optional(v.id("kanbanBoards")),

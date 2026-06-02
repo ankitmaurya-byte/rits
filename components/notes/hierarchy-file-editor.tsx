@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, createContext, useContext, useRef, type DragEvent } from "react";
-import { FileText, GitBranch, Tag, Calendar, ChevronDown, ChevronRight, Settings2, X, PlusCircle, Trash2, Bold, Italic, Code, List, ListOrdered, Quote, Code2, GripVertical, ArrowUp, ArrowDown, Pencil, Sparkles, MessageSquare, Check } from "lucide-react";
+import { FileText, GitBranch, Tag, Calendar, ChevronDown, ChevronRight, Settings2, X, Plus, PlusCircle, Trash2, List, ListOrdered, Quote, Code2, GripVertical, ArrowUp, ArrowDown, Pencil, Sparkles, MessageSquare, Check, RemoveFormatting, Heading2 } from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -142,6 +142,7 @@ interface Section {
   title: string;
   content: string[];
   children: Section[];
+  anchorLineIndex?: number | null;
 }
 
 type ContentBlock =
@@ -153,6 +154,9 @@ type ContentBlock =
   | { type: "spacer" };
 
 type SectionDropIntent = "before" | "after" | "inside";
+type LineTransformType = "text" | "bullet" | "numbered" | "quote" | "code";
+type LineDropTarget = { sectionId: string; lineIndex: number; intent: "before" | "after" };
+type LineMenuState = { sectionId: string; lineIndex: number } | null;
 
 // ─── Frontmatter ─────────────────────────────────────────────────────────────
 
@@ -181,14 +185,22 @@ function parseFrontmatter(text: string): { fm: Record<string, unknown> | null; b
 
 function parseMarkdownTree(body: string): Section[] {
   const lines = body.split("\n");
-  const flat: { level: number; title: string; content: string[] }[] = [];
+  const flat: { level: number; title: string; content: string[]; anchorLineIndex?: number | null }[] = [];
   let cur: typeof flat[0] | null = null;
+  let pendingAnchorLine: number | null = null;
 
   for (const line of lines) {
+    const anchor = line.match(/^<!--\s*rits:child-after=(-?\d+)\s*-->$/);
+    if (anchor) {
+      pendingAnchorLine = Number(anchor[1]);
+      continue;
+    }
+
     const hm = line.match(/^(#{1,6})\s+(.+)$/);
     if (hm) {
       if (cur) flat.push(cur);
-      cur = { level: hm[1].length, title: hm[2].trim(), content: [] };
+      cur = { level: hm[1].length, title: hm[2].trim(), content: [], anchorLineIndex: pendingAnchorLine };
+      pendingAnchorLine = null;
     } else if (cur) {
       if (line.trim() || cur.content.length > 0) cur.content.push(line);
     }
@@ -199,7 +211,7 @@ function parseMarkdownTree(body: string): Section[] {
   const root: Section[] = [];
   const stack: { s: Section; level: number }[] = [];
   for (const f of flat) {
-    const s: Section = { id: Math.random().toString(36).slice(2), level: f.level, title: f.title, content: f.content, children: [] };
+    const s: Section = { id: Math.random().toString(36).slice(2), level: f.level, title: f.title, content: f.content, children: [], anchorLineIndex: f.anchorLineIndex ?? null };
     while (stack.length && stack[stack.length - 1].level >= f.level) stack.pop();
     if (!stack.length) root.push(s);
     else stack[stack.length - 1].s.children.push(s);
@@ -353,6 +365,173 @@ function addChildToSection(sections: Section[], parentId: string, child: Section
   );
 }
 
+function getLineKey(sectionId: string, lineIndex: number) {
+  return `${sectionId}:${lineIndex}`;
+}
+
+function parseLineKey(key: string): { sectionId: string; lineIndex: number } | null {
+  const sep = key.lastIndexOf(":");
+  if (sep < 0) return null;
+  const lineIndex = Number(key.slice(sep + 1));
+  if (!Number.isFinite(lineIndex)) return null;
+  return { sectionId: key.slice(0, sep), lineIndex };
+}
+
+function stripLineMarkup(line: string) {
+  const stripped = line
+    .replace(/^[-*+]\s+/, "")
+    .replace(/^\d+\.\s+/, "")
+    .replace(/^>\s+/, "")
+    .replace(/^`(.+)`$/, "$1")
+    .trim();
+  return stripped;
+}
+
+function transformLineValue(line: string, type: LineTransformType) {
+  const text = stripLineMarkup(line);
+  if (type === "text") return text;
+  if (type === "bullet") return `- ${text}`;
+  if (type === "numbered") return `1. ${text}`;
+  if (type === "quote") return `> ${text}`;
+  return text ? `\`${text}\`` : "`code`";
+}
+
+function remapAnchorAfterRemoving(anchor: number | null | undefined, removedIndices: number[]) {
+  if (typeof anchor !== "number") return anchor ?? null;
+  const removed = new Set(removedIndices);
+  const removedBefore = removedIndices.filter((index) => index < anchor).length;
+  if (removed.has(anchor)) return Math.max(-1, anchor - removedBefore - 1);
+  return anchor - removedBefore;
+}
+
+function shiftAnchorAfterInsert(anchor: number | null | undefined, insertIndex: number, count: number) {
+  if (typeof anchor !== "number") return anchor ?? null;
+  return anchor >= insertIndex ? anchor + count : anchor;
+}
+
+function updateSectionLineInTree(sections: Section[], id: string, lineIndex: number, value: string): Section[] {
+  return sections.map((section) => {
+    if (section.id === id) {
+      const content = section.content.length ? [...section.content] : [""];
+      content[lineIndex] = value;
+      return { ...section, content };
+    }
+
+    return { ...section, children: updateSectionLineInTree(section.children, id, lineIndex, value) };
+  });
+}
+
+function insertSectionLineInTree(sections: Section[], id: string, lineIndex: number): Section[] {
+  return sections.map((section) => {
+    if (section.id === id) {
+      const content = section.content.length ? [...section.content] : [""];
+      const insertIndex = Math.min(Math.max(lineIndex + 1, 0), content.length);
+      content.splice(insertIndex, 0, "");
+      return {
+        ...section,
+        content,
+        children: section.children.map((child) => ({
+          ...child,
+          anchorLineIndex: shiftAnchorAfterInsert(child.anchorLineIndex, insertIndex, 1),
+        })),
+      };
+    }
+
+    return { ...section, children: insertSectionLineInTree(section.children, id, lineIndex) };
+  });
+}
+
+function splitSectionLineInTree(sections: Section[], id: string, lineIndex: number, before: string, after: string): Section[] {
+  return sections.map((section) => {
+    if (section.id === id) {
+      const content = section.content.length ? [...section.content] : [""];
+      content[lineIndex] = before;
+      const insertIndex = Math.min(Math.max(lineIndex + 1, 0), content.length);
+      content.splice(insertIndex, 0, after);
+      return {
+        ...section,
+        content,
+        children: section.children.map((child) => ({
+          ...child,
+          anchorLineIndex: shiftAnchorAfterInsert(child.anchorLineIndex, insertIndex, 1),
+        })),
+      };
+    }
+
+    return { ...section, children: splitSectionLineInTree(section.children, id, lineIndex, before, after) };
+  });
+}
+
+function deleteSectionLineInTree(sections: Section[], id: string, lineIndex: number): Section[] {
+  return sections.map((section) => {
+    if (section.id === id) {
+      const content = [...section.content];
+      if (content.length) content.splice(lineIndex, 1);
+      return {
+        ...section,
+        content,
+        children: section.children.map((child) => ({
+          ...child,
+          anchorLineIndex: remapAnchorAfterRemoving(child.anchorLineIndex, [lineIndex]),
+        })),
+      };
+    }
+
+    return { ...section, children: deleteSectionLineInTree(section.children, id, lineIndex) };
+  });
+}
+
+function transformSectionLineInTree(sections: Section[], id: string, lineIndex: number, type: LineTransformType): Section[] {
+  return sections.map((section) => {
+    if (section.id === id) {
+      const content = section.content.length ? [...section.content] : [""];
+      content[lineIndex] = transformLineValue(content[lineIndex] ?? "", type);
+      return { ...section, content };
+    }
+
+    return { ...section, children: transformSectionLineInTree(section.children, id, lineIndex, type) };
+  });
+}
+
+function addChildToSectionAtLine(sections: Section[], parentId: string, lineIndex: number, child: Section): Section[] {
+  return sections.map((section) =>
+    section.id === parentId
+      ? { ...section, children: [...section.children, { ...child, anchorLineIndex: lineIndex }] }
+      : { ...section, children: addChildToSectionAtLine(section.children, parentId, lineIndex, child) }
+  );
+}
+
+function convertLineToChildSection(sections: Section[], parentId: string, lineIndex: number): Section[] {
+  return sections.map((section) => {
+    if (section.id === parentId) {
+      const content = [...section.content];
+      const title = stripLineMarkup(content[lineIndex] ?? "") || "New Section";
+      if (content.length) content.splice(lineIndex, 1);
+      const child: Section = {
+        id: Math.random().toString(36).slice(2),
+        level: Math.min(section.level + 1, 6),
+        title,
+        content: [""],
+        children: [],
+        anchorLineIndex: lineIndex - 1,
+      };
+      return {
+        ...section,
+        content,
+        children: [
+          ...section.children.map((item) => ({
+            ...item,
+            anchorLineIndex: remapAnchorAfterRemoving(item.anchorLineIndex, [lineIndex]),
+          })),
+          child,
+        ],
+      };
+    }
+
+    return { ...section, children: convertLineToChildSection(section.children, parentId, lineIndex) };
+  });
+}
+
 function findSectionInTree(sections: Section[], id: string): Section | null {
   for (const section of sections) {
     if (section.id === id) return section;
@@ -431,7 +610,97 @@ function moveSectionInTree(sections: Section[], draggedId: string, targetId: str
   if (!removed) return sections;
 
   const level = intent === "inside" ? target.level + 1 : target.level;
-  return insertSectionNearTarget(withoutDragged, targetId, intent, relevelSection(removed, level));
+  const anchorLineIndex = intent === "inside" ? null : target.anchorLineIndex ?? null;
+  return insertSectionNearTarget(withoutDragged, targetId, intent, relevelSection({ ...removed, anchorLineIndex }, level));
+}
+
+function insertSectionIntoParentAtLine(sections: Section[], parentId: string, lineIndex: number, sectionToInsert: Section): Section[] {
+  return sections.map((section) => {
+    if (section.id === parentId) {
+      return {
+        ...section,
+        children: [
+          ...section.children,
+          relevelSection({ ...sectionToInsert, anchorLineIndex: lineIndex }, Math.min(section.level + 1, 6)),
+        ],
+      };
+    }
+
+    return { ...section, children: insertSectionIntoParentAtLine(section.children, parentId, lineIndex, sectionToInsert) };
+  });
+}
+
+function moveSectionToLineInTree(sections: Section[], draggedId: string, parentId: string, lineIndex: number): Section[] {
+  if (draggedId === parentId) return sections;
+
+  const dragged = findSectionInTree(sections, draggedId);
+  const parent = findSectionInTree(sections, parentId);
+  if (!dragged || !parent || parent.level >= 6 || sectionContains(dragged, parentId)) return sections;
+
+  const { sections: withoutDragged, removed } = removeSectionFromTree(sections, draggedId);
+  if (!removed) return sections;
+
+  return insertSectionIntoParentAtLine(withoutDragged, parentId, lineIndex, removed);
+}
+
+function moveContentLinesInTree(
+  sections: Section[],
+  sourceSectionId: string,
+  sourceLineIndices: number[],
+  targetSectionId: string,
+  targetLineIndex: number,
+  intent: "before" | "after"
+): Section[] {
+  const sortedSourceIndices = Array.from(new Set(sourceLineIndices)).sort((a, b) => a - b);
+  if (!sortedSourceIndices.length) return sections;
+  if (sourceSectionId === targetSectionId && sortedSourceIndices.includes(targetLineIndex)) return sections;
+
+  const originalInsertIndex = targetLineIndex + (intent === "after" ? 1 : 0);
+  const insertIndex = sourceSectionId === targetSectionId
+    ? originalInsertIndex - sortedSourceIndices.filter((index) => index < originalInsertIndex).length
+    : originalInsertIndex;
+  let movingLines: string[] = [];
+
+  const removeLines = (items: Section[]): Section[] => items.map((section) => {
+    if (section.id === sourceSectionId) {
+      movingLines = sortedSourceIndices
+        .map((index) => section.content[index])
+        .filter((line): line is string => typeof line === "string");
+      const removed = new Set(sortedSourceIndices);
+      return {
+        ...section,
+        content: section.content.filter((_, index) => !removed.has(index)),
+        children: section.children.map((child) => ({
+          ...child,
+          anchorLineIndex: remapAnchorAfterRemoving(child.anchorLineIndex, sortedSourceIndices),
+        })),
+      };
+    }
+
+    return { ...section, children: removeLines(section.children) };
+  });
+
+  const insertLines = (items: Section[]): Section[] => items.map((section) => {
+    if (section.id === targetSectionId) {
+      const content = [...section.content];
+      const safeInsertIndex = Math.min(Math.max(insertIndex, 0), content.length);
+      content.splice(safeInsertIndex, 0, ...movingLines);
+      return {
+        ...section,
+        content,
+        children: section.children.map((child) => ({
+          ...child,
+          anchorLineIndex: shiftAnchorAfterInsert(child.anchorLineIndex, safeInsertIndex, movingLines.length),
+        })),
+      };
+    }
+
+    return { ...section, children: insertLines(section.children) };
+  });
+
+  const withoutLines = removeLines(sections);
+  if (!movingLines.length) return sections;
+  return insertLines(withoutLines);
 }
 
 function moveSectionByStep(sections: Section[], id: string, direction: -1 | 1): Section[] {
@@ -456,6 +725,20 @@ function moveSectionByStep(sections: Section[], id: string, direction: -1 | 1): 
   };
 
   return moveWithin(sections);
+}
+
+function getChildrenBeforeFirstLine(section: Section) {
+  return section.children.filter((child) => typeof child.anchorLineIndex === "number" && child.anchorLineIndex < 0);
+}
+
+function getChildrenAfterLine(section: Section, lineIndex: number) {
+  return section.children.filter((child) => child.anchorLineIndex === lineIndex);
+}
+
+function getChildrenAtEnd(section: Section, visibleLineCount = section.content.length) {
+  return section.children.filter((child) => (
+    typeof child.anchorLineIndex !== "number" || child.anchorLineIndex >= visibleLineCount
+  ));
 }
 
 function getSectionDropIntent(event: DragEvent<HTMLElement>, section: Section): SectionDropIntent {
@@ -488,88 +771,290 @@ function treeToMarkdown(sections: Section[], fm: Record<string, unknown> | null)
   }
   function render(s: Section): string {
     let r = `${"#".repeat(s.level)} ${s.title}\n\n`;
-    const body = s.content.join("\n").trim();
-    if (body) r += body + "\n\n";
-    for (const c of s.children) r += render(c);
+    const body = s.content.join("\n");
+    if (s.content.some((line) => line.trim())) r += body.endsWith("\n") ? `${body}\n` : `${body}\n\n`;
+    for (const c of s.children) {
+      if (typeof c.anchorLineIndex === "number") r += `<!-- rits:child-after=${c.anchorLineIndex} -->\n`;
+      r += render(c);
+    }
     return r;
   }
   for (const s of sections) md += render(s);
   return md;
 }
 
-// ─── Mini content toolbar ─────────────────────────────────────────────────────
+// ─── Editable section box ─────────────────────────────────────────────────────
 
-function MiniContentToolbar({ taRef, onApply, theme }: {
-  taRef: React.RefObject<HTMLTextAreaElement | null>;
-  onApply: (val: string) => void;
-  theme: ThemeConfig;
+function EditableLineRow({
+  section,
+  line,
+  lineIndex,
+  selected,
+  lineMenu,
+  lineDropTarget,
+  onUpdateLine,
+  onInsertLine,
+  onSplitLine,
+  onDeleteLine,
+  onTransformLine,
+  onAddChildAtLine,
+  onConvertLineToChild,
+  onOpenLineMenu,
+  onLineMouseDown,
+  onLineMouseEnter,
+  onLineDragStart,
+  onLineDragOver,
+  onLineDrop,
+  onLineDragEnd,
+}: {
+  section: Section;
+  line: string;
+  lineIndex: number;
+  selected: boolean;
+  lineMenu: LineMenuState;
+  lineDropTarget: LineDropTarget | null;
+  onUpdateLine: (sectionId: string, lineIndex: number, value: string) => void;
+  onInsertLine: (sectionId: string, lineIndex: number) => void;
+  onSplitLine: (sectionId: string, lineIndex: number, before: string, after: string) => void;
+  onDeleteLine: (sectionId: string, lineIndex: number) => void;
+  onTransformLine: (sectionId: string, lineIndex: number, type: LineTransformType) => void;
+  onAddChildAtLine: (sectionId: string, lineIndex: number) => void;
+  onConvertLineToChild: (sectionId: string, lineIndex: number) => void;
+  onOpenLineMenu: (menu: LineMenuState) => void;
+  onLineMouseDown: (event: React.MouseEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineMouseEnter: (event: React.MouseEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineDragStart: (event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineDragOver: (event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineDrop: (event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineDragEnd: () => void;
 }) {
-  const wrap = useCallback((pre: string, suf: string) => {
-    const ta = taRef.current; if (!ta) return;
-    const s = ta.selectionStart, e = ta.selectionEnd;
-    const sel = ta.value.slice(s, e);
-    const next = ta.value.slice(0, s) + pre + sel + suf + ta.value.slice(e);
-    onApply(next);
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + pre.length, e + pre.length); });
-  }, [onApply, taRef]);
-  const linePrefix = useCallback((pre: string) => {
-    const ta = taRef.current; if (!ta) return;
-    const s = ta.selectionStart;
-    const ls = ta.value.lastIndexOf("\n", s - 1) + 1;
-    const next = ta.value.slice(0, ls) + pre + ta.value.slice(ls);
-    onApply(next);
-    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(s + pre.length, s + pre.length); });
-  }, [onApply, taRef]);
-  const handleMouseDown = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    const { wrapStart, wrapEnd, linePrefix: prefix } = event.currentTarget.dataset;
-    if (typeof wrapStart === "string") wrap(wrapStart, wrapEnd ?? "");
-    if (typeof prefix === "string") linePrefix(prefix);
-  }, [linePrefix, wrap]);
-  const btn = (title: string, icon: React.ReactNode, data: { wrapStart?: string; wrapEnd?: string; linePrefix?: string }) => (
-    <button key={title} onMouseDown={handleMouseDown} title={title} data-wrap-start={data.wrapStart} data-wrap-end={data.wrapEnd} data-line-prefix={data.linePrefix}
-      className="flex items-center justify-center w-6 h-6 rounded transition-colors hover:opacity-80"
-      style={{ color: theme.bodyText }}>
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const { theme, textSize, fontFamily } = useContext(SettingsCtx);
+  const style = theme.levels[Math.min(section.level - 1, theme.levels.length - 1)];
+  const lineKey = getLineKey(section.id, lineIndex);
+  const menuOpen = lineMenu?.sectionId === section.id && lineMenu.lineIndex === lineIndex;
+  const activeDrop = lineDropTarget?.sectionId === section.id && lineDropTarget.lineIndex === lineIndex
+    ? lineDropTarget.intent
+    : null;
+
+  useEffect(() => {
+    if (!textAreaRef.current) return;
+    textAreaRef.current.style.height = "auto";
+    textAreaRef.current.style.height = `${textAreaRef.current.scrollHeight}px`;
+  }, [line]);
+
+  const runMenuAction = useCallback((action: () => void) => {
+    action();
+    onOpenLineMenu(null);
+  }, [onOpenLineMenu]);
+
+  const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      const target = event.currentTarget;
+      const before = target.value.slice(0, target.selectionStart);
+      const after = target.value.slice(target.selectionEnd);
+      onSplitLine(section.id, lineIndex, before, after);
+      requestAnimationFrame(() => {
+        const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${getLineKey(section.id, lineIndex + 1)}"]`);
+        nextInput?.focus();
+        nextInput?.setSelectionRange(0, 0);
+      });
+    }
+
+    if (event.key === "Backspace" && !event.currentTarget.value && section.content.length > 1) {
+      event.preventDefault();
+      onDeleteLine(section.id, lineIndex);
+      requestAnimationFrame(() => {
+        const nextIndex = Math.max(0, lineIndex - 1);
+        const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${getLineKey(section.id, nextIndex)}"]`);
+        nextInput?.focus();
+        const end = nextInput?.value.length ?? 0;
+        nextInput?.setSelectionRange(end, end);
+      });
+    }
+  }, [lineIndex, onDeleteLine, onSplitLine, section.content.length, section.id]);
+
+  const menuButton = (
+    label: string,
+    icon: React.ReactNode,
+    onClick: () => void
+  ) => (
+    <button
+      key={label}
+      type="button"
+      className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] font-medium transition-colors hover:opacity-80"
+      style={{ color: theme.bodyText }}
+      onClick={(event) => {
+        event.stopPropagation();
+        runMenuAction(onClick);
+      }}
+    >
       {icon}
+      {label}
     </button>
   );
+
   return (
-    <div className="flex items-center gap-0.5 mb-1.5 px-1.5 py-1 rounded" style={{ background: theme.tabBg, border: "1px solid " + theme.faintBorder }}>
-      {btn("Bold", <Bold size={11} />, { wrapStart: "**", wrapEnd: "**" })}
-      {btn("Italic", <Italic size={11} />, { wrapStart: "*", wrapEnd: "*" })}
-      {btn("Inline code", <Code size={11} />, { wrapStart: "`", wrapEnd: "`" })}
-      {btn("Code block", <Code2 size={11} />, { wrapStart: "```\n", wrapEnd: "\n```" })}
-      <div className="w-px h-3 mx-0.5" style={{ background: theme.faintBorder }} />
-      {btn("Bullet list", <List size={11} />, { linePrefix: "- " })}
-      {btn("Numbered list", <ListOrdered size={11} />, { linePrefix: "1. " })}
-      {btn("Blockquote", <Quote size={11} />, { linePrefix: "> " })}
+    <div
+      data-hierarchy-line-key={lineKey}
+      className="group/line relative flex items-start gap-1 transition-colors"
+      style={{
+        background: selected ? style.accent + "18" : "transparent",
+        borderTop: activeDrop === "before" ? `2px solid ${style.accent}` : "2px solid transparent",
+        borderBottom: activeDrop === "after" ? `2px solid ${style.accent}` : "2px solid transparent",
+      }}
+      onMouseDown={(event) => onLineMouseDown(event, section.id, lineIndex)}
+      onMouseEnter={(event) => onLineMouseEnter(event, section.id, lineIndex)}
+      onDragOver={(event) => onLineDragOver(event, section.id, lineIndex)}
+      onDrop={(event) => onLineDrop(event, section.id, lineIndex)}
+    >
+      <div className="sticky left-0 z-10 flex w-14 shrink-0 justify-end gap-0.5 pt-0.5 opacity-0 transition-opacity group-hover/line:opacity-100">
+        <button
+          type="button"
+          className="flex h-6 w-6 items-center justify-center transition-colors hover:opacity-80"
+          style={{ color: theme.mutedText, background: style.bg }}
+          title="Add line below"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            onInsertLine(section.id, lineIndex);
+          }}
+        >
+          <Plus size={14} />
+        </button>
+        <button
+          type="button"
+          draggable
+          className="flex h-6 w-6 cursor-grab items-center justify-center transition-colors hover:opacity-80 active:cursor-grabbing"
+          style={{ color: menuOpen ? style.accent : theme.mutedText, background: style.bg }}
+          title="Drag line or open line menu"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenLineMenu(menuOpen ? null : { sectionId: section.id, lineIndex });
+          }}
+          onDragStart={(event) => onLineDragStart(event, section.id, lineIndex)}
+          onDragEnd={onLineDragEnd}
+        >
+          <GripVertical size={14} />
+        </button>
+      </div>
+
+      <textarea
+        ref={textAreaRef}
+        data-line-input-key={lineKey}
+        value={line}
+        onChange={(event) => onUpdateLine(section.id, lineIndex, event.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Write text..."
+        rows={1}
+        className="min-h-[26px] flex-1 resize-none bg-transparent py-1 leading-relaxed outline-none"
+        style={{ color: theme.bodyText, fontSize: `${textSize}px`, fontFamily, overflow: "hidden" }}
+      />
+
+      {menuOpen && (
+        <div
+          className="absolute left-14 top-7 z-[90] w-56 overflow-hidden shadow-2xl"
+          style={{ background: theme.tabBg, border: "1px solid " + theme.faintBorder }}
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: theme.mutedText, borderBottom: "1px solid " + theme.faintBorder }}>
+            Turn into
+          </div>
+          <div className="p-1">
+            {menuButton("Text", <RemoveFormatting size={13} />, () => onTransformLine(section.id, lineIndex, "text"))}
+            {menuButton("Bullet list", <List size={13} />, () => onTransformLine(section.id, lineIndex, "bullet"))}
+            {menuButton("Numbered list", <ListOrdered size={13} />, () => onTransformLine(section.id, lineIndex, "numbered"))}
+            {menuButton("Quote", <Quote size={13} />, () => onTransformLine(section.id, lineIndex, "quote"))}
+            {menuButton("Code", <Code2 size={13} />, () => onTransformLine(section.id, lineIndex, "code"))}
+          </div>
+          <div className="p-1" style={{ borderTop: "1px solid " + theme.faintBorder }}>
+            {menuButton("Add line below", <Plus size={13} />, () => onInsertLine(section.id, lineIndex))}
+            {section.level < 6 && menuButton("Add child below", <PlusCircle size={13} />, () => onAddChildAtLine(section.id, lineIndex))}
+            {section.level < 6 && menuButton("Convert line to child", <Heading2 size={13} />, () => onConvertLineToChild(section.id, lineIndex))}
+            {menuButton("Delete line", <Trash2 size={13} />, () => onDeleteLine(section.id, lineIndex))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── Editable section box ─────────────────────────────────────────────────────
-
-function EditableSectionBox({ section, depth, onUpdate, onAddChild, onDelete, onMoveStep, onDragStart, onDragOver, onDrop, onDragEnd, draggedSectionId, dropTarget }: {
+function EditableSectionBox({
+  section,
+  depth,
+  onUpdate,
+  onAddChild,
+  onAddChildAtLine,
+  onConvertLineToChild,
+  onDelete,
+  onMoveStep,
+  onUpdateLine,
+  onInsertLine,
+  onSplitLine,
+  onDeleteLine,
+  onTransformLine,
+  onLineDragStart,
+  onLineDragOver,
+  onLineDrop,
+  onLineDragEnd,
+  onLineMouseDown,
+  onLineMouseEnter,
+  onOpenLineMenu,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  draggedSectionId,
+  dropTarget,
+  selectedLineKeys,
+  lineMenu,
+  lineDropTarget,
+}: {
   section: Section; depth: number;
   onUpdate: (id: string, changes: Partial<Pick<Section, "title" | "content">>) => void;
   onAddChild: (parentId: string) => void;
+  onAddChildAtLine: (parentId: string, lineIndex: number) => void;
+  onConvertLineToChild: (parentId: string, lineIndex: number) => void;
   onDelete: (id: string) => void;
   onMoveStep: (id: string, direction: -1 | 1) => void;
+  onUpdateLine: (sectionId: string, lineIndex: number, value: string) => void;
+  onInsertLine: (sectionId: string, lineIndex: number) => void;
+  onSplitLine: (sectionId: string, lineIndex: number, before: string, after: string) => void;
+  onDeleteLine: (sectionId: string, lineIndex: number) => void;
+  onTransformLine: (sectionId: string, lineIndex: number, type: LineTransformType) => void;
+  onLineDragStart: (event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineDragOver: (event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineDrop: (event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineDragEnd: () => void;
+  onLineMouseDown: (event: React.MouseEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onLineMouseEnter: (event: React.MouseEvent<HTMLElement>, sectionId: string, lineIndex: number) => void;
+  onOpenLineMenu: (menu: LineMenuState) => void;
   onDragStart: (event: DragEvent<HTMLElement>, section: Section) => void;
   onDragOver: (event: DragEvent<HTMLElement>, section: Section) => void;
   onDrop: (event: DragEvent<HTMLElement>, section: Section) => void;
   onDragEnd: () => void;
   draggedSectionId: string | null;
   dropTarget: { id: string; intent: SectionDropIntent } | null;
+  selectedLineKeys: string[];
+  lineMenu: LineMenuState;
+  lineDropTarget: LineDropTarget | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const taRef = useRef<HTMLTextAreaElement>(null);
+  const [sectionMenuOpen, setSectionMenuOpen] = useState(false);
   const { theme, textSize, fontFamily } = useContext(SettingsCtx);
   const style = theme.levels[Math.min(section.level - 1, theme.levels.length - 1)];
-  const contentVal = section.content.join("\n");
   const hasChildren = section.children.length > 0;
-  const hasContent = section.content.some((l) => l.trim()) || focused;
+  const contentLines = section.content.length ? section.content : [""];
+  const hasContent = section.content.some((l) => l.trim());
   const headingSize = textSize + (section.level === 1 ? 3 : section.level === 2 ? 1 : 0);
   const activeDrop = dropTarget?.id === section.id ? dropTarget.intent : null;
   const dropStyle: React.CSSProperties = activeDrop === "inside"
@@ -580,10 +1065,40 @@ function EditableSectionBox({ section, depth, onUpdate, onAddChild, onDelete, on
         ? { borderBottomColor: style.accent, borderBottomWidth: 3 }
         : {};
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (taRef.current) { taRef.current.style.height = "auto"; taRef.current.style.height = taRef.current.scrollHeight + "px"; }
-  }, [contentVal]);
+  const renderChild = (child: Section) => (
+    <EditableSectionBox
+      key={child.id}
+      section={child}
+      depth={depth + 1}
+      onUpdate={onUpdate}
+      onAddChild={onAddChild}
+      onAddChildAtLine={onAddChildAtLine}
+      onConvertLineToChild={onConvertLineToChild}
+      onDelete={onDelete}
+      onMoveStep={onMoveStep}
+      onUpdateLine={onUpdateLine}
+      onInsertLine={onInsertLine}
+      onSplitLine={onSplitLine}
+      onDeleteLine={onDeleteLine}
+      onTransformLine={onTransformLine}
+      onLineDragStart={onLineDragStart}
+      onLineDragOver={onLineDragOver}
+      onLineDrop={onLineDrop}
+      onLineDragEnd={onLineDragEnd}
+      onLineMouseDown={onLineMouseDown}
+      onLineMouseEnter={onLineMouseEnter}
+      onOpenLineMenu={onOpenLineMenu}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      draggedSectionId={draggedSectionId}
+      dropTarget={dropTarget}
+      selectedLineKeys={selectedLineKeys}
+      lineMenu={lineMenu}
+      lineDropTarget={lineDropTarget}
+    />
+  );
 
   return (
     <div
@@ -596,18 +1111,52 @@ function EditableSectionBox({ section, depth, onUpdate, onAddChild, onDelete, on
         className="flex items-center gap-2 px-3 group sticky select-none"
         style={{ top: depth * 36, zIndex: 50 - depth, minHeight: 36, background: style.headerBg, borderBottom: (hasContent || hasChildren) && !collapsed ? "1px solid " + style.accent + "66" : "none" }}
       >
-        <button
-          type="button"
-          draggable
-          onDragStart={(event) => onDragStart(event, section)}
-          onDragEnd={onDragEnd}
-          onClick={(e) => e.stopPropagation()}
-          className="shrink-0 cursor-grab rounded p-0.5 opacity-60 transition-opacity hover:opacity-100 active:cursor-grabbing"
-          style={{ color: style.accent }}
-          title="Drag section"
-        >
-          <GripVertical size={13} />
-        </button>
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            draggable
+            onDragStart={(event) => {
+              setSectionMenuOpen(false);
+              onDragStart(event, section);
+            }}
+            onDragEnd={onDragEnd}
+            onClick={(e) => {
+              e.stopPropagation();
+              setSectionMenuOpen((open) => !open);
+            }}
+            className="cursor-grab rounded p-0.5 opacity-60 transition-opacity hover:opacity-100 active:cursor-grabbing"
+            style={{ color: sectionMenuOpen ? style.accent : theme.mutedText }}
+            title="Drag section or open section menu"
+          >
+            <GripVertical size={13} />
+          </button>
+          {sectionMenuOpen && (
+            <div
+              className="absolute left-0 top-6 z-[95] w-44 overflow-hidden shadow-2xl"
+              style={{ background: theme.tabBg, border: "1px solid " + theme.faintBorder }}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button type="button" className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] hover:opacity-80" style={{ color: theme.bodyText }} onClick={() => { onMoveStep(section.id, -1); setSectionMenuOpen(false); }}>
+                <ArrowUp size={13} /> Move up
+              </button>
+              <button type="button" className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] hover:opacity-80" style={{ color: theme.bodyText }} onClick={() => { onMoveStep(section.id, 1); setSectionMenuOpen(false); }}>
+                <ArrowDown size={13} /> Move down
+              </button>
+              {section.level < 6 && (
+                <button type="button" className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] hover:opacity-80" style={{ color: theme.bodyText }} onClick={() => { onAddChild(section.id); setSectionMenuOpen(false); }}>
+                  <PlusCircle size={13} /> Add child
+                </button>
+              )}
+              <button type="button" className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[11px] hover:opacity-80" style={{ color: "#e06c75", borderTop: "1px solid " + theme.faintBorder }} onClick={() => { onDelete(section.id); setSectionMenuOpen(false); }}>
+                <Trash2 size={13} /> Delete block
+              </button>
+            </div>
+          )}
+        </div>
         <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5" style={{ background: style.accent + "33", color: style.accent, fontFamily: "monospace" }}>
           {style.label}
         </span>
@@ -619,24 +1168,6 @@ function EditableSectionBox({ section, depth, onUpdate, onAddChild, onDelete, on
           className="flex-1 bg-transparent outline-none border-none font-semibold leading-snug"
           style={{ color: style.textColor, fontSize: `${headingSize}px`, fontFamily }}
         />
-        <button onClick={(e) => { e.stopPropagation(); onMoveStep(section.id, -1); }}
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded" style={{ color: style.accent }} title="Move up">
-          <ArrowUp size={13} />
-        </button>
-        <button onClick={(e) => { e.stopPropagation(); onMoveStep(section.id, 1); }}
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded" style={{ color: style.accent }} title="Move down">
-          <ArrowDown size={13} />
-        </button>
-        {section.level < 6 && (
-          <button onClick={(e) => { e.stopPropagation(); onAddChild(section.id); }}
-            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded" style={{ color: style.accent }} title="Add child">
-            <PlusCircle size={13} />
-          </button>
-        )}
-        <button onClick={(e) => { e.stopPropagation(); onDelete(section.id); }}
-          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded" style={{ color: "#e06c75" }} title="Delete section">
-          <Trash2 size={13} />
-        </button>
         <button onClick={() => setCollapsed((c) => !c)} className="shrink-0 cursor-pointer">
           {collapsed ? <ChevronRight size={13} style={{ color: "#586e75" }} /> : <ChevronDown size={13} style={{ color: "#586e75" }} />}
         </button>
@@ -644,41 +1175,43 @@ function EditableSectionBox({ section, depth, onUpdate, onAddChild, onDelete, on
 
       {!collapsed && (
         <div className="flex flex-col gap-0" style={{ background: style.bg }}>
-          <div className="px-3 py-2">
-            {focused && <MiniContentToolbar taRef={taRef} onApply={(val) => { onUpdate(section.id, { content: val.split("\n") }); }} theme={theme} />}
-            <textarea
-              ref={taRef}
-              value={contentVal}
-              onChange={(e) => { onUpdate(section.id, { content: e.target.value.split("\n") }); }}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              placeholder="Write content here… (supports markdown)"
-              rows={1}
-              className="w-full resize-none outline-none bg-transparent leading-relaxed"
-              style={{ color: theme.bodyText, fontSize: `${textSize}px`, fontFamily, minHeight: 28, overflow: "hidden" }}
-            />
-          </div>
-          {hasChildren && (
-            <div className="flex flex-col gap-1" style={{ padding: "4px 8px 6px 16px" }}>
-              {section.children.map((child) => (
-                <EditableSectionBox
-                  key={child.id}
-                  section={child}
-                  depth={depth + 1}
-                  onUpdate={onUpdate}
-                  onAddChild={onAddChild}
-                  onDelete={onDelete}
-                  onMoveStep={onMoveStep}
-                  onDragStart={onDragStart}
-                  onDragOver={onDragOver}
-                  onDrop={onDrop}
-                  onDragEnd={onDragEnd}
-                  draggedSectionId={draggedSectionId}
-                  dropTarget={dropTarget}
+          <div className="py-1.5">
+            {getChildrenBeforeFirstLine(section).map((child) => (
+              <div key={child.id} className="pl-9 pr-2 py-0.5">{renderChild(child)}</div>
+            ))}
+            {contentLines.map((line, index) => (
+              <div key={`${section.id}-${index}`}>
+                <EditableLineRow
+                  section={section}
+                  line={line}
+                  lineIndex={index}
+                  selected={selectedLineKeys.includes(getLineKey(section.id, index))}
+                  lineMenu={lineMenu}
+                  lineDropTarget={lineDropTarget}
+                  onUpdateLine={onUpdateLine}
+                  onInsertLine={onInsertLine}
+                  onSplitLine={onSplitLine}
+                  onDeleteLine={onDeleteLine}
+                  onTransformLine={onTransformLine}
+                  onAddChildAtLine={onAddChildAtLine}
+                  onConvertLineToChild={onConvertLineToChild}
+                  onOpenLineMenu={onOpenLineMenu}
+                  onLineMouseDown={onLineMouseDown}
+                  onLineMouseEnter={onLineMouseEnter}
+                  onLineDragStart={onLineDragStart}
+                  onLineDragOver={onLineDragOver}
+                  onLineDrop={onLineDrop}
+                  onLineDragEnd={onLineDragEnd}
                 />
-              ))}
-            </div>
-          )}
+                {getChildrenAfterLine(section, index).map((child) => (
+                  <div key={child.id} className="pl-9 pr-2 py-0.5">{renderChild(child)}</div>
+                ))}
+              </div>
+            ))}
+            {getChildrenAtEnd(section, contentLines.length).map((child) => (
+              <div key={child.id} className="pl-9 pr-2 py-0.5">{renderChild(child)}</div>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -722,6 +1255,58 @@ function SectionBox({
   const headingSize = textSize + (section.level === 1 ? 3 : section.level === 2 ? 1 : 0);
   const isEditing = editingSectionId === section.id;
   const contentValue = section.content.join("\n");
+  const renderReadChild = (child: Section) => (
+    <SectionBox
+      key={child.id}
+      section={child}
+      depth={depth + 1}
+      onAddChild={onAddChild}
+      readOnly={readOnly}
+      editingSectionId={editingSectionId}
+      onEditSection={onEditSection}
+      onFinishEditing={onFinishEditing}
+      onUpdate={onUpdate}
+      onDelete={onDelete}
+      onExplain={onExplain}
+      onOpenChat={onOpenChat}
+    />
+  );
+
+  const renderReadBody = () => {
+    const parts: React.ReactNode[] = [];
+    const pushContent = (lines: string[], key: string) => {
+      if (!lines.length || !lines.some((line) => line.trim())) return;
+      parts.push(
+        <div key={key} className="px-3 py-2">
+          <ContentBlocks lines={lines} />
+        </div>
+      );
+    };
+    const pushChildren = (children: Section[], key: string) => {
+      if (!children.length) return;
+      parts.push(
+        <div key={key} className="flex flex-col gap-1" style={{ padding: "4px 8px 6px 16px" }}>
+          {children.map(renderReadChild)}
+        </div>
+      );
+    };
+
+    pushChildren(getChildrenBeforeFirstLine(section), "children-before");
+
+    let contentChunk: string[] = [];
+    section.content.forEach((line, index) => {
+      contentChunk.push(line);
+      const anchoredChildren = getChildrenAfterLine(section, index);
+      if (!anchoredChildren.length) return;
+      pushContent(contentChunk, `content-${index}`);
+      contentChunk = [];
+      pushChildren(anchoredChildren, `children-${index}`);
+    });
+
+    pushContent(contentChunk, "content-end");
+    pushChildren(getChildrenAtEnd(section), "children-end");
+    return parts;
+  };
 
   useEffect(() => {
     if (!isEditing || !taRef.current) return;
@@ -816,29 +1401,10 @@ function SectionBox({
                 style={{ color: theme.bodyText, fontSize: `${textSize}px`, fontFamily, minHeight: 28, overflow: "hidden" }}
               />
             </div>
-          ) : hasContent ? (
-            <div className="px-3 py-2">
-              <ContentBlocks lines={section.content} />
-            </div>
-          ) : null}
-          {hasChildren && (
+          ) : renderReadBody()}
+          {isEditing && hasChildren && (
             <div className="flex flex-col gap-1" style={{ padding: "4px 8px 6px 16px" }}>
-              {section.children.map((child) => (
-                <SectionBox
-                  key={child.id}
-                  section={child}
-                  depth={depth + 1}
-                  onAddChild={onAddChild}
-                  readOnly={readOnly}
-                  editingSectionId={editingSectionId}
-                  onEditSection={onEditSection}
-                  onFinishEditing={onFinishEditing}
-                  onUpdate={onUpdate}
-                  onDelete={onDelete}
-                  onExplain={onExplain}
-                  onOpenChat={onOpenChat}
-                />
-              ))}
+              {section.children.map(renderReadChild)}
             </div>
           )}
         </div>
@@ -1038,10 +1604,11 @@ function renderHighlightedLine(line: string, bodyColor: string): React.ReactNode
   return <span style={{ color: bodyColor }}>{line}</span>;
 }
 
-function HighlightedSourceEditor({ value, onChange, onKeyDown, theme, textSize, fontFamily }: {
+function HighlightedSourceEditor({ value, onChange, onKeyDown, theme, textSize, fontFamily, readOnly = false }: {
   value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   theme: ThemeConfig; textSize: number; fontFamily: string;
+  readOnly?: boolean;
 }) {
   const lines = value.split("\n");
   const sharedStyle: React.CSSProperties = { fontFamily, fontSize: textSize, lineHeight: "1.6", padding: "16px", tabSize: 2, whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" };
@@ -1060,6 +1627,7 @@ function HighlightedSourceEditor({ value, onChange, onKeyDown, theme, textSize, 
         value={value}
         onChange={onChange}
         onKeyDown={onKeyDown}
+        readOnly={readOnly}
         spellCheck={false}
       />
     </div>
@@ -1090,11 +1658,17 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
   const [editTree, setEditTree] = useState<Section[]>(() => parseMarkdownTree(parseFrontmatter(migrateIfJson(content || createDefaultHierarchyContent())).body));
   const [draggedSectionId, setDraggedSectionId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ id: string; intent: SectionDropIntent } | null>(null);
+  const [draggedLine, setDraggedLine] = useState<{ sectionId: string; lineIndex: number } | null>(null);
+  const [lineDropTarget, setLineDropTarget] = useState<LineDropTarget | null>(null);
+  const [lineMenu, setLineMenu] = useState<LineMenuState>(null);
+  const [selectedLineKeys, setSelectedLineKeys] = useState<string[]>([]);
   const [readEditingSectionId, setReadEditingSectionId] = useState<string | null>(null);
   const latestTextRef = useRef(text);
   const undoStackRef = useRef<string[]>([]);
   const redoStackRef = useRef<string[]>([]);
   const isInternalRef = useRef(false);
+  const lineSelectingRef = useRef(false);
+  const selectedLineKeysRef = useRef<string[]>([]);
 
   const restoreSnapshot = useCallback((nextText: string) => {
     latestTextRef.current = nextText;
@@ -1102,6 +1676,10 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
     setText(nextText);
     setEditTree(parseMarkdownTree(parseFrontmatter(nextText).body));
     setReadEditingSectionId(null);
+    setSelectedLineKeys([]);
+    setLineMenu(null);
+    setDraggedLine(null);
+    setLineDropTarget(null);
     onChange(nextText);
     requestAnimationFrame(() => { isInternalRef.current = false; });
   }, [onChange]);
@@ -1169,12 +1747,59 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
   const handleAddChildToTree = useCallback((parentId: string) => {
     const parent = findSectionInTree(editTree, parentId);
     if (!parent) return;
-    const child: Section = { id: Math.random().toString(36).slice(2), level: Math.min(parent.level + 1, 6), title: "New Section", content: ["Content goes here."], children: [] };
+    const child: Section = { id: Math.random().toString(36).slice(2), level: Math.min(parent.level + 1, 6), title: "New Section", content: [""], children: [] };
     applyTree(addChildToSection(editTree, parentId, child));
   }, [applyTree, editTree]);
 
+  const handleUpdateLine = useCallback((sectionId: string, lineIndex: number, value: string) => {
+    applyTree(updateSectionLineInTree(editTree, sectionId, lineIndex, value));
+  }, [applyTree, editTree]);
+
+  const handleInsertLine = useCallback((sectionId: string, lineIndex: number) => {
+    applyTree(insertSectionLineInTree(editTree, sectionId, lineIndex));
+    requestAnimationFrame(() => {
+      const nextInput = document.querySelector<HTMLTextAreaElement>(`[data-line-input-key="${getLineKey(sectionId, lineIndex + 1)}"]`);
+      nextInput?.focus();
+      nextInput?.setSelectionRange(0, 0);
+    });
+  }, [applyTree, editTree]);
+
+  const handleSplitLine = useCallback((sectionId: string, lineIndex: number, before: string, after: string) => {
+    applyTree(splitSectionLineInTree(editTree, sectionId, lineIndex, before, after));
+  }, [applyTree, editTree]);
+
+  const handleDeleteLine = useCallback((sectionId: string, lineIndex: number) => {
+    setSelectedLineKeys((current) => current.filter((key) => key !== getLineKey(sectionId, lineIndex)));
+    applyTree(deleteSectionLineInTree(editTree, sectionId, lineIndex));
+  }, [applyTree, editTree]);
+
+  const handleTransformLine = useCallback((sectionId: string, lineIndex: number, type: LineTransformType) => {
+    applyTree(transformSectionLineInTree(editTree, sectionId, lineIndex, type));
+  }, [applyTree, editTree]);
+
+  const handleAddChildAtLine = useCallback((parentId: string, lineIndex: number) => {
+    const parent = findSectionInTree(editTree, parentId);
+    if (!parent || parent.level >= 6) return;
+    const child: Section = {
+      id: Math.random().toString(36).slice(2),
+      level: Math.min(parent.level + 1, 6),
+      title: "New Section",
+      content: [""],
+      children: [],
+      anchorLineIndex: lineIndex,
+    };
+    applyTree(addChildToSectionAtLine(editTree, parentId, lineIndex, child));
+  }, [applyTree, editTree]);
+
+  const handleConvertLineToChild = useCallback((parentId: string, lineIndex: number) => {
+    const parent = findSectionInTree(editTree, parentId);
+    if (!parent || parent.level >= 6) return;
+    setSelectedLineKeys((current) => current.filter((key) => key !== getLineKey(parentId, lineIndex)));
+    applyTree(convertLineToChildSection(editTree, parentId, lineIndex));
+  }, [applyTree, editTree]);
+
   const handleAddRootSection = useCallback(() => {
-    const root: Section = { id: Math.random().toString(36).slice(2), level: 1, title: "New Section", content: ["Content goes here."], children: [] };
+    const root: Section = { id: Math.random().toString(36).slice(2), level: 1, title: "New Section", content: [""], children: [] };
     applyTree([...editTree, root]);
   }, [applyTree, editTree]);
 
@@ -1185,12 +1810,16 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
   const resetSectionDrag = useCallback(() => {
     setDraggedSectionId(null);
     setDropTarget(null);
+    setLineDropTarget(null);
   }, []);
 
   const handleSectionDragStart = useCallback((event: DragEvent<HTMLElement>, section: Section) => {
     event.stopPropagation();
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", section.id);
+    setDraggedLine(null);
+    setLineDropTarget(null);
+    setLineMenu(null);
     setDraggedSectionId(section.id);
   }, []);
 
@@ -1212,6 +1841,86 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
     applyTree(moveSectionInTree(editTree, draggedSectionId, section.id, intent));
     resetSectionDrag();
   }, [applyTree, draggedSectionId, dropTarget, editTree, resetSectionDrag]);
+
+  const resetLineDrag = useCallback(() => {
+    setDraggedLine(null);
+    setLineDropTarget(null);
+  }, []);
+
+  const handleLineMouseDown = useCallback((event: React.MouseEvent<HTMLElement>, sectionId: string, lineIndex: number) => {
+    const key = getLineKey(sectionId, lineIndex);
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      lineSelectingRef.current = true;
+      setLineMenu(null);
+      setSelectedLineKeys((current) => current.includes(key) ? current : [...current, key]);
+      return;
+    }
+
+    setSelectedLineKeys([]);
+  }, []);
+
+  const handleLineMouseEnter = useCallback((event: React.MouseEvent<HTMLElement>, sectionId: string, lineIndex: number) => {
+    if (!lineSelectingRef.current || event.buttons !== 1) return;
+    const key = getLineKey(sectionId, lineIndex);
+    setSelectedLineKeys((current) => current.includes(key) ? current : [...current, key]);
+  }, []);
+
+  const handleLineDragStart = useCallback((event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => {
+    event.stopPropagation();
+    const key = getLineKey(sectionId, lineIndex);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-rits-hierarchy-line", key);
+    setDraggedSectionId(null);
+    setDropTarget(null);
+    setLineDropTarget(null);
+    setLineMenu(null);
+    setDraggedLine({ sectionId, lineIndex });
+    setSelectedLineKeys((current) => current.includes(key) ? current : [key]);
+  }, []);
+
+  const handleLineDragOver = useCallback((event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => {
+    if (!draggedLine && !draggedSectionId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    const rect = event.currentTarget.getBoundingClientRect();
+    const intent = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    setDropTarget(null);
+    setLineDropTarget({ sectionId, lineIndex, intent });
+  }, [draggedLine, draggedSectionId]);
+
+  const handleLineDrop = useCallback((event: DragEvent<HTMLElement>, sectionId: string, lineIndex: number) => {
+    const target = lineDropTarget?.sectionId === sectionId && lineDropTarget.lineIndex === lineIndex
+      ? lineDropTarget
+      : { sectionId, lineIndex, intent: "after" as const };
+
+    if (draggedLine) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dragKey = getLineKey(draggedLine.sectionId, draggedLine.lineIndex);
+      const selectedFromSource = selectedLineKeysRef.current
+        .map(parseLineKey)
+        .filter((item): item is { sectionId: string; lineIndex: number } => !!item && item.sectionId === draggedLine.sectionId)
+        .map((item) => item.lineIndex);
+      const sourceLineIndices = selectedLineKeysRef.current.includes(dragKey) && selectedFromSource.length
+        ? selectedFromSource
+        : [draggedLine.lineIndex];
+      applyTree(moveContentLinesInTree(editTree, draggedLine.sectionId, sourceLineIndices, target.sectionId, target.lineIndex, target.intent));
+      setSelectedLineKeys([]);
+      resetLineDrag();
+      return;
+    }
+
+    if (draggedSectionId) {
+      event.preventDefault();
+      event.stopPropagation();
+      const anchorLineIndex = target.intent === "before" ? target.lineIndex - 1 : target.lineIndex;
+      applyTree(moveSectionToLineInTree(editTree, draggedSectionId, target.sectionId, anchorLineIndex));
+      resetSectionDrag();
+    }
+  }, [applyTree, draggedLine, draggedSectionId, editTree, lineDropTarget, resetLineDrag, resetSectionDrag]);
 
   const handleExplainSection = useCallback((section: Section) => {
     openRitsAi(`Explain this hierarchy block clearly and call out the main idea, important details, and any implied next steps.\n\n${getSectionMarkdown(section)}`);
@@ -1246,11 +1955,25 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
         redoStackRef.current = [];
         setEditTree(parseMarkdownTree(body));
         setReadEditingSectionId(null);
+        setSelectedLineKeys([]);
+        setLineMenu(null);
+        setDraggedLine(null);
+        setLineDropTarget(null);
         return migrated;
       }
       return prev;
     });
   }, [content]);
+
+  useEffect(() => {
+    selectedLineKeysRef.current = selectedLineKeys;
+  }, [selectedLineKeys]);
+
+  useEffect(() => {
+    const handleMouseUp = () => { lineSelectingRef.current = false; };
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, []);
 
   // Close settings on outside click
   useEffect(() => {
@@ -1287,8 +2010,7 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
     onSettingsValueChange?.(settingsToValue(next));
   }, [onSettingsValueChange, settingsValue]);
 
-  // In readOnly mode, force hierarchy view
-  const effectiveMode = readOnly ? "hierarchy" : mode;
+  const effectiveMode = mode;
 
   return (
     <SettingsCtx.Provider value={settings}>
@@ -1298,10 +2020,11 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
         style={{ background: t.rootBg }}
         tabIndex={-1}
         onKeyDownCapture={handleHistoryKeyDown}
+        onClick={() => setLineMenu(null)}
       >
         {/* Tab bar */}
         <div className="flex items-center gap-1 px-3 py-1.5 shrink-0 relative z-[60]" ref={settingsPanelRef} style={{ background: t.tabBg, borderBottom: "1px solid " + t.tabBorder }}>
-          {!readOnly && (["source", "hierarchy"] as const).map((m) => (
+          {(["source", "hierarchy"] as const).map((m) => (
             <button key={m} onClick={() => setMode(m)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors capitalize cursor-pointer"
               style={{ background: mode === m ? t.levels[0].accent + "22" : "transparent", color: mode === m ? t.levels[0].accent : t.mutedText, border: "1px solid " + (mode === m ? t.levels[0].accent + "55" : "transparent") }}>
@@ -1338,11 +2061,6 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
               <GitBranch size={12} /> Read
             </span>
           ) : null}
-          {readOnly && (
-            <span className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium" style={{ color: t.mutedText }}>
-              <GitBranch size={12} /> Hierarchy
-            </span>
-          )}
           {!readOnly && mode === "hierarchy" && (
             <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium" style={{ color: t.mutedText }}>
               <GitBranch size={12} /> Inline Edit
@@ -1365,7 +2083,7 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
         {/* Content */}
         {effectiveMode === "source" ? (
           <HighlightedSourceEditor value={text} onChange={handleChange} onKeyDown={handleKeyDown}
-            theme={t} textSize={settings.textSize} fontFamily={settings.fontFamily} />
+            theme={t} textSize={settings.textSize} fontFamily={settings.fontFamily} readOnly={readOnly} />
         ) : (
           <div className="flex-1 overflow-y-auto">
             <div className="w-full flex flex-col gap-0">
@@ -1399,14 +2117,31 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
                     depth={0}
                     onUpdate={handleUpdateSection}
                     onAddChild={handleAddChildToTree}
+                    onAddChildAtLine={handleAddChildAtLine}
+                    onConvertLineToChild={handleConvertLineToChild}
                     onDelete={handleDeleteSection}
                     onMoveStep={handleMoveSectionStep}
+                    onUpdateLine={handleUpdateLine}
+                    onInsertLine={handleInsertLine}
+                    onSplitLine={handleSplitLine}
+                    onDeleteLine={handleDeleteLine}
+                    onTransformLine={handleTransformLine}
+                    onLineDragStart={handleLineDragStart}
+                    onLineDragOver={handleLineDragOver}
+                    onLineDrop={handleLineDrop}
+                    onLineDragEnd={resetLineDrag}
+                    onLineMouseDown={handleLineMouseDown}
+                    onLineMouseEnter={handleLineMouseEnter}
+                    onOpenLineMenu={setLineMenu}
                     onDragStart={handleSectionDragStart}
                     onDragOver={handleSectionDragOver}
                     onDrop={handleSectionDrop}
                     onDragEnd={resetSectionDrag}
                     draggedSectionId={draggedSectionId}
                     dropTarget={dropTarget}
+                    selectedLineKeys={selectedLineKeys}
+                    lineMenu={lineMenu}
+                    lineDropTarget={lineDropTarget}
                   />
                 ))}
             </div>

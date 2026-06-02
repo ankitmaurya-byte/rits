@@ -76,10 +76,12 @@ export const createPrivateGroup = mutation({
   args: {
     name: v.string(),
     createdBy: v.id("users"),
+    boardId: v.optional(v.id("kanbanBoards")),
   },
   handler: async (ctx, args) => {
     return await ctx.db.insert("todoGroups", {
       createdBy: args.createdBy,
+      boardId: args.boardId,
       name: args.name,
       statusLabels: {
         todo: "To-do",

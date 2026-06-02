@@ -46,6 +46,7 @@ export const createTodo = mutation({
     status: v.optional(v.string()),
     createdBy: v.optional(v.id("users")),
     groupId: v.optional(v.union(v.id("todoGroups"), v.null())),
+    boardId: v.optional(v.id("kanbanBoards")),
     sourceUrl: v.optional(v.string()),
     sourceDescription: v.optional(v.string()),
   },
@@ -64,6 +65,7 @@ export const createTodo = mutation({
       completed: args.status === "completed",
       createdBy: args.createdBy,
       groupId: args.groupId,
+      boardId: args.boardId,
       createdAt: now,
       updatedAt: now,
     });

@@ -1720,9 +1720,10 @@ interface HierarchyFileEditorProps {
   onViewModeChange?: (mode: "read" | "edit") => void;
   settingsValue?: HierarchyEditorSettingsValue | null;
   onSettingsValueChange?: (settings: HierarchyEditorSettingsValue) => void;
+  headerActions?: React.ReactNode;
 }
 
-export function HierarchyFileEditor({ content, onChange, readOnly = false, viewMode, onViewModeChange, settingsValue, onSettingsValueChange }: HierarchyFileEditorProps) {
+export function HierarchyFileEditor({ content, onChange, readOnly = false, viewMode, onViewModeChange, settingsValue, onSettingsValueChange, headerActions }: HierarchyFileEditorProps) {
   const [mode, setMode] = useState<"source" | "hierarchy">("hierarchy");
   const [fallbackSettings, setFallbackSettings] = useState<HierarchySettings>(() => settingsFromValue(settingsValue));
   const [showSettings, setShowSettings] = useState(false);
@@ -2154,7 +2155,8 @@ export function HierarchyFileEditor({ content, onChange, readOnly = false, viewM
               <PlusCircle size={12} /> Root
             </button>
           )}
-          <button onClick={() => setShowSettings((v) => !v)} className="ml-auto p-1.5 cursor-pointer transition-colors"
+          {headerActions ? <div className="ml-auto flex items-center gap-1">{headerActions}</div> : null}
+          <button onClick={() => setShowSettings((v) => !v)} className={`${headerActions ? "" : "ml-auto"} p-1.5 cursor-pointer transition-colors`}
             style={{ color: showSettings ? t.levels[0].accent : t.mutedText }}>
             <Settings2 size={14} />
           </button>

@@ -1006,6 +1006,17 @@ export function ConfluenceLayout({
     return crumbs;
   }, [currentFolderId, allNotes]);
 
+  const renderActiveShareButton = (compact = false) => activeNote ? (
+    <button
+      type="button"
+      onClick={() => setShareNote(activeNote)}
+      className={`flex items-center gap-1.5 rounded-md border text-xs font-medium transition-colors hover:bg-[var(--surface-card)] ${compact ? "px-2.5 py-1.5" : "h-8 px-2.5"}`}
+      style={{ borderColor: "var(--hairline-strong)", color: "var(--charcoal)", backgroundColor: "var(--surface-elevated)" }}
+    >
+      <Share2 size={compact ? 12 : 14} /> Share
+    </button>
+  ) : null;
+
   return (
     <div className="flex flex-col h-full overflow-hidden relative bg-[var(--canvas)]">
       <Dialog
@@ -1251,7 +1262,8 @@ export function ConfluenceLayout({
                 {activeNoteFileType !== "hierarchy" && (
                   <div className="flex items-center gap-2 px-4 py-2 shrink-0 border-b" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--surface-elevated)" }}>
                     <span className="text-xs font-medium truncate max-w-[200px]" style={{ color: "var(--mute)" }}>{activeNote.title}</span>
-                    <div className="ml-auto flex items-center p-0.5 rounded-lg" style={{ background: "var(--surface-deep)", border: "1px solid var(--hairline-strong)" }}>
+                    <div className="ml-auto">{renderActiveShareButton()}</div>
+                    <div className="flex items-center p-0.5 rounded-lg" style={{ background: "var(--surface-deep)", border: "1px solid var(--hairline-strong)" }}>
                       <button
                         onClick={() => setEditorMode("read")}
                         className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
@@ -1291,6 +1303,7 @@ export function ConfluenceLayout({
                           setEditContent(value);
                           updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "hierarchy" });
                         }}
+                        headerActions={renderActiveShareButton(true)}
                         readOnly
                       />
                     ) : activeNoteFileType === "database" ? (
@@ -1325,6 +1338,7 @@ export function ConfluenceLayout({
                           setEditContent(value);
                           updateNote({ id: activeNote._id, content: value, title: activeNote.title, fileType: "hierarchy" });
                         }}
+                        headerActions={renderActiveShareButton(true)}
                       />
                     ) : (
                       <NoteEditor

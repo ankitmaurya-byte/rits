@@ -4,13 +4,15 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Menu, X, Home, Flame, Layers3, Bell } from "lucide-react";
 import { ChatSheet } from "@/components/ai/chat-sheet";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
 
 const MAIN_SIDEBAR_WIDTH = 240;
 const MAIN_SIDEBAR_COLLAPSED_WIDTH = 64;
+const MAIN_SIDEBAR_HANDLE_MIN = 8;
+const MAIN_SIDEBAR_HANDLE_MAX = 92;
 
 
 export default function MainLayout({
@@ -25,6 +27,10 @@ export default function MainLayout({
   const [aiOpenRequest, setAiOpenRequest] = useState({ id: 0, prompt: "" });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mainSidebarOpen, setMainSidebarOpen] = useState(true);
+  const [mainSidebarHandleTop, setMainSidebarHandleTop] = useState(50);
+  const [mainSidebarHandleDragging, setMainSidebarHandleDragging] = useState(false);
+  const mainSidebarShellRef = useRef<HTMLDivElement | null>(null);
+  const mainSidebarHandleDragRef = useRef<{ startY: number; moved: boolean } | null>(null);
 
   const mobileNavItems = [
     { href: "/dashboard", label: "Home", icon: Home },
@@ -49,10 +55,35 @@ export default function MainLayout({
     return () => window.removeEventListener("rits-ai:open", handleOpenAi);
   }, []);
 
+  useEffect(() => {
+    if (!mainSidebarHandleDragging) return;
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [mainSidebarHandleDragging]);
+
   const openAi = () => {
     setAiOpenRequest((current) => ({ id: current.id + 1, prompt: "" }));
     setIsAiOpen(true);
   };
+
+  const moveMainSidebarHandle = useCallback((clientY: number) => {
+    const rect = mainSidebarShellRef.current?.getBoundingClientRect();
+    if (!rect || rect.height <= 0) return;
+    const nextTop = ((clientY - rect.top) / rect.height) * 100;
+    setMainSidebarHandleTop(Math.min(MAIN_SIDEBAR_HANDLE_MAX, Math.max(MAIN_SIDEBAR_HANDLE_MIN, nextTop)));
+  }, []);
+
+  const toggleMainSidebar = useCallback(() => {
+    setMainSidebarOpen((open) => !open);
+  }, []);
 
   if (!isLoaded || !isSignedIn) {
     return (
@@ -79,27 +110,80 @@ export default function MainLayout({
         style={{ backgroundColor: "var(--canvas)" }}
       >
         <div
+          ref={mainSidebarShellRef}
           className="relative hidden h-full shrink-0 transition-[width] duration-300 ease-in-out md:block"
           style={{ width: mainSidebarOpen ? MAIN_SIDEBAR_WIDTH : MAIN_SIDEBAR_COLLAPSED_WIDTH }}
         >
           <div className="h-full overflow-hidden">
             <Sidebar collapsed={!mainSidebarOpen} />
           </div>
-          <button
-            type="button"
-            aria-label={mainSidebarOpen ? "Collapse main sidebar" : "Expand main sidebar"}
-            title={mainSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            onClick={() => setMainSidebarOpen((open) => !open)}
-            className="absolute left-full top-1/2 z-50 flex h-10 w-7 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 shadow-lg transition-colors"
+          <div
+            className="group absolute z-50 h-40 w-20 -translate-y-1/2 cursor-default"
             style={{
-              borderColor: "var(--hairline-strong)",
-              backgroundColor: "var(--surface-elevated)",
+              top: `${mainSidebarHandleTop}%`,
+              left: "calc(100% - 28px)",
               color: "var(--charcoal)",
-              boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
             }}
           >
-            {mainSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-          </button>
+            <button
+              type="button"
+              aria-label={mainSidebarOpen ? "Collapse main sidebar" : "Expand main sidebar"}
+              title={mainSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              onPointerDown={(event) => {
+                mainSidebarHandleDragRef.current = { startY: event.clientY, moved: false };
+                setMainSidebarHandleDragging(true);
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                const drag = mainSidebarHandleDragRef.current;
+                if (!drag) return;
+                if (Math.abs(event.clientY - drag.startY) > 3) drag.moved = true;
+                moveMainSidebarHandle(event.clientY);
+              }}
+              onPointerUp={(event) => {
+                const drag = mainSidebarHandleDragRef.current;
+                if (!drag?.moved) toggleMainSidebar();
+                mainSidebarHandleDragRef.current = null;
+                setMainSidebarHandleDragging(false);
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
+              onPointerCancel={(event) => {
+                mainSidebarHandleDragRef.current = null;
+                setMainSidebarHandleDragging(false);
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                toggleMainSidebar();
+              }}
+              className={`absolute left-7 top-1/2 flex h-16 w-8 -translate-y-1/2 items-center justify-start rounded-r-md focus-visible:outline-none ${
+                mainSidebarHandleDragging ? "cursor-grabbing" : "cursor-pointer"
+              }`}
+              style={{
+                touchAction: "none",
+              }}
+            >
+              <span
+                className="h-11 w-1 rounded-r-full transition-all duration-200 group-hover:h-16 group-hover:w-1.5 group-focus-within:h-16 group-focus-within:w-1.5"
+                style={{ backgroundColor: "var(--hairline-strong)" }}
+              />
+              <span
+                className="absolute left-1 top-1/2 flex h-7 w-7 -translate-y-1/2 scale-75 items-center justify-center rounded-r-md border border-l-0 opacity-0 shadow-lg transition-all duration-200 group-hover:scale-100 group-hover:opacity-100 group-focus-within:scale-100 group-focus-within:opacity-100"
+                style={{
+                  borderColor: "var(--hairline-strong)",
+                  backgroundColor: "var(--surface-elevated)",
+                  boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+                }}
+              >
+                {mainSidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+              </span>
+            </button>
+          </div>
         </div>
 
         {mobileNavOpen ? (

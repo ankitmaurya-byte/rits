@@ -1139,9 +1139,30 @@ export function ConfluenceLayout({
       <div className="flex-1 min-h-0 relative flex h-full w-full overflow-hidden bg-[var(--canvas)]">
         <div
           ref={sidebarShellRef}
-          className={`relative flex shrink-0 flex-col overflow-hidden border-r ${resizingSidebar ? "" : "transition-all duration-300 ease-in-out"}`}
-          style={{ borderColor: resizingSidebar ? "var(--accent-blue)" : "var(--hairline-strong)", backgroundColor: "var(--surface-deep)", width: sidebarOpen ? `${sidebarWidth}px` : "0px", opacity: sidebarOpen ? 1 : 0, borderRightWidth: sidebarOpen ? "1px" : "0px" }}
+          className="relative shrink-0 overflow-hidden border-r"
+          style={{
+            borderColor: resizingSidebar ? "var(--accent-blue)" : "var(--hairline-strong)",
+            backgroundColor: "var(--surface-deep)",
+            width: sidebarOpen ? `${sidebarWidth}px` : "0px",
+            borderRightWidth: sidebarOpen ? "1px" : "0px",
+            transition: resizingSidebar
+              ? "none"
+              : "width 360ms cubic-bezier(0.22,1,0.36,1), border-color 180ms ease, border-right-width 180ms ease",
+          }}
         >
+          <div
+            className="absolute inset-y-0 left-0 flex flex-col overflow-hidden"
+            style={{
+              width: `${sidebarWidth}px`,
+              backgroundColor: "var(--surface-deep)",
+              opacity: sidebarOpen ? 1 : 0,
+              pointerEvents: sidebarOpen ? "auto" : "none",
+              transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
+              transition: resizingSidebar
+                ? "none"
+                : "transform 360ms cubic-bezier(0.22,1,0.36,1), opacity 220ms ease",
+            }}
+          >
           <div className="p-3 border-b shrink-0" style={{ borderColor: "var(--hairline-strong)", backgroundColor: "var(--canvas)" }}>
             <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] rounded-lg shrink-0">
               <button onClick={() => setView("sidebar")} className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${view === "sidebar" ? "bg-[var(--ink)] text-[var(--canvas)] shadow-sm" : "text-[var(--charcoal)] hover:text-[var(--ink)]"}`}>
@@ -1255,7 +1276,7 @@ export function ConfluenceLayout({
               type="button"
               aria-label="Resize explorer sidebar"
               title="Resize sidebar"
-              className="group absolute -right-1 top-0 z-40 h-full w-2 cursor-col-resize"
+              className="group absolute right-0 top-0 z-40 h-full w-2 cursor-col-resize"
               onMouseDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -1272,6 +1293,7 @@ export function ConfluenceLayout({
               />
             </button>
           ) : null}
+          </div>
         </div>
 
         {view === "sidebar" ? (

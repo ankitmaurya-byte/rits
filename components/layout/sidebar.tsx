@@ -100,20 +100,26 @@ const researchLinks = [
   { href: "/research/mvp-lab", label: "MVP Lab", icon: Rocket },
 ];
 
+function notifyNavSelection(href: string) {
+  window.dispatchEvent(new CustomEvent("rits-app-nav:select", { detail: { href } }));
+}
+
 function NavSection({
   label,
   links,
   icon,
+  collapsed = false,
 }: {
   label: string;
   links: { href: string; label: string; icon: React.ElementType }[];
   icon?: React.ReactNode;
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
 
   return (
     <div className="mb-1">
-      {label ? (
+      {label && !collapsed ? (
         <div className="flex items-center justify-between px-3 mb-1.5">
           <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--mute)" }}>
             {label}
@@ -121,14 +127,18 @@ function NavSection({
           {icon}
         </div>
       ) : null}
-      <nav className="space-y-0.5">
+      <nav className={collapsed ? "space-y-1" : "space-y-0.5"}>
         {links.map(({ href, label: linkLabel, icon: Icon }) => {
           const isActive = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={`${href}-${linkLabel}`}
               href={href}
-              className="flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-150 group relative"
+              title={collapsed ? linkLabel : undefined}
+              aria-label={collapsed ? linkLabel : undefined}
+              className={`flex items-center rounded-md text-sm font-medium transition-all duration-150 group relative ${
+                collapsed ? "h-10 justify-center px-0" : "gap-2.5 px-3 py-1.5"
+              }`}
               style={{
                 color: isActive ? "var(--ink)" : "var(--charcoal)",
                 backgroundColor: isActive ? "var(--surface-elevated)" : "transparent",
@@ -139,6 +149,7 @@ function NavSection({
               onMouseLeave={(e) => {
                 if (!isActive) (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
               }}
+              onClick={() => notifyNavSelection(href)}
             >
               {isActive && (
                 <div
@@ -147,12 +158,12 @@ function NavSection({
                 />
               )}
               <Icon
-                size={14}
+                size={collapsed ? 16 : 14}
                 strokeWidth={isActive ? 2 : 1.75}
-                className="flex-shrink-0 transition-colors ml-1"
+                className={`flex-shrink-0 transition-colors ${collapsed ? "" : "ml-1"}`}
                 style={{ color: isActive ? "var(--ink)" : "var(--stone)" }}
               />
-              <span className="flex-1">{linkLabel}</span>
+              {!collapsed ? <span className="flex-1">{linkLabel}</span> : null}
             </Link>
           );
         })}
@@ -167,12 +178,14 @@ function CollapsibleNavSection({
   icon,
   defaultOpen = false,
   children,
+  collapsed = false,
 }: {
   label: string;
   links: { href: string; label: string; icon: React.ElementType }[];
   icon?: React.ReactNode;
   defaultOpen?: boolean;
   children?: React.ReactNode;
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
   const hasActiveLink = links.some(
@@ -199,6 +212,15 @@ function CollapsibleNavSection({
       });
     }
   }, [isOpen]);
+
+  if (collapsed) {
+    return (
+      <div className="relative mb-1 space-y-1">
+        {links.length > 0 ? <NavSection label="" links={links} collapsed /> : null}
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div ref={sectionRef} className="relative mb-1 scroll-mt-0">
@@ -233,7 +255,7 @@ function CollapsibleNavSection({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ collapsed = false }: { collapsed?: boolean }) {
   useUser();
   const router = useRouter();
   const [searchValue, setSearchValue] = useState("");
@@ -272,7 +294,7 @@ export function Sidebar() {
     <aside
       className="flex flex-col h-full border-r"
       style={{
-        width: "240px",
+        width: collapsed ? "64px" : "240px",
         flexShrink: 0,
         backgroundColor: "var(--canvas)",
         borderColor: "var(--hairline-strong)",
@@ -280,7 +302,10 @@ export function Sidebar() {
       aria-label="Sidebar navigation"
     >
       {/* Brand Header with search */}
-      <div className="flex items-center gap-2 px-3 h-[60px] border-b shrink-0" style={{ borderColor: "var(--hairline)" }}>
+      <div
+        className={`flex items-center h-[60px] border-b shrink-0 ${collapsed ? "justify-center px-0" : "gap-2 px-3"}`}
+        style={{ borderColor: "var(--hairline)" }}
+      >
         {/* Logo */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center justify-center w-6 h-6 rounded-sm bg-white overflow-hidden shrink-0">
@@ -293,26 +318,30 @@ export function Sidebar() {
               priority
             />
           </div>
-          <Image
-            src="/rits_brand_logo_assets/rits_name_only_complete_transpaent_background_withou_dot_com_text_white.png"
-            alt="Rits Name"
-            width={48}
-            height={20}
-            className="object-contain show-in-dark"
-            priority
-          />
-          <Image
-            src="/rits_brand_logo_assets/rits_name_only_without_dot_com_transparent_but_light_white_background_text_dark.png"
-            alt="Rits Name"
-            width={48}
-            height={20}
-            className="object-contain show-in-light"
-            priority
-          />
+          {!collapsed ? (
+            <>
+              <Image
+                src="/rits_brand_logo_assets/rits_name_only_complete_transpaent_background_withou_dot_com_text_white.png"
+                alt="Rits Name"
+                width={48}
+                height={20}
+                className="object-contain show-in-dark"
+                priority
+              />
+              <Image
+                src="/rits_brand_logo_assets/rits_name_only_without_dot_com_transparent_but_light_white_background_text_dark.png"
+                alt="Rits Name"
+                width={48}
+                height={20}
+                className="object-contain show-in-light"
+                priority
+              />
+            </>
+          ) : null}
         </div>
 
         {/* Search input */}
-        <div ref={searchRef} className="relative flex-1">
+        {!collapsed ? <div ref={searchRef} className="relative flex-1">
           <Search
             size={11}
             className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -372,50 +401,53 @@ export function Sidebar() {
               </div>
             </div>
           )}
-        </div>
-        {currentUser && <NotificationBell userId={currentUser._id} />}
+        </div> : null}
+        {!collapsed && currentUser ? <NotificationBell userId={currentUser._id} /> : null}
       </div>
 
       {/* Scrollable nav area */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-4 pt-0">
+      <div className={`flex min-h-0 flex-1 flex-col overflow-y-auto pb-4 pt-0 ${collapsed ? "gap-2 px-2" : "gap-3 px-3"}`}>
         <CollapsibleNavSection
           label="Workspace"
           links={[]}
           icon={<Users size={10} style={{ color: "var(--mute)" }} />}
           defaultOpen
+          collapsed={collapsed}
         >
-          <div className="space-y-2 pl-2">
-            <NavSection label="" links={privateLinks} />
+          <div className={collapsed ? "space-y-1" : "space-y-2 pl-2"}>
+            <NavSection label="" links={privateLinks} collapsed={collapsed} />
 
-            <div>
-              <div className="mb-2 px-3">
-                <WorkspaceSwitcher />
+            {!collapsed ? (
+              <div>
+                <div className="mb-2 px-3">
+                  <WorkspaceSwitcher />
+                </div>
+                <NavSection label="" links={workspaceLinks} />
               </div>
-              <NavSection label="" links={workspaceLinks} />
-            </div>
+            ) : <NavSection label="" links={workspaceLinks} collapsed />}
           </div>
         </CollapsibleNavSection>
 
-        <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
+        <div className={collapsed ? "h-px mx-2" : "h-px mx-1"} style={{ backgroundColor: "var(--hairline)" }} />
 
-        <CollapsibleNavSection label="Explore" links={exploreLinks} />
+        <CollapsibleNavSection label="Explore" links={exploreLinks} collapsed={collapsed} />
 
-        <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
+        <div className={collapsed ? "h-px mx-2" : "h-px mx-1"} style={{ backgroundColor: "var(--hairline)" }} />
 
-        <CollapsibleNavSection label="Research" links={researchLinks} />
-        <div className="h-px mx-1" style={{ backgroundColor: "var(--hairline)" }} />
+        <CollapsibleNavSection label="Research" links={researchLinks} collapsed={collapsed} />
+        <div className={collapsed ? "h-px mx-2" : "h-px mx-1"} style={{ backgroundColor: "var(--hairline)" }} />
 
-        <CollapsibleNavSection label="Product" links={productLinks} />
+        <CollapsibleNavSection label="Product" links={productLinks} collapsed={collapsed} />
       </div>
 
       {/* Sticky bottom: nav links + Profile */}
       <div className="shrink-0 border-t" style={{ borderColor: "var(--hairline)" }}>
-        <div className="px-3 pt-2 pb-1">
-          <NavSection label="" links={stickyBottomLinks} />
+        <div className={collapsed ? "px-2 pt-2 pb-1" : "px-3 pt-2 pb-1"}>
+          <NavSection label="" links={stickyBottomLinks} collapsed={collapsed} />
         </div>
-        <div className="h-px mx-3" style={{ backgroundColor: "var(--hairline)" }} />
-        <div className="px-3 py-2">
-          <ProfileMenu variant="sidebar" />
+        <div className={collapsed ? "h-px mx-3" : "h-px mx-3"} style={{ backgroundColor: "var(--hairline)" }} />
+        <div className={collapsed ? "px-2 py-2" : "px-3 py-2"}>
+          <ProfileMenu variant="sidebar" collapsed={collapsed} />
         </div>
       </div>
     </aside>

@@ -5,10 +5,12 @@ import { RitsAiLogo } from "@/components/ai/rits-ai-logo";
 import { useUser } from "@clerk/nextjs";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Menu, X, Home, Flame, Layers3, Bell } from "lucide-react";
+import { ChevronLeft, ChevronRight, Menu, X, Home, Flame, Layers3, Bell } from "lucide-react";
 import { ChatSheet } from "@/components/ai/chat-sheet";
 import { ConfirmProvider } from "@/components/ui/confirm-provider";
 
+const MAIN_SIDEBAR_WIDTH = 240;
+const MAIN_SIDEBAR_COLLAPSED_WIDTH = 64;
 
 
 export default function MainLayout({
@@ -22,6 +24,7 @@ export default function MainLayout({
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [aiOpenRequest, setAiOpenRequest] = useState({ id: 0, prompt: "" });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mainSidebarOpen, setMainSidebarOpen] = useState(true);
 
   const mobileNavItems = [
     { href: "/dashboard", label: "Home", icon: Home },
@@ -75,8 +78,28 @@ export default function MainLayout({
         className="flex h-dvh overflow-hidden"
         style={{ backgroundColor: "var(--canvas)" }}
       >
-        <div className="hidden md:block">
-          <Sidebar />
+        <div
+          className="relative hidden h-full shrink-0 transition-[width] duration-300 ease-in-out md:block"
+          style={{ width: mainSidebarOpen ? MAIN_SIDEBAR_WIDTH : MAIN_SIDEBAR_COLLAPSED_WIDTH }}
+        >
+          <div className="h-full overflow-hidden">
+            <Sidebar collapsed={!mainSidebarOpen} />
+          </div>
+          <button
+            type="button"
+            aria-label={mainSidebarOpen ? "Collapse main sidebar" : "Expand main sidebar"}
+            title={mainSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+            onClick={() => setMainSidebarOpen((open) => !open)}
+            className="absolute left-full top-1/2 z-50 flex h-10 w-7 -translate-y-1/2 items-center justify-center rounded-r-md border border-l-0 shadow-lg transition-colors"
+            style={{
+              borderColor: "var(--hairline-strong)",
+              backgroundColor: "var(--surface-elevated)",
+              color: "var(--charcoal)",
+              boxShadow: "0 12px 28px rgba(0,0,0,0.28)",
+            }}
+          >
+            {mainSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
         </div>
 
         {mobileNavOpen ? (

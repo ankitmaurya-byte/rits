@@ -33,7 +33,7 @@ function getInitials(name: string) {
   return parts.map((part) => part[0]?.toUpperCase() ?? "").join("") || "U";
 }
 
-export function ProfileMenu({ variant }: { variant?: "sidebar" }) {
+export function ProfileMenu({ variant, collapsed = false }: { variant?: "sidebar"; collapsed?: boolean }) {
   const router = useRouter();
   const { signOut } = useClerk();
   const { user: clerkUser } = useUser();
@@ -53,21 +53,25 @@ export function ProfileMenu({ variant }: { variant?: "sidebar" }) {
     variant === "sidebar" ? (
       <button
         type="button"
-        className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--surface-elevated)] focus-visible:outline-none"
+        title={collapsed ? name : undefined}
+        aria-label={collapsed ? name : undefined}
+        className={`flex w-full items-center rounded-lg py-2 text-left transition-colors hover:bg-[var(--surface-elevated)] focus-visible:outline-none ${
+          collapsed ? "justify-center px-0" : "gap-2.5 px-2"
+        }`}
         style={{ backgroundColor: "transparent" }}
       >
         <Avatar className="size-7 shrink-0" size="sm">
           <AvatarImage src={image} alt={name} />
           <AvatarFallback>{getInitials(name)}</AvatarFallback>
         </Avatar>
-        <div className="flex-1 min-w-0">
+        {!collapsed ? <div className="flex-1 min-w-0">
           <p className="text-xs font-medium leading-tight truncate" style={{ color: "var(--ink)" }}>
             {name}
           </p>
           <p className="text-[10px] leading-tight mt-0.5 truncate" style={{ color: "var(--mute)" }}>
             {status || email}
           </p>
-        </div>
+        </div> : null}
       </button>
     ) : (
       <button

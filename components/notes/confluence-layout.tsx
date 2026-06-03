@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Doc, Id } from "@/convex/_generated/dataModel";
 import { 
-  Copy, FileText, Trash2, Clock, Menu, ChevronRight,
+  Copy, FileText, Trash2, Clock, ChevronRight,
   ChevronDown, Folder, FolderPlus, FilePlus, Share2, FolderOpen, Database, Pin, ListTree, Globe2, Lock, UserPlus, X
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -104,6 +104,7 @@ const ORDER_GAP = 1024;
 const EMPTY_NOTES: NoteDoc[] = [];
 const SIDEBAR_DEFAULT_WIDTH = 240;
 const SIDEBAR_MIN_WIDTH = 200;
+const SIDEBAR_COLLAPSE_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 520;
 const DEFAULT_HIERARCHY_SETTINGS_VALUE: HierarchyEditorSettingsValue = {
   themeName: "Solarized Dark",
@@ -680,7 +681,15 @@ export function ConfluenceLayout({
     const handleMouseMove = (event: MouseEvent) => {
       const shellRect = sidebarShellRef.current?.getBoundingClientRect();
       if (!shellRect) return;
-      setSidebarWidth(clampSidebarWidth(event.clientX - shellRect.left));
+      const nextWidth = event.clientX - shellRect.left;
+      if (nextWidth < SIDEBAR_COLLAPSE_WIDTH) {
+        setSidebarOpen(false);
+        setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
+        setResizingSidebar(false);
+        return;
+      }
+      setSidebarOpen(true);
+      setSidebarWidth(clampSidebarWidth(nextWidth));
     };
 
     const handleMouseUp = () => {
@@ -697,6 +706,21 @@ export function ConfluenceLayout({
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [resizingSidebar]);
+
+  useEffect(() => {
+    const handleNavSelection = (event: Event) => {
+      const href = event instanceof CustomEvent && typeof event.detail?.href === "string" ? event.detail.href : "";
+      if (href !== "/private/notes" && href !== "/workspace/notes") return;
+      setResizingSidebar(false);
+      setSidebarOpen((open) => {
+        if (!open) setSidebarWidth((width) => clampSidebarWidth(width || SIDEBAR_DEFAULT_WIDTH));
+        return !open;
+      });
+    };
+
+    window.addEventListener("rits-app-nav:select", handleNavSelection);
+    return () => window.removeEventListener("rits-app-nav:select", handleNavSelection);
+  }, []);
 
   const toggleFolder = (folderId: Id<"notes">) => {
     setExpandedFolders(prev => {
@@ -1252,11 +1276,6 @@ export function ConfluenceLayout({
 
         {view === "sidebar" ? (
           <div className="flex flex-col flex-1 overflow-hidden relative bg-[var(--canvas)]">
-            {sidebarOpen ? null : (
-              <button onClick={() => setSidebarOpen(true)} className="absolute top-4 left-4 z-50 p-2 rounded-md transition-colors bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] text-[var(--body)] hover:text-[var(--ink)] shadow-sm">
-                <Menu size={18} />
-              </button>
-            )}
             {activeNote ? (
               <div className="flex-1 overflow-hidden relative z-10 bg-[var(--surface-card)] flex flex-col">
                 {activeNoteFileType !== "hierarchy" && (
@@ -1368,11 +1387,6 @@ export function ConfluenceLayout({
           </div>
         ) : (
           <div className="flex-1 flex flex-col overflow-auto relative p-8 bg-[#191919]">
-            {sidebarOpen ? null : (
-              <button onClick={() => setSidebarOpen(true)} className="absolute top-8 left-4 z-50 p-2 rounded-md transition-colors bg-[var(--surface-elevated)] border border-[var(--hairline-strong)] text-[var(--body)] hover:text-[var(--ink)] shadow-sm">
-                <Menu size={18} />
-              </button>
-            )}
             <div className="max-w-7xl mx-auto w-full">
               <div className="flex items-center gap-4 mb-8">
                 <div className="text-2xl font-bold text-white flex items-center gap-2">
